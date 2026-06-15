@@ -32,8 +32,6 @@ import { linking } from "./src/navigators/linkingConfig";
 
 import { loadRemoteConfig } from "./src/utils/remoteConfig";
 
-import { requestBatteryOptimizationExemption } from "./src/utils/sessionReminder";
-
 import notifee, { AndroidImportance } from "@notifee/react-native";
 
 
@@ -101,8 +99,6 @@ export default function App() {
   React.useEffect(() => {
 
     loadRemoteConfig();
-
-    requestBatteryOptimizationExemption();
 
 
 

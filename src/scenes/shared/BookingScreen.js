@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -676,57 +676,65 @@ export default function BookingScreen({ navigation, route }) {
     ]).start();
   }, [headerFade, headerSlide]);
 
-  const loadMentorData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [availability, mentorProfile] = await Promise.all([
-        availabilityApi.getAvailabilityForMentor(mentorId),
-        mentorApi.getMentorWithProfile(mentorId),
-      ]);
-
-      setMentorData(mentorProfile);
-      setPricePerHour(mentorProfile?.price_per_hour || 0);
-
-      if (profile?.id) {
-        const rule = await paymentApi.getFeeRule();
-        setFeeConfig(
-          rule
-            ? {
-                platformFeePercent: Number(rule.platform_fee_percent),
-                gstPercent: Number(rule.gst_percent),
-              }
-            : null,
-        );
-      }
-
-      if (!availability?.length) {
-        setMentorAvailability({});
-        return;
-      }
-
-      const byDate = {};
-      availability.forEach(slot => {
-        if (!byDate[slot.date]) byDate[slot.date] = [];
-        byDate[slot.date].push({
-          id: slot.id,
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-          is_booked: slot.is_booked,
-        });
-      });
-      setMentorAvailability(byDate);
-    } catch (err) {
-      Toast.show('Failed to load mentor data: ' + err.message);
-      setMentorAvailability({});
-    } finally {
-      setLoading(false);
-      setInitialLoading(false);
-    }
-  }, [mentorId, profile?.id]);
-
   useEffect(() => {
-    loadMentorData();
-  }, [loadMentorData]);
+    let active = true;
+
+    const run = async () => {
+      try {
+        setLoading(true);
+        const [availability, mentorProfile] = await Promise.all([
+          availabilityApi.getAvailabilityForMentor(mentorId),
+          mentorApi.getMentorWithProfile(mentorId),
+        ]);
+
+        if (!active) return;
+        setMentorData(mentorProfile);
+        setPricePerHour(mentorProfile?.price_per_hour || 0);
+
+        if (profile?.id) {
+          const rule = await paymentApi.getFeeRule();
+          if (!active) return;
+          setFeeConfig(
+            rule
+              ? {
+                  platformFeePercent: Number(rule.platform_fee_percent),
+                  gstPercent: Number(rule.gst_percent),
+                }
+              : null,
+          );
+        }
+
+        if (!availability?.length) {
+          setMentorAvailability({});
+          return;
+        }
+
+        const byDate = {};
+        availability.forEach(slot => {
+          if (!byDate[slot.date]) byDate[slot.date] = [];
+          byDate[slot.date].push({
+            id: slot.id,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+            is_booked: slot.is_booked,
+          });
+        });
+        setMentorAvailability(byDate);
+      } catch (err) {
+        if (!active) return;
+        Toast.show('Failed to load mentor data: ' + err.message);
+        setMentorAvailability({});
+      } finally {
+        if (active) {
+          setLoading(false);
+          setInitialLoading(false);
+        }
+      }
+    };
+
+    run();
+    return () => { active = false; };
+  }, [mentorId, profile?.id]);
 
   useEffect(() => {
     layoutSpring();

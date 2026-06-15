@@ -41,6 +41,8 @@ buck-out/
 \.buckd/
 *.keystore
 !debug.keystore
+google-services.json
+GoogleService-Info.plist
 
 # Bundle artifact
 *.jsbundle

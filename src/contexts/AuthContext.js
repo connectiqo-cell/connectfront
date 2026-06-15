@@ -93,31 +93,22 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const fetchProfile = async (userId) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
-
-      // Create a promise that logs if it takes too long
-      const slowPromise = new Promise(resolve =>
-        setTimeout(() => {
-          resolve();
-        }, 3000)
-      );
-
-      // Fetch profile
-      const profilePromise = supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .single()
+        .abortSignal(controller.signal);
 
-      // Log if it's taking too long, but don't abort
-      Promise.race([profilePromise, slowPromise]);
-
-      const { data, error } = await profilePromise;
+      clearTimeout(timeoutId);
 
       if (error) {
         console.error('❌ Profile fetch error:', error.message, error.code || '');
 
-        // If profile doesn't exist and user is authenticated, sign them out
         if (error.code === 'PGRST116' || error.message.includes('not found')) {
           await supabase.auth.signOut();
           setSession(null);
@@ -126,7 +117,6 @@ export const AuthProvider = ({ children }) => {
           setLoading(false);
           return;
         }
-        // For other errors, just log and wait for next event
         setLoading(false);
         return;
       }
@@ -153,6 +143,12 @@ export const AuthProvider = ({ children }) => {
       }
       setLoading(false);
     } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.warn('⚠️ Profile fetch timed out after 8s');
+        setLoading(false);
+        return;
+      }
       console.error('❌ Profile fetch exception:', error.message);
       setLoading(false);
     }

@@ -1,6 +1,8 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
+  Text,
+  TouchableOpacity,
   Platform,
   PermissionsAndroid,
 } from 'react-native';
@@ -23,6 +25,40 @@ import { useAuth } from '../../hooks/useAuth';
 import { resolveLobbyPartner } from '../../utils/sessionLobbyRules';
 import MeetingContainer from '../meeting/MeetingContainer';
 import SessionLobbyView from '../meeting/Components/SessionLobbyView';
+
+class CallErrorBoundary extends React.Component {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error('CallErrorBoundary caught:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a1a', padding: 24 }}>
+          <Text style={{ color: '#fff', fontSize: 16, marginBottom: 8, textAlign: 'center' }}>
+            Something went wrong during the call
+          </Text>
+          <Text style={{ color: '#888', fontSize: 13, marginBottom: 24, textAlign: 'center' }}>
+            The session could not continue
+          </Text>
+          <TouchableOpacity
+            onPress={this.props.onLeave}
+            style={{ paddingVertical: 12, paddingHorizontal: 28, backgroundColor: '#6366f1', borderRadius: 8 }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Leave Call</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function VideoCallScreen({ navigation, route }) {
   const { bookingId, isHost } = route.params;
@@ -339,19 +375,21 @@ export default function VideoCallScreen({ navigation, route }) {
         }}
         token={callParams.token}
       >
-        <MeetingConsumer onMeetingLeft={handleMeetingLeft}>
-          {() => (
-            <MeetingContainer
-              meetingType="ONE_TO_ONE"
-              onParticipantCountChange={setParticipantCount}
-              isHost={isHost}
-              isMentor={isMentor}
-              booking={booking}
-              otherUser={resolvedOtherUser}
-              onLeaveSession={handleMeetingLeft}
-            />
-          )}
-        </MeetingConsumer>
+        <CallErrorBoundary onLeave={() => navigation.goBack()}>
+          <MeetingConsumer onMeetingLeft={handleMeetingLeft}>
+            {() => (
+              <MeetingContainer
+                meetingType="ONE_TO_ONE"
+                onParticipantCountChange={setParticipantCount}
+                isHost={isHost}
+                isMentor={isMentor}
+                booking={booking}
+                otherUser={resolvedOtherUser}
+                onLeaveSession={handleMeetingLeft}
+              />
+            )}
+          </MeetingConsumer>
+        </CallErrorBoundary>
       </MeetingProvider>
     </View>
   );

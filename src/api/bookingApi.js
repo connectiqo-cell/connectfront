@@ -328,7 +328,10 @@ export const bookingApi = {
         body: JSON.stringify({ bookingId, status }),
       })
         .then(async res => {
-          const text = await res.text();
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            console.warn('📣 notify-booking-status failed:', res.status, text);
+          }
         })
         .catch(err => console.warn('📣 notify-booking-status fetch error:', err));
 

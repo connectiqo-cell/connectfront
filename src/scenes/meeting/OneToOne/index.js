@@ -314,6 +314,10 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         return;
       }
 
+      if (!payload || typeof payload !== 'object' || typeof payload.type !== 'string') {
+        return;
+      }
+
       if (
         payload.type === "RECORDING_CONSENT_REQUEST" &&
         payload.requesterId !== localParticipantIdRef.current

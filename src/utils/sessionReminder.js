@@ -60,6 +60,7 @@ export async function scheduleSessionReminder({
 }) {
   try {
     await ensureChannel();
+    await requestBatteryOptimizationExemption();
 
     const [year, month, day] = sessionDate.split('-').map(Number);
     const [hours, minutes] = (sessionTime || '00:00').split(':').map(Number);

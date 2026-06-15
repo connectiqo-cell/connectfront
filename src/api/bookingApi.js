@@ -69,6 +69,7 @@ export const bookingApi = {
         .select(`
           *,
           profiles!learner_id ( name, avatar_url ),
+          mentor_profile:profiles!mentor_id ( id, name, avatar_url ),
           availability_slots ( date, start_time, end_time )
         `)
         .eq('id', bookingId)

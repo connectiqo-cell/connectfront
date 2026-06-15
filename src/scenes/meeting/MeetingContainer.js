@@ -1,22 +1,33 @@
-﻿import {
-  useMeeting,
-} from "@videosdk.live/react-native-sdk";
-import { useEffect, useState } from "react";
-import OneToOneMeetingViewer from "./OneToOne";
-import ConferenceMeetingViewer from "./Conference/ConferenceMeetingViewer";
-import ParticipantLimitViewer from "./OneToOne/ParticipantLimitViewer";
-import WaitingToJoinView from "./Components/WaitingToJoinView";
-import React from "react";
+﻿import { useMeeting } from '@videosdk.live/react-native-sdk';
+import { useEffect, useState, useRef } from 'react';
+import React from 'react';
+import Toast from 'react-native-simple-toast';
+import OneToOneMeetingViewer from './OneToOne';
+import ConferenceMeetingViewer from './Conference/ConferenceMeetingViewer';
+import ParticipantLimitViewer from './OneToOne/ParticipantLimitViewer';
+import SessionLobbyView from './Components/SessionLobbyView';
 
-export default function MeetingContainer({ webcamEnabled, meetingType, onParticipantCountChange, isHost }) {
+export default function MeetingContainer({
+  meetingType,
+  onParticipantCountChange,
+  isHost,
+  booking,
+  isMentor,
+  otherUser,
+  onLeaveSession,
+}) {
   const [isJoined, setJoined] = useState(false);
   const [participantLimit, setParticipantLimit] = useState(false);
+  const hasJoinedRef = useRef(false);
+  const joinRequestedRef = useRef(false);
 
-  const { join, participants, leave } = useMeeting({
+  const { join, participants, leave, localMicOn, localWebcamOn, toggleMic, toggleWebcam } = useMeeting({
     onMeetingJoined: () => {
-      setTimeout(() => {
-        setJoined(true);
-      }, 500);
+      hasJoinedRef.current = true;
+      setJoined(true);
+    },
+    onError: ({ message }) => {
+      Toast.show(message || 'Failed to join session');
     },
     onParticipantLeft: () => {
       if (participants.size < 2) {
@@ -25,43 +36,73 @@ export default function MeetingContainer({ webcamEnabled, meetingType, onPartici
     },
   });
 
-  // Track participant count and notify parent
+  const remoteParticipantCount = participants.size;
+
   useEffect(() => {
-    const participantCount = participants.size + 1; // +1 for self
-    if (onParticipantCountChange) {
-      onParticipantCountChange(participantCount);
-    }
+    onParticipantCountChange?.(participants.size + 1);
   }, [participants.size, onParticipantCountChange]);
 
   useEffect(() => {
-    if (isJoined) {
-      if (participants.size > 2) {
-        setParticipantLimit(true);
-      }
+    if (isJoined && participants.size > 2) {
+      setParticipantLimit(true);
     }
-  }, [isJoined]);
+  }, [isJoined, participants.size]);
 
   useEffect(() => {
-    setTimeout(() => {
-      if (!isJoined) {
+    if (joinRequestedRef.current) return undefined;
+    joinRequestedRef.current = true;
+
+    const timer = setTimeout(() => {
+      try {
         join();
+      } catch (err) {
+        Toast.show(err?.message || 'Could not join session');
       }
-    }, 1000);
+    }, 400);
 
     return () => {
-      leave();
+      clearTimeout(timer);
+      if (hasJoinedRef.current) {
+        leave();
+      }
     };
-  }, []);
+  }, [join, leave]);
 
-  return isJoined ? (
-    meetingType === "GROUP" ? (
-      <ConferenceMeetingViewer />
-    ) : participantLimit ? (
-      <ParticipantLimitViewer />
-    ) : (
-      <OneToOneMeetingViewer isHost={isHost} />
-    )
-  ) : (
-    <WaitingToJoinView />
+  const handleLeave = () => {
+    if (hasJoinedRef.current) {
+      leave();
+    }
+    onLeaveSession?.();
+  };
+
+  const showActiveCall =
+    isJoined && remoteParticipantCount >= 1 && meetingType !== 'GROUP' && !participantLimit;
+
+  if (showActiveCall) {
+    return <OneToOneMeetingViewer isHost={isHost} booking={booking} />;
+  }
+
+  if (isJoined && meetingType === 'GROUP') {
+    return <ConferenceMeetingViewer />;
+  }
+
+  if (isJoined && participantLimit) {
+    return <ParticipantLimitViewer />;
+  }
+
+  return (
+    <SessionLobbyView
+      booking={booking}
+      isMentor={isMentor}
+      otherUser={otherUser}
+      connecting={!isJoined}
+      micOn={localMicOn}
+      camOn={localWebcamOn}
+      onToggleMic={isJoined ? toggleMic : undefined}
+      onToggleCam={isJoined ? toggleWebcam : undefined}
+      onLeave={handleLeave}
+      onReschedule={handleLeave}
+      onCancelRefund={() => {}}
+    />
   );
 }

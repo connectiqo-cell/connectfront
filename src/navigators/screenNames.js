@@ -41,13 +41,12 @@ export const SCREEN_NAMES = {
   TransactionHistory: "TransactionHistory_Screen",
   Wallet: "Wallet_Screen",
   Review: "Review_Screen",
+  MentorReviews: "MentorReviews_Screen",
   CategoryMentors: "CategoryMentors_Screen",
 
   // Mentor video library
   MentorVideos: "MentorVideos_Screen",
 
-  // Mentor stats dashboard (accessible from own profile preview)
-  MentorStats: "MentorStats_Screen",
 
   // Payout / KYC setup
   PayoutSetup: "PayoutSetup_Screen",

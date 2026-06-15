@@ -27,11 +27,11 @@ export const LearnerSectionNavigator = () => {
       screenOptions={{
         swipeEnabled: true,
         lazy: true,
-        lazyPreloadDistance: 1,
+        lazyPreloadDistance: 0,
         animationEnabled: false,
       }}
-      style={{ backgroundColor: 'transparent' }}
-      sceneContainerStyle={{ backgroundColor: 'transparent' }}
+      style={{ flex: 1, backgroundColor: 'transparent' }}
+      sceneContainerStyle={{ flex: 1, backgroundColor: 'transparent' }}
     >
       <TopTab.Screen
         name={SCREEN_NAMES.LearnerSearch}

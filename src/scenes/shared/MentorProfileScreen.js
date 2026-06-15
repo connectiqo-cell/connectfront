@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   ImageBackground,
   ScrollView,
   TouchableOpacity,
+  Pressable,
+  Animated,
+  Easing,
   StyleSheet,
   Platform,
   Modal,
@@ -22,11 +25,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-simple-toast';
 import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
+import { getFloatingTabBarContentInset } from '../../components/CosmicBottomTabBar';
 import CosmicButton from '../../components/CosmicButton';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { profileApi } from '../../api/profileApi';
 import { videoApi } from '../../api/videoApi';
-import MentorStatsScreen from '../mentor/MentorStatsScreen';
 import { bookingApi } from '../../api/bookingApi';
 import { useAuth } from '../../hooks/useAuth';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
@@ -34,8 +37,8 @@ import { SCREEN_NAMES } from '../../navigators/screenNames';
 const T = UNIFIED_THEME;
 const C = T.colors;
 
-/** Design reference: deep navy canvas */
-const SCREEN_BG = '#030308';
+/** Opaque fill for small UI elements (avatar ring, refresh spinner). */
+const SCREEN_BG = C.primary.void;
 const PURPLE_LINK = '#a78bfa';
 const GOLD = '#f0d875';
 const TEAL = '#2dd4bf';
@@ -97,6 +100,284 @@ function formatStatCount(n) {
 
 function isPreviewSlot(video, index) {
   return video.is_free || index < FREE_LIMIT;
+}
+
+/** Staggered fade + slide entrance for profile sections. */
+function ProfileFadeIn({ delayIndex = 0, children, style }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(18)).current;
+  const scale = useRef(new Animated.Value(0.97)).current;
+  const delay = delayIndex * 70;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 380,
+        delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(translateY, {
+        toValue: 0,
+        friction: 8,
+        tension: 85,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 7,
+        tension: 90,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [delay, opacity, scale, translateY]);
+
+  return (
+    <Animated.View style={[style, { opacity, transform: [{ translateY }, { scale }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+/** Press scale + optional glow for tappable profile elements. */
+function PressableScale({
+  children,
+  onPress,
+  style,
+  disabled,
+  scaleTo = 0.94,
+  hitSlop,
+  showGlow = true,
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const glow = useRef(new Animated.Value(0)).current;
+
+  const onPressIn = () => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: scaleTo,
+        friction: 6,
+        tension: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(glow, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const onPressOut = () => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 5,
+        tension: 140,
+        useNativeDriver: true,
+      }),
+      Animated.timing(glow, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const glowOpacity = glow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.45],
+  });
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={disabled}
+        style={style}
+        hitSlop={hitSlop}
+      >
+        {showGlow ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[pressFx.glowRing, { opacity: glowOpacity }]}
+          />
+        ) : null}
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+const pressFx = StyleSheet.create({
+  glowRing: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: PURPLE_LINK,
+  },
+});
+
+/** Subtle Ken Burns zoom on hero cover. */
+function HeroEntrance({ children, style }) {
+  const scale = useRef(new Animated.Value(1.08)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [opacity, scale]);
+
+  return (
+    <Animated.View style={[style, { opacity, transform: [{ scale }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+/** Pulsing halo behind avatar ring. */
+function AvatarPulseRing({ children }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
+  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.55] });
+
+  return (
+    <View style={avatarFx.wrap}>
+      <Animated.View
+        style={[
+          avatarFx.halo,
+          { opacity: ringOpacity, transform: [{ scale: ringScale }] },
+        ]}
+      />
+      {children}
+    </View>
+  );
+}
+
+const avatarFx = StyleSheet.create({
+  wrap: { position: 'relative', alignItems: 'center' },
+  halo: {
+    position: 'absolute',
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    borderWidth: 2,
+    borderColor: PURPLE_LINK,
+    top: -8,
+  },
+  dotWrap: {
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    width: 14,
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dotPulse: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#22c55e',
+  },
+  dotCore: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#22c55e',
+    borderWidth: 2,
+    borderColor: SCREEN_BG,
+  },
+});
+
+/** Breathing online indicator. */
+function PulseOnlineDot({ style }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  const dotScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] });
+  const dotOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] });
+
+  return (
+    <View style={[style, avatarFx.dotWrap]}>
+      <Animated.View
+        style={[avatarFx.dotPulse, { opacity: dotOpacity, transform: [{ scale: dotScale }] }]}
+      />
+      <View style={avatarFx.dotCore} />
+    </View>
+  );
+}
+
+function AnimatedTagChip({ label, overflow }) {
+  return (
+    <PressableScale
+      scaleTo={0.92}
+      showGlow={false}
+      style={[styles.tagChip, overflow && styles.tagOverflowChip]}
+    >
+      <Text style={styles.tagTxt}>{label}</Text>
+    </PressableScale>
+  );
 }
 
 function GoldStarsRow({ rating, size = 11 }) {
@@ -182,7 +463,7 @@ const vStyles = StyleSheet.create({
   playBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
 });
 
-function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions }) {
+function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, onRatingPress }) {
   const ratingNum = Number(rating) || 0;
   const hasRating = ratingNum > 0;
 
@@ -233,24 +514,32 @@ function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions }) 
         label="Sessions"
       />
       <View style={statsBar.divider} />
-      <View style={statsBar.segment}>
+      <Pressable
+        onPress={onRatingPress}
+        disabled={!onRatingPress}
+        style={({ pressed }) => [
+          statsBar.segment,
+          statsBar.ratingSegment,
+          onRatingPress && pressed && statsBar.ratingSegmentPressed,
+        ]}
+        accessibilityRole={onRatingPress ? 'button' : undefined}
+        accessibilityLabel="View reviews"
+      >
         <View style={statsBar.valueRowSlot}>
           <Text style={statsBar.valueBig} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
             {hasRating ? ratingNum.toFixed(1) : '—'}
           </Text>
         </View>
         <View style={statsBar.starsSlot}>
-          <View style={statsBar.starsSlotInner}>
-            {/* {hasRating ? <GoldStarsRow rating={ratingNum} size={9} /> : null} */}
-          </View>
+          <View style={statsBar.starsSlotInner} />
         </View>
         <View style={statsBar.labelRow}>
           <MaterialIcons name="star" size={12} color={GOLD} />
           <Text style={statsBar.labelMuted} numberOfLines={1}>
-            Rating
+            Reviews
           </Text>
         </View>
-      </View>
+      </Pressable>
     </View>
   );
 }
@@ -322,16 +611,69 @@ const statsBar = StyleSheet.create({
     marginVertical: 6,
     alignSelf: 'stretch',
   },
+  ratingSegment: {
+    borderRadius: 10,
+  },
+  ratingSegmentPressed: {
+    backgroundColor: 'rgba(167,139,250,0.12)',
+  },
 });
 
-function SectionHeaderRow({ title, onSeeAll }) {
+function SectionHeaderRow({ title, onSeeAll, delayIndex = 0 }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const chevronX = useRef(new Animated.Value(0)).current;
+
+  const onPressIn = () => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: 0.94,
+        friction: 6,
+        tension: 140,
+        useNativeDriver: true,
+      }),
+      Animated.timing(chevronX, {
+        toValue: 5,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const onPressOut = () => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 5,
+        tension: 120,
+        useNativeDriver: true,
+      }),
+      Animated.spring(chevronX, {
+        toValue: 0,
+        friction: 6,
+        tension: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   return (
-    <View style={secHdr.row}>
+    <ProfileFadeIn delayIndex={delayIndex} style={secHdr.row}>
       <Text style={secHdr.title}>{title}</Text>
-      <TouchableOpacity onPress={onSeeAll} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Text style={secHdr.link}>See all &gt;</Text>
-      </TouchableOpacity>
-    </View>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Pressable
+          onPress={onSeeAll}
+          onPressIn={onPressIn}
+          onPressOut={onPressOut}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={secHdr.linkBtn}
+        >
+          <Text style={secHdr.link}>See all</Text>
+          <Animated.View style={{ transform: [{ translateX: chevronX }] }}>
+            <MaterialIcons name="chevron-right" size={18} color={PURPLE_LINK} />
+          </Animated.View>
+        </Pressable>
+      </Animated.View>
+    </ProfileFadeIn>
   );
 }
 
@@ -345,6 +687,14 @@ const secHdr = StyleSheet.create({
     marginBottom: 2,
   },
   title: { fontSize: 15, fontWeight: '800', color: C.text.primary },
+  linkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+  },
   link: { fontSize: 13, fontWeight: '700', color: PURPLE_LINK },
 });
 
@@ -356,6 +706,7 @@ function PortraitVideoCard({
   locked,
   cardWidth = RAIL_CARD_W,
   thumbAspect = 1.38,
+  animDelay = 0,
 }) {
   const isPrev = isPreviewSlot(video, index);
   const canPlay = isPrev || isUnlocked;
@@ -365,66 +716,73 @@ function PortraitVideoCard({
   const playIconSize = Math.round(Math.min(26, cardWidth * 0.22));
   const railMargin = cardWidth >= SCREEN_W * 0.85 ? 0 : 10;
 
+  const handlePress = () => {
+    if (canPlay) onPlay(video);
+    else Toast.show('Subscribe to unlock this video', Toast.SHORT);
+  };
+
   return (
-    <TouchableOpacity
-      style={[railCard.card, { width: cardWidth, marginRight: railMargin }]}
-      activeOpacity={0.88}
-      onPress={() => (canPlay ? onPlay(video) : Toast.show('Subscribe to unlock this video', Toast.SHORT))}
-    >
-      <View style={[railCard.thumbWrap, { height: thumbH }]}>
-        {video.thumbnail_url ? (
-          <Image
-            source={{ uri: video.thumbnail_url }}
-            style={[railCard.thumbImg, locked ? { opacity: Platform.OS === 'ios' ? 0.5 : 0.42 } : null]}
-            resizeMode="cover"
-            blurRadius={locked && Platform.OS === 'ios' ? 14 : 0}
-          />
-        ) : (
-          <LinearGradient
-            colors={['#3d3666', '#16122c']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={railCard.thumbPlaceholder}
-          >
-            <MaterialIcons name="videocam" size={Math.round(Math.min(36, cardWidth * 0.32))} color="rgba(255,255,255,0.38)" />
-          </LinearGradient>
-        )}
-        {locked ? (
-          <>
-            <LinearGradient
-              colors={['rgba(8,6,24,0.55)', 'rgba(3,2,12,0.92)']}
-              style={railCard.thumbDim}
+    <ProfileFadeIn delayIndex={animDelay} style={{ marginRight: railMargin }}>
+      <PressableScale
+        onPress={handlePress}
+        scaleTo={0.93}
+        style={[railCard.card, { width: cardWidth }]}
+      >
+        <View style={[railCard.thumbWrap, { height: thumbH }]}>
+          {video.thumbnail_url ? (
+            <Image
+              source={{ uri: video.thumbnail_url }}
+              style={[railCard.thumbImg, locked ? { opacity: Platform.OS === 'ios' ? 0.5 : 0.42 } : null]}
+              resizeMode="cover"
+              blurRadius={locked && Platform.OS === 'ios' ? 14 : 0}
             />
-            <View style={railCard.lockCenter}>
-              <MaterialIcons name="lock" size={iconSize} color="rgba(255,255,255,0.5)" />
-            </View>
-            {durationLabel ? (
-              <View style={railCard.lockedDur}>
-                <Text style={railCard.lockedDurTxt}>{durationLabel}</Text>
+          ) : (
+            <LinearGradient
+              colors={['#3d3666', '#16122c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={railCard.thumbPlaceholder}
+            >
+              <MaterialIcons name="videocam" size={Math.round(Math.min(36, cardWidth * 0.32))} color="rgba(255,255,255,0.38)" />
+            </LinearGradient>
+          )}
+          {locked ? (
+            <>
+              <LinearGradient
+                colors={['rgba(8,6,24,0.55)', 'rgba(3,2,12,0.92)']}
+                style={railCard.thumbDim}
+              />
+              <View style={railCard.lockCenter}>
+                <MaterialIcons name="lock" size={iconSize} color="rgba(255,255,255,0.5)" />
               </View>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <LinearGradient
-              colors={['rgba(0,0,0,0)', 'rgba(5,5,20,0.82)']}
-              style={railCard.thumbBottomFade}
-            />
-            <View style={railCard.thumbBottomRow}>
-              <MaterialIcons name="play-circle-filled" size={playIconSize} color="rgba(255,255,255,0.95)" />
               {durationLabel ? (
-                <View style={railCard.durPill}>
-                  <Text style={railCard.durTxt}>{durationLabel}</Text>
+                <View style={railCard.lockedDur}>
+                  <Text style={railCard.lockedDurTxt}>{durationLabel}</Text>
                 </View>
-              ) : <View />}
-            </View>
-          </>
-        )}
-      </View>
-      <View style={railCard.info}>
-        <Text style={railCard.titleTxt} numberOfLines={2}>{video.title}</Text>
-      </View>
-    </TouchableOpacity>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <LinearGradient
+                colors={['rgba(0,0,0,0)', 'rgba(5,5,20,0.82)']}
+                style={railCard.thumbBottomFade}
+              />
+              <View style={railCard.thumbBottomRow}>
+                <MaterialIcons name="play-circle-filled" size={playIconSize} color="rgba(255,255,255,0.95)" />
+                {durationLabel ? (
+                  <View style={railCard.durPill}>
+                    <Text style={railCard.durTxt}>{durationLabel}</Text>
+                  </View>
+                ) : <View />}
+              </View>
+            </>
+          )}
+        </View>
+        <View style={railCard.info}>
+          <Text style={railCard.titleTxt} numberOfLines={2}>{video.title}</Text>
+        </View>
+      </PressableScale>
+    </ProfileFadeIn>
   );
 }
 
@@ -586,10 +944,15 @@ export default function MentorProfileScreen({ navigation, route }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [showSubSheet, setShowSubSheet] = useState(false);
-  const [showStats, setShowStats] = useState(false);
 
   const isOwnProfile = Boolean(user?.id && mentorId && user.id === mentorId);
   const libraryUnlocked = isUnlocked || isOwnProfile;
+  const bottomTabInset = isOwnProfile ? getFloatingTabBarContentInset(insets) : 0;
+  const safeScreenProps = {
+    padding: 0,
+    hasBottomTabs: false,
+    includeTopInset: false,
+  };
 
   const compactHero = useMemo(
     () => Math.round(Math.min(152, Math.max(108, winH * 0.155))),
@@ -749,6 +1112,14 @@ export default function MentorProfileScreen({ navigation, route }) {
     navigation.navigate(SCREEN_NAMES.RecordingPlayer, { recordingUrl: session.recap_url });
   };
 
+  const openReviews = () => {
+    if (!mentorId) return;
+    navigation.navigate(SCREEN_NAMES.MentorReviews, {
+      mentorId,
+      mentorName: mentor?.profiles?.name || paramMentorName || 'Mentor',
+    });
+  };
+
   const avatarUrl = mentor?.profiles?.avatar_url;
   const name = mentor?.profiles?.name || paramMentorName || 'Mentor';
   const username = mentor?.profiles?.username || null;
@@ -763,8 +1134,8 @@ export default function MentorProfileScreen({ navigation, route }) {
 
   if (!mentorId) {
     return (
-      <SafeScreen scrollable={false} padding={0} hasBottomTabs={false}>
-        <View style={[styles.root, styles.centerFill]}>
+      <SafeScreen scrollable={false} {...safeScreenProps}>
+        <View style={[styles.root, styles.centerFill, !isOwnProfile && { paddingTop: insets.top }]}>
           <Text style={styles.errTxt}>Missing mentor.</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => navigation.goBack()}>
             <Text style={styles.retryTxt}>Go back</Text>
@@ -776,8 +1147,8 @@ export default function MentorProfileScreen({ navigation, route }) {
 
   if (loading && !mentor) {
     return (
-      <SafeScreen scrollable={false} padding={0} hasBottomTabs={false}>
-        <View style={[styles.root, styles.centerFill]}>
+      <SafeScreen scrollable={false} {...safeScreenProps}>
+        <View style={[styles.root, styles.centerFill, !isOwnProfile && { paddingTop: insets.top }]}>
           <ActivityIndicator size="large" color={PURPLE_LINK} />
         </View>
       </SafeScreen>
@@ -786,8 +1157,8 @@ export default function MentorProfileScreen({ navigation, route }) {
 
   if (error && !mentor) {
     return (
-      <SafeScreen scrollable={false} padding={0} hasBottomTabs={false}>
-        <View style={[styles.root, styles.centerFill]}>
+      <SafeScreen scrollable={false} {...safeScreenProps}>
+        <View style={[styles.root, styles.centerFill, !isOwnProfile && { paddingTop: insets.top }]}>
           <MaterialIcons name="error-outline" size={40} color={C.accent.error} />
           <Text style={styles.errTxt}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => loadData(false)}>
@@ -804,8 +1175,7 @@ export default function MentorProfileScreen({ navigation, route }) {
   return (
     <SafeScreen
       scrollable
-      padding={0}
-      hasBottomTabs={false}
+      {...safeScreenProps}
       refreshControl={(
         <RefreshControl
           refreshing={refreshing}
@@ -818,72 +1188,72 @@ export default function MentorProfileScreen({ navigation, route }) {
     >
       <View style={styles.root}>
         <View style={styles.mainColumn}>
-          <View style={[styles.hero, { height: compactHero }]}>
-            {heroCoverUri ? (
-              <ImageBackground
-                source={{ uri: heroCoverUri }}
-                style={StyleSheet.absoluteFill}
-                resizeMode="cover"
-              >
+          <View style={[styles.hero, { height: compactHero, overflow: 'hidden' }]}>
+            <HeroEntrance style={StyleSheet.absoluteFill}>
+              {heroCoverUri ? (
+                <ImageBackground
+                  source={{ uri: heroCoverUri }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                >
+                  <LinearGradient
+                    colors={['rgba(5,5,16,0.02)', 'rgba(5,5,16,0.28)', 'rgba(5,5,16,0.78)']}
+                    locations={[0, 0.42, 1]}
+                    style={StyleSheet.absoluteFill}
+                  />
+                </ImageBackground>
+              ) : (
                 <LinearGradient
-                  colors={['rgba(5,5,16,0.02)', 'rgba(5,5,16,0.28)', 'rgba(5,5,16,0.78)']}
-                  locations={[0, 0.42, 1]}
+                  colors={[C.primary.nebula, C.primary.dark, C.primary.void]}
+                  locations={[0, 0.45, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
-              </ImageBackground>
-            ) : (
-              <LinearGradient
-                colors={[C.primary.nebula, C.primary.dark, SCREEN_BG]}
-                locations={[0, 0.45, 1]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-            )}
-            <View style={[styles.heroTopBar, { paddingTop: Math.max(6, insets.top - 6) }]}>
+              )}
+            </HeroEntrance>
+            <View
+              style={[
+                styles.heroTopBar,
+                { paddingTop: isOwnProfile ? 6 : Math.max(6, insets.top - 6) },
+              ]}
+            >
               <View style={styles.heroBarActions}>
                 {!isOwnProfile && (
-                  <TouchableOpacity
+                  <PressableScale
                     onPress={() => navigation.goBack()}
+                    scaleTo={0.9}
+                    showGlow={false}
                     style={styles.heroCircleBtn}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
                     <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
-                  </TouchableOpacity>
+                  </PressableScale>
                 )}
               </View>
-              {isOwnProfile && (
-                <TouchableOpacity
-                  style={styles.mentorBadge}
-                  onPress={() => setShowStats(true)}
-                  activeOpacity={0.8}
-                >
-                  <MaterialIcons name="school" size={13} color={C.accent.secondary} />
-                  <Text style={styles.mentorBadgeTxt}>Mentor</Text>
-                </TouchableOpacity>
-              )}
             </View>
           </View>
 
           {/* ── Identity Block ── */}
-          <View style={styles.identityBlock}>
-            {/* Avatar */}
+          <ProfileFadeIn delayIndex={1} style={styles.identityBlock}>
             <View style={styles.avatarRingWrap}>
-              <LinearGradient
-                colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.avatarRingGrad}
-              >
-                {avatarUrl ? (
-                  <Image source={{ uri: avatarUrl }} style={styles.avatar} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                    <MaterialIcons name="person" size={48} color={PURPLE_LINK} />
-                  </View>
-                )}
-              </LinearGradient>
-              <View style={styles.avatarOnlineDot} />
+              <AvatarPulseRing>
+                <LinearGradient
+                  colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.avatarRingGrad}
+                >
+                  {avatarUrl ? (
+                    <Image source={{ uri: avatarUrl }} style={styles.avatar} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                      <MaterialIcons name="person" size={48} color={PURPLE_LINK} />
+                    </View>
+                  )}
+                </LinearGradient>
+              </AvatarPulseRing>
+              <PulseOnlineDot />
             </View>
 
             {/* Name + specialization + verified */}
@@ -905,29 +1275,28 @@ export default function MentorProfileScreen({ navigation, route }) {
             {visibleTags.length > 0 && (
               <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagStrip}>
                 {visibleTags.map(t => (
-                  <View key={t} style={styles.tagChip}>
-                    <Text style={styles.tagTxt}>{t}</Text>
-                  </View>
+                  <AnimatedTagChip key={t} label={t} />
                 ))}
                 {tagOverflow > 0 && (
-                  <View style={[styles.tagChip, styles.tagOverflowChip]}>
-                    <Text style={styles.tagTxt}>+{tagOverflow}</Text>
-                  </View>
+                  <AnimatedTagChip label={`+${tagOverflow}`} overflow />
                 )}
               </ScrollView>
             )}
-          </View>
+          </ProfileFadeIn>
 
           <View style={styles.bodyFlex}>
             <View style={styles.singleScreenBody}>
-              <MetricsStatRow
-                subscriberCount={subscriberCount}
-                rating={Number(rating) || 0}
-                videoCount={videoStat}
-                totalSessions={totalSessions}
-              />
+              <ProfileFadeIn delayIndex={2}>
+                <MetricsStatRow
+                  subscriberCount={subscriberCount}
+                  rating={Number(rating) || 0}
+                  videoCount={videoStat}
+                  totalSessions={totalSessions}
+                  onRatingPress={openReviews}
+                />
+              </ProfileFadeIn>
 
-              <View style={styles.dualCtas}>
+              <ProfileFadeIn delayIndex={3} style={styles.dualCtas}>
                 {showSubscribeCta ? (
                   <CosmicButton
                     label={`Subscribe · ₹${unlockPrice}/mo`}
@@ -972,11 +1341,11 @@ export default function MentorProfileScreen({ navigation, route }) {
                   disabled={isOwnProfile}
                   style={[styles.ctaHalf, isOwnProfile && { opacity: 0.45 }]}
                 />
-              </View>
+              </ProfileFadeIn>
 
               {memberVideos.length > 0 && (
                 <View style={styles.videoRailSection}>
-                  <SectionHeaderRow title="Members Only" onSeeAll={seeAll} />
+                  <SectionHeaderRow title="Members Only" onSeeAll={seeAll} delayIndex={4} />
                   <ScrollView
                     horizontal
                     nestedScrollEnabled
@@ -984,7 +1353,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                     style={styles.videoRailScroll}
                     contentContainerStyle={styles.hRailPad}
                   >
-                    {memberVideos.map((v) => {
+                    {memberVideos.map((v, idx) => {
                       const globIdx = videos.findIndex(x => x.id === v.id);
                       return (
                         <PortraitVideoCard
@@ -996,6 +1365,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                           locked={!libraryUnlocked}
                           cardWidth={compactRailW}
                           thumbAspect={0.82}
+                          animDelay={Math.min(4 + idx, 9)}
                         />
                       );
                     })}
@@ -1005,7 +1375,7 @@ export default function MentorProfileScreen({ navigation, route }) {
 
               {previewVideos.length > 0 && (
                 <View style={styles.videoRailSection}>
-                  <SectionHeaderRow title="Free Preview Videos" onSeeAll={seeAll} />
+                  <SectionHeaderRow title="Free Preview Videos" onSeeAll={seeAll} delayIndex={5} />
                   <ScrollView
                     horizontal
                     nestedScrollEnabled
@@ -1013,7 +1383,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                     style={styles.videoRailScroll}
                     contentContainerStyle={styles.hRailPad}
                   >
-                    {previewVideos.map((v) => {
+                    {previewVideos.map((v, idx) => {
                       const globIdx = videos.findIndex(x => x.id === v.id);
                       return (
                         <PortraitVideoCard
@@ -1025,6 +1395,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                           locked={false}
                           cardWidth={compactRailW}
                           thumbAspect={0.82}
+                          animDelay={Math.min(5 + idx, 10)}
                         />
                       );
                     })}
@@ -1049,18 +1420,9 @@ export default function MentorProfileScreen({ navigation, route }) {
             </View>
           </View>
         </View>
-        <View style={{ height: T.spacing.xxxl }} />
+        <View style={{ height: T.spacing.xxxl + bottomTabInset }} />
 
       </View>
-
-      {/* ── Mentor Stats Modal ── */}
-      <Modal
-        visible={showStats}
-        animationType="slide"
-        onRequestClose={() => setShowStats(false)}
-      >
-        <MentorStatsScreen onClose={() => setShowStats(false)} />
-      </Modal>
 
       {/* ── Subscribe Bottom Sheet ── */}
       <Modal
@@ -1166,7 +1528,7 @@ const sheet = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  root: { flexGrow: 1, backgroundColor: SCREEN_BG },
+  root: { flexGrow: 1, backgroundColor: 'transparent' },
   mainColumn: { flexGrow: 1 },
   bodyFlex: { width: '100%' },
   videoRailSection: { flexShrink: 0, marginTop: T.spacing.md, marginBottom: T.spacing.sm },
@@ -1178,28 +1540,17 @@ const styles = StyleSheet.create({
   retryTxtMuted: { color: C.text.muted, fontWeight: '600', fontSize: 13 },
   hero: { width: SCREEN_W },
   heroTopBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: T.spacing.md,
   },
   heroBarActions: { flexDirection: 'row', alignItems: 'center', gap: T.spacing.sm },
-  mentorBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderWidth: 1,
-    borderColor: 'rgba(94,234,212,0.35)',
-  },
-  mentorBadgeTxt: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: C.accent.secondary,
-  },
   heroCircleBtn: {
     width: 40,
     height: 40,

@@ -192,6 +192,8 @@ export default function App() {
 
               <CosmicBackground style={styles.navShell}>
 
+                <View style={styles.navShell}>
+
                 <NavigationContainer
 
                   ref={navigationRef}
@@ -205,6 +207,8 @@ export default function App() {
                   <RootNavigator />
 
                 </NavigationContainer>
+
+                </View>
 
               </CosmicBackground>
 

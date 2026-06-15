@@ -415,6 +415,3 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
 });
-
-/** @deprecated Use CosmicTopTabBar */
-export const CapsuleTabBar = CosmicTopTabBar;

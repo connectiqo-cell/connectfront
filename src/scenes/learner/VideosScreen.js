@@ -6,11 +6,13 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
   RefreshControl,
   Modal,
   AppState,
   Animated,
+  ActivityIndicator,
+  Pressable,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -20,14 +22,13 @@ import Toast from 'react-native-simple-toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import {
-  getFloatingTabBarHeight,
   getFloatingTabBarContentInset,
 } from '../../components/CosmicBottomTabBar';
 import CosmicButton from '../../components/CosmicButton';
 import { videoApi } from '../../api/videoApi';
 import { homeApi } from '../../api/homeApi';
 import { useAuth } from '../../hooks/useAuth';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
 const T = UNIFIED_THEME;
@@ -56,96 +57,168 @@ function SkeletonBone({ style }) {
   return <Animated.View style={[sk.bone, style, { opacity }]} />;
 }
 
-function VideosSkeleton({ bottomInset }) {
+function VideosSkeleton() {
   return (
     <View style={sk.root}>
       <SkeletonBone style={sk.shimmerVideo} />
-      <View style={[sk.shimmerDock, { paddingBottom: bottomInset }]}>
-        <View style={sk.shimmerPanel}>
-          <View style={sk.shimmerMentorRow}>
-            <SkeletonBone style={sk.shimmerName} />
-            <SkeletonBone style={sk.shimmerBadge} />
-          </View>
-          <SkeletonBone style={sk.shimmerTitle} />
-          <SkeletonBone style={sk.shimmerDesc} />
-        </View>
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.88)']}
+        style={sk.shimmerGradient}
+        pointerEvents="none"
+      />
+      <View style={sk.shimmerRail}>
+        <SkeletonBone style={sk.shimmerAvatar} />
       </View>
+      <View style={sk.shimmerDock}>
+        <SkeletonBone style={sk.shimmerName} />
+        <SkeletonBone style={sk.shimmerTitle} />
+        <SkeletonBone style={sk.shimmerDesc} />
+      </View>
+      <SkeletonBone style={sk.shimmerProgress} />
     </View>
   );
 }
 
-function StatusBadge({ item, isUnlocked, onLockPress }) {
-  if (item.is_free) {
-    return (
-      <View style={s.statusPill}>
-        <MaterialIcons name="play-circle-filled" size={11} color={TEAL} />
-        <Text style={s.statusFree}>Free</Text>
+function ReelProfileRail({ item, onViewProfile }) {
+  const name = item.profiles?.name || 'Connectiqo';
+  const canPress = !!item.mentor_id && onViewProfile;
+
+  const avatar = (
+    <LinearGradient colors={B.premiumGradient} style={s.railAvatarRing}>
+      <View style={s.railAvatarInner}>
+        {item.profiles?.avatar_url ? (
+          <Image source={{ uri: item.profiles.avatar_url }} style={s.railAvatar} />
+        ) : (
+          <View style={[s.railAvatar, s.railAvatarFallback]}>
+            <MaterialIcons name="person" size={22} color="#fff" />
+          </View>
+        )}
       </View>
-    );
-  }
-  if (isUnlocked) {
-    return (
-      <View style={s.statusPill}>
-        <MaterialIcons name="verified" size={11} color={C.accent.success} />
-        <Text style={s.statusSubscribed}>Subscribed</Text>
-      </View>
-    );
-  }
+    </LinearGradient>
+  );
+
   return (
-    <TouchableOpacity style={[s.statusPill, s.statusPillCta]} onPress={() => onLockPress(item)} activeOpacity={0.85}>
-      <MaterialIcons name="lock" size={11} color={GOLD} />
-      <Text style={s.statusLocked}>Subscribe</Text>
-    </TouchableOpacity>
+    <View style={s.actionRail}>
+      {canPress ? (
+        <TouchableOpacity
+          style={s.railBtn}
+          onPress={() => onViewProfile(item.mentor_id)}
+          activeOpacity={0.85}
+          accessibilityLabel={`View ${name}'s profile`}
+        >
+          {avatar}
+        </TouchableOpacity>
+      ) : (
+        <View style={s.railBtn}>{avatar}</View>
+      )}
+    </View>
   );
 }
 
-function PauseMentorHeader({ item, onViewProfile, badge }) {
+function ReelProgressBar({ progress, duration }) {
+  const pct = duration > 0 ? Math.min(progress / duration, 1) : 0;
+  return (
+    <View style={s.progressTrack} pointerEvents="none">
+      <View style={[s.progressFill, { width: `${pct * 100}%` }]} />
+    </View>
+  );
+}
+
+const REEL_PROGRESS_HEIGHT = 3;
+const REEL_META_BOTTOM = 8;
+const REEL_DOCK_RESERVE = 76;
+const REEL_RAIL_RESERVE = 80;
+
+function ReelInfoDock({
+  item,
+  onViewProfile,
+}) {
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [needsMore, setNeedsMore] = useState(false);
   const name = item.profiles?.name || 'Connectiqo';
   const spec = item.mentor_profiles?.specialization;
-  const canPress = !!item.mentor_id && onViewProfile;
+  const canPressProfile = !!item.mentor_id && onViewProfile;
+  const description = (item.description || '').trim();
 
-  const profileBlock = (
-    <>
-      <LinearGradient colors={B.premiumGradient} style={s.pauseAvatarRing}>
-        <View style={s.pauseAvatarInner}>
-          {item.profiles?.avatar_url ? (
-            <Image source={{ uri: item.profiles.avatar_url }} style={s.pauseAvatar} />
-          ) : (
-            <View style={[s.pauseAvatar, s.pauseAvatarFallback]}>
-              <MaterialIcons name="person" size={22} color="#fff" />
-            </View>
-          )}
-        </View>
-      </LinearGradient>
-      <View style={s.pauseMentorText}>
-        <Text style={s.pauseMentorName} numberOfLines={1}>{name}</Text>
-        {spec ? (
-          <Text style={s.pauseMentorSpec} numberOfLines={1}>{spec}</Text>
-        ) : null}
-        {canPress ? (
-          <View style={s.viewProfileInline}>
-            <Text style={s.viewProfileText}>View profile</Text>
-            <MaterialIcons name="arrow-forward" size={12} color={TEAL} />
-          </View>
-        ) : null}
-      </View>
-    </>
-  );
+  useEffect(() => {
+    setDescExpanded(false);
+    setNeedsMore(false);
+  }, [item.id]);
+
+  const handleTextLayout = useCallback((event) => {
+    if (descExpanded || !description) return;
+    const lines = event.nativeEvent.lines || [];
+    if (lines.length === 0) return;
+    const renderedChars = lines.reduce((sum, line) => sum + (line.text?.length ?? 0), 0);
+    setNeedsMore(renderedChars < description.length);
+  }, [descExpanded, description]);
+
+  const showMoreControl = description.length > 0
+    && (descExpanded || needsMore || description.length > 50);
 
   return (
-    <View style={s.pauseMentorRow}>
-      {canPress ? (
-        <TouchableOpacity
-          style={s.pauseMentorMain}
-          onPress={() => onViewProfile(item.mentor_id)}
-          activeOpacity={0.85}
-        >
-          {profileBlock}
-        </TouchableOpacity>
-      ) : (
-        <View style={s.pauseMentorMain}>{profileBlock}</View>
-      )}
-      {badge}
+    <View
+      style={[
+        s.infoDock,
+        { paddingRight: REEL_RAIL_RESERVE },
+      ]}
+    >
+      <View style={s.reelMetaRow}>
+        {canPressProfile ? (
+          <TouchableOpacity
+            onPress={() => onViewProfile(item.mentor_id)}
+            activeOpacity={0.85}
+            style={s.reelMentorTap}
+          >
+            <LinearGradient colors={B.premiumGradient} style={s.reelInlineAvatarRing}>
+              <View style={s.reelInlineAvatarInner}>
+                {item.profiles?.avatar_url ? (
+                  <Image source={{ uri: item.profiles.avatar_url }} style={s.reelInlineAvatar} />
+                ) : (
+                  <View style={[s.reelInlineAvatar, s.railAvatarFallback]}>
+                    <MaterialIcons name="person" size={14} color="#fff" />
+                  </View>
+                )}
+              </View>
+            </LinearGradient>
+            <Text style={s.reelMentorName} numberOfLines={1}>@{name}</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={s.reelMentorName} numberOfLines={1}>@{name}</Text>
+        )}
+      </View>
+
+      {spec ? (
+        <Text style={s.reelMentorSpec} numberOfLines={1}>{spec}</Text>
+      ) : null}
+
+      <Text
+        style={s.reelVideoTitle}
+        numberOfLines={descExpanded ? 3 : 2}
+      >
+        {item.title}
+      </Text>
+
+      {description ? (
+        <View style={s.reelDescBlock}>
+          <Text
+            style={s.reelVideoDesc}
+            numberOfLines={descExpanded ? undefined : 2}
+            onTextLayout={handleTextLayout}
+          >
+            {description}
+          </Text>
+          {showMoreControl ? (
+            <Pressable
+              onPress={() => setDescExpanded(v => !v)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={({ pressed }) => [s.reelMoreBtn, pressed && s.reelMoreBtnPressed]}
+            >
+              <Text style={s.reelMoreText}>{descExpanded ? 'Show less' : 'more'}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -331,62 +404,111 @@ function ShortCard({
   item,
   isActive,
   height,
-  bottomInset,
   isUnlocked,
-  expiresAt,
   onLockPress,
   onViewProfile,
   forcePaused,
+  allowPlayback,
 }) {
   const [paused, setPaused] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [buffering, setBuffering] = useState(false);
   const canPlay = item.is_free || isUnlocked;
 
-  const effectivePaused = !isActive || paused || forcePaused;
-  const showPauseDetail = canPlay && isActive && paused;
+  const effectivePaused = !allowPlayback || !isActive || paused || forcePaused;
+  const showOverlays = canPlay && allowPlayback;
+  const tapBottomReserve = REEL_DOCK_RESERVE + REEL_META_BOTTOM + REEL_PROGRESS_HEIGHT;
 
   useEffect(() => {
-    if (!isActive && paused) setPaused(false);
+    if (!isActive) {
+      if (paused) setPaused(false);
+      setProgress(0);
+      setDuration(0);
+      setBuffering(false);
+    }
   }, [isActive, paused]);
 
+  useEffect(() => {
+    if (!allowPlayback && paused) setPaused(false);
+  }, [allowPlayback, paused]);
+
+  const handleTap = () => {
+    setPaused(p => !p);
+  };
+
   return (
-    <View style={{ height, width: '100%', backgroundColor: C.primary.void }}>
-      {/* Thumbnail background */}
-      {item.thumbnail_url ? (
-        <Image
-          source={{ uri: item.thumbnail_url }}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-      ) : (
-        <LinearGradient
-          colors={['#0d1b3e', '#0a0f2a', '#000']}
-          style={StyleSheet.absoluteFill}
+    <View style={{ height, width: '100%', backgroundColor: '#000' }}>
+      <View style={s.mediaLayer} pointerEvents="none">
+        {item.thumbnail_url ? (
+          <Image
+            source={{ uri: item.thumbnail_url }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={['#0d1b3e', '#0a0f2a', '#000']}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
+
+        {isActive && canPlay && item.video_url ? (
+          <Video
+            key={`${item.id}-${isActive}`}
+            source={{ uri: item.video_url }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            paused={effectivePaused}
+            repeat
+            controls={false}
+            ignoreSilentSwitch="obey"
+            playInBackground={false}
+            playWhenInactive={false}
+            onLoad={data => {
+              setDuration(data.duration || 0);
+              setBuffering(false);
+            }}
+            onProgress={data => setProgress(data.currentTime || 0)}
+            onBuffer={({ isBuffering }) => setBuffering(isBuffering)}
+            onLoadStart={() => setBuffering(true)}
+          />
+        ) : null}
+      </View>
+
+      {canPlay && (
+        <Pressable
+          style={[
+            s.tapArea,
+            { bottom: tapBottomReserve, right: REEL_RAIL_RESERVE },
+          ]}
+          onPress={handleTap}
         />
       )}
 
-      {/* Video — plays when active + can play */}
-      {isActive && canPlay && item.video_url ? (
-        <Video
-          source={{ uri: item.video_url }}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-          paused={effectivePaused}
-          repeat
-          controls={false}
-          ignoreSilentSwitch="obey"
-        />
-      ) : null}
-
-      {/* Lock overlay for paid+locked */}
       {!canPlay && (
         <View style={s.lockOverlay}>
           <LinearGradient
-            colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.88)']}
+            colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.92)']}
             style={StyleSheet.absoluteFill}
+          />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.35)', 'transparent', 'transparent', 'rgba(0,0,0,0.88)']}
+            locations={[0, 0.18, 0.55, 1]}
+            style={s.reelGradient}
+            pointerEvents="none"
+          />
+          <ReelProfileRail
+            item={item}
+            onViewProfile={onViewProfile}
+          />
+          <ReelInfoDock
+            item={item}
+            onViewProfile={onViewProfile}
           />
           <View style={s.lockCard}>
             <View style={s.lockIconWrap}>
-              <MaterialIcons name="lock" size={26} color="#fff" />
+              <MaterialIcons name="lock" size={28} color="#fff" />
             </View>
             <Text style={s.lockTitle}>Premium content</Text>
             <Text style={s.lockSub}>
@@ -403,59 +525,46 @@ function ShortCard({
         </View>
       )}
 
-      {/* Tap-to-pause — absolute overlay, does not block FlatList scroll */}
-      {canPlay && (
-        <TouchableOpacity
-          style={s.tapArea}
-          onPress={() => setPaused(p => !p)}
-          activeOpacity={1}
-        />
-      )}
-
-      {/* Pause indicator */}
-      {canPlay && isActive && paused && (
-        <View style={s.pauseIcon} pointerEvents="none">
-          <View style={s.pauseBackdrop}>
-            <MaterialIcons name="play-arrow" size={44} color="#fff" style={s.pauseArrow} />
-          </View>
-        </View>
-      )}
-
-      {showPauseDetail && (
+      {showOverlays && (
         <>
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.82)', 'rgba(0,0,0,0.95)']}
-            locations={[0.3, 0.55, 0.8, 1]}
-            style={[s.bottomGradient, s.bottomGradientExpanded]}
+            colors={['rgba(0,0,0,0.35)', 'transparent', 'transparent', 'rgba(0,0,0,0.88)']}
+            locations={[0, 0.18, 0.55, 1]}
+            style={s.reelGradient}
             pointerEvents="none"
           />
 
-          <View style={[s.infoDock, { paddingBottom: bottomInset }]}>
-            <View style={s.glassPanel}>
-              <PauseMentorHeader
-                item={item}
-                onViewProfile={onViewProfile}
-                badge={(
-                  <StatusBadge
-                    item={item}
-                    isUnlocked={isUnlocked}
-                    onLockPress={onLockPress}
-                  />
-                )}
-              />
-              <View style={s.panelDivider} />
-              <Text style={s.pauseVideoTitle} numberOfLines={2}>{item.title}</Text>
-              {item.description ? (
-                <Text style={s.pauseVideoDesc}>{item.description}</Text>
-              ) : null}
-              {expiresAt && isUnlocked && !item.is_free ? (
-                <Text style={s.expiryText}>
-                  Renews {new Date(expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                </Text>
-              ) : null}
-            </View>
-          </View>
+          <ReelProfileRail
+            item={item}
+            onViewProfile={onViewProfile}
+          />
+
+          <ReelInfoDock
+            item={item}
+            onViewProfile={onViewProfile}
+          />
+
+          {isActive && !effectivePaused && duration > 0 ? (
+            <ReelProgressBar
+              progress={progress}
+              duration={duration}
+            />
+          ) : null}
         </>
+      )}
+
+      {canPlay && isActive && buffering && (
+        <View style={s.bufferingWrap} pointerEvents="none">
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
+      )}
+
+      {canPlay && isActive && paused && (
+        <View style={s.pauseIcon} pointerEvents="none">
+          <View style={s.pauseBackdrop}>
+            <MaterialIcons name="play-arrow" size={48} color="#fff" style={s.pauseArrow} />
+          </View>
+        </View>
       )}
     </View>
   );
@@ -465,9 +574,9 @@ function ShortCard({
 export default function VideosScreen({ navigation, route }) {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const [containerHeight, setContainerHeight] = useState(0);
-  const bottomTabHeight = getFloatingTabBarHeight(insets);
+  const [viewportHeight, setViewportHeight] = useState(0);
   const metadataBottomInset = getFloatingTabBarContentInset(insets);
+  const reelPageHeight = viewportHeight;
 
   const [videos, setVideos]         = useState([]);
   const [unlocksMap, setUnlocksMap] = useState(new Map());
@@ -479,14 +588,16 @@ export default function VideosScreen({ navigation, route }) {
   const flatListRef = useRef(null);
   const startVideoId    = route?.params?.startVideoId;
   const filterMentorId  = route?.params?.filterMentorId;
-  const [screenFocused, setScreenFocused] = useState(true);
-  const [appActive, setAppActive] = useState(true);
+  const isFocused = useIsFocused();
+  const [tabFocused, setTabFocused] = useState(false);
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  const allowPlayback = (isFocused || tabFocused) && appActive && lockSheetVideo === null;
 
   useFocusEffect(
     useCallback(() => {
-      setScreenFocused(true);
-      return () => setScreenFocused(false);
-    }, [])
+      setTabFocused(true);
+      return () => setTabFocused(false);
+    }, []),
   );
 
   useEffect(() => {
@@ -506,15 +617,30 @@ export default function VideosScreen({ navigation, route }) {
   }, [navigation]);
 
   const onViewableItemsChanged = useCallback(({ viewableItems }) => {
-    if (viewableItems[0] != null) {
-      setActiveIndex(viewableItems[0].index ?? 0);
-    }
+    const primary = viewableItems.find(v => v.isViewable) ?? viewableItems[0];
+    if (primary?.index == null) return;
+    setActiveIndex(primary.index);
   }, []);
 
-  const viewabilityConfigCallbackPairs = useRef([{
-    viewabilityConfig: { itemVisiblePercentThreshold: 60 },
-    onViewableItemsChanged,
-  }]);
+  const onViewableItemsChangedRef = useRef(onViewableItemsChanged);
+  onViewableItemsChangedRef.current = onViewableItemsChanged;
+
+  const viewabilityPairsRef = useRef([
+    {
+      viewabilityConfig: {
+        itemVisiblePercentThreshold: 51,
+        minimumViewTime: 0,
+      },
+      onViewableItemsChanged: info => onViewableItemsChangedRef.current(info),
+    },
+  ]);
+
+  const syncActiveIndexFromOffset = useCallback((offsetY) => {
+    if (reelPageHeight <= 0 || videos.length === 0) return;
+    const index = Math.round(offsetY / reelPageHeight);
+    const clamped = Math.max(0, Math.min(index, videos.length - 1));
+    setActiveIndex(clamped);
+  }, [reelPageHeight, videos.length]);
 
   useEffect(() => {
     loadFeed(false, user?.id);
@@ -578,21 +704,19 @@ export default function VideosScreen({ navigation, route }) {
     navigation?.navigate(SCREEN_NAMES.MentorProfile, { mentorId });
   }, [navigation]);
 
-  const onContainerLayout = useCallback((e) => {
+  const onReelViewportLayout = useCallback((e) => {
     const h = Math.round(e.nativeEvent.layout.height);
-    if (h > 0) setContainerHeight(h);
+    if (h > 0) setViewportHeight(h);
   }, []);
 
   return (
-    <View style={s.root} onLayout={onContainerLayout}>
-      {containerHeight === 0 ? (
-        <View style={s.center}>
-          <ActivityIndicator size="large" color={TEAL} />
+    <View style={s.root}>
+      {loading ? (
+        <View style={s.reelWrap} onLayout={onReelViewportLayout}>
+          <VideosSkeleton />
         </View>
-      ) : loading ? (
-        <VideosSkeleton bottomInset={metadataBottomInset} />
       ) : videos.length === 0 ? (
-        <View style={[s.center, { paddingHorizontal: T.spacing.lg, paddingBottom: bottomTabHeight }]}>
+        <View style={[s.center, { paddingHorizontal: T.spacing.lg, paddingBottom: metadataBottomInset }]}>
           <View style={s.emptyPanel}>
             <View style={s.emptyIconRing}>
               <MaterialIcons name="videocam-off" size={40} color={PURPLE_LINK} />
@@ -601,37 +725,41 @@ export default function VideosScreen({ navigation, route }) {
             <Text style={s.emptySubtitle}>Mentors will post short videos here</Text>
           </View>
         </View>
-      ) : (
-        <View style={s.reelWrap}>
+      ) : reelPageHeight > 0 ? (
+        <View style={s.reelWrap} onLayout={onReelViewportLayout}>
           <FlatList
             ref={flatListRef}
             style={s.reelList}
             data={videos}
             keyExtractor={v => v.id}
-            pagingEnabled
+            pagingEnabled={Platform.OS === 'ios'}
+            snapToInterval={reelPageHeight}
+            snapToAlignment="start"
+            disableIntervalMomentum
             showsVerticalScrollIndicator={false}
             decelerationRate="fast"
-            removeClippedSubviews
             windowSize={3}
             maxToRenderPerBatch={2}
             initialNumToRender={1}
+            removeClippedSubviews={Platform.OS === 'android'}
+            onMomentumScrollEnd={e => syncActiveIndexFromOffset(e.nativeEvent.contentOffset.y)}
+            onScrollEndDrag={e => syncActiveIndexFromOffset(e.nativeEvent.contentOffset.y)}
             renderItem={({ item, index }) => (
               <ShortCard
                 item={item}
-                height={containerHeight}
-                bottomInset={metadataBottomInset}
+                height={reelPageHeight}
                 isActive={index === activeIndex}
                 isUnlocked={unlocksMap.has(item.mentor_id)}
-                expiresAt={unlocksMap.get(item.mentor_id)?.expiresAt}
                 onLockPress={setLockSheetVideo}
                 onViewProfile={handleViewProfile}
-                forcePaused={lockSheetVideo !== null || !screenFocused || !appActive}
+                forcePaused={lockSheetVideo !== null}
+                allowPlayback={allowPlayback}
               />
             )}
-            viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs.current}
+            viewabilityConfigCallbackPairs={viewabilityPairsRef.current}
             getItemLayout={(_, index) => ({
-              length: containerHeight,
-              offset: containerHeight * index,
+              length: reelPageHeight,
+              offset: reelPageHeight * index,
               index,
             })}
             refreshControl={
@@ -642,8 +770,9 @@ export default function VideosScreen({ navigation, route }) {
               />
             }
           />
-
         </View>
+      ) : (
+        <View style={s.reelWrap} onLayout={onReelViewportLayout} />
       )}
 
       <UnlockSheet
@@ -658,7 +787,7 @@ export default function VideosScreen({ navigation, route }) {
 const s = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: C.primary.void,
+    backgroundColor: '#000',
   },
   center: {
     flex: 1,
@@ -707,11 +836,28 @@ const s = StyleSheet.create({
   },
   reelList: {
     flex: 1,
+    backgroundColor: '#000',
   },
   // ── Short card internals ──────────────────────────────────────────────────
-  tapArea: {
+  reelGradient: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
+    zIndex: 2,
+  },
+  mediaLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  tapArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: 3,
+  },
+  bufferingWrap: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 3,
   },
   lockOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -722,13 +868,14 @@ const s = StyleSheet.create({
   },
   lockCard: {
     width: '100%',
-    maxWidth: 300,
+    maxWidth: 280,
     alignItems: 'center',
-    backgroundColor: 'rgba(15,14,42,0.92)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     borderRadius: 20,
-    padding: T.spacing.xl,
+    padding: T.spacing.lg,
     borderWidth: 1,
-    borderColor: GLASS_BORDER,
+    borderColor: 'rgba(255,255,255,0.15)',
+    marginBottom: 80,
   },
   lockIconWrap: {
     width: 56,
@@ -766,12 +913,12 @@ const s = StyleSheet.create({
     zIndex: 5,
   },
   pauseBackdrop: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(0,0,0,0.42)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -779,96 +926,52 @@ const s = StyleSheet.create({
     marginLeft: 4,
   },
 
-  bottomGradient: {
+  progressTrack: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: '42%',
-    zIndex: 2,
+    height: REEL_PROGRESS_HEIGHT,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    zIndex: 9,
   },
-  bottomGradientExpanded: {
-    height: '58%',
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 1,
   },
 
-  pauseMentorRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: T.spacing.sm,
-    marginBottom: T.spacing.sm,
-  },
-  pauseMentorMain: {
-    flex: 1,
-    flexDirection: 'row',
+  actionRail: {
+    position: 'absolute',
+    right: T.spacing.md,
+    bottom: REEL_META_BOTTOM + REEL_PROGRESS_HEIGHT + 4,
     alignItems: 'center',
-    gap: T.spacing.md,
-    minWidth: 0,
+    gap: 16,
+    zIndex: 8,
+    elevation: 8,
   },
-  pauseAvatarRing: {
+  railBtn: {
+    alignItems: 'center',
+  },
+  railAvatarRing: {
     padding: 2,
-    borderRadius: 24,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
-  pauseAvatarInner: {
-    borderRadius: 22,
+  railAvatarInner: {
+    borderRadius: 28,
     overflow: 'hidden',
   },
-  pauseAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  railAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
-  pauseAvatarFallback: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
+  railAvatarFallback: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  pauseMentorText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  pauseMentorName: {
-    color: C.text.primary,
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: -0.2,
-    lineHeight: 21,
-  },
-  pauseMentorSpec: {
-    color: GOLD,
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  viewProfileInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 4,
-  },
-  viewProfileText: {
-    color: TEAL,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  panelDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    marginBottom: T.spacing.sm,
-  },
-  pauseVideoTitle: {
-    color: C.text.primary,
-    fontSize: 15,
-    fontWeight: '800',
-    lineHeight: 20,
-    marginBottom: T.spacing.xs,
-    letterSpacing: -0.15,
-  },
-  pauseVideoDesc: {
-    color: 'rgba(255,255,255,0.82)',
-    fontSize: 13,
-    lineHeight: 19,
   },
 
   infoDock: {
@@ -876,59 +979,101 @@ const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 3,
+    zIndex: 8,
+    elevation: 8,
     paddingHorizontal: T.spacing.md,
+    paddingBottom: REEL_META_BOTTOM + REEL_PROGRESS_HEIGHT,
+    paddingTop: 0,
   },
-  glassPanel: {
-    backgroundColor: 'rgba(10,8,28,0.88)',
-    borderRadius: 16,
-    paddingHorizontal: T.spacing.md,
-    paddingVertical: T.spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
-  },
-  statusPill: {
+  reelMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 20,
-    paddingHorizontal: T.spacing.sm,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    gap: T.spacing.sm,
+    marginBottom: 2,
+    flexWrap: 'wrap',
   },
-  statusPillCta: {
-    borderColor: 'rgba(240,216,117,0.35)',
-    backgroundColor: 'rgba(240,216,117,0.1)',
+  reelMentorTap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    maxWidth: '85%',
   },
-  statusFree: {
-    color: TEAL,
-    fontSize: 10,
+  reelInlineAvatarRing: {
+    padding: 1,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  reelInlineAvatarInner: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  reelInlineAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  reelMentorName: {
+    color: '#fff',
+    fontSize: 15,
     fontWeight: '800',
+    letterSpacing: -0.2,
+    flexShrink: 1,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-  statusSubscribed: {
-    color: C.accent.success,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  statusLocked: {
+  reelMentorSpec: {
     color: GOLD,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  expiryText: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
-    marginTop: T.spacing.xs,
+    marginBottom: 3,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  reelVideoTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginBottom: 2,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  reelDescBlock: {
+    marginTop: 2,
+  },
+  reelMoreBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    paddingVertical: 2,
+    paddingRight: 8,
+  },
+  reelMoreBtnPressed: {
+    opacity: 0.65,
+  },
+  reelVideoDesc: {
+    color: 'rgba(255,255,255,0.88)',
+    fontSize: 13,
+    lineHeight: 18,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  reelMoreText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+    opacity: 0.72,
   },
 });
 
 const sk = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: C.primary.void,
+    backgroundColor: '#000',
   },
   bone: {
     backgroundColor: 'rgba(255,255,255,0.14)',
@@ -938,41 +1083,54 @@ const sk = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: 0,
   },
+  shimmerGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '45%',
+  },
+  shimmerRail: {
+    position: 'absolute',
+    right: T.spacing.md,
+    bottom: REEL_META_BOTTOM + REEL_PROGRESS_HEIGHT + 4,
+    alignItems: 'center',
+    gap: 14,
+  },
+  shimmerAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
   shimmerDock: {
     position: 'absolute',
     left: T.spacing.md,
-    right: T.spacing.md,
+    right: 100,
     bottom: 0,
-  },
-  shimmerPanel: {
-    borderRadius: 16,
-    padding: T.spacing.md,
-    gap: T.spacing.sm,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  shimmerMentorRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingBottom: REEL_META_BOTTOM + REEL_PROGRESS_HEIGHT,
+    gap: 6,
   },
   shimmerName: {
-    width: 100,
-    height: 12,
-    borderRadius: 6,
-  },
-  shimmerBadge: {
-    width: 64,
-    height: 20,
-    borderRadius: 10,
+    width: 120,
+    height: 14,
+    borderRadius: 7,
   },
   shimmerTitle: {
-    width: '75%',
+    width: '80%',
     height: 16,
     borderRadius: 8,
   },
   shimmerDesc: {
-    width: '55%',
+    width: '60%',
     height: 12,
     borderRadius: 6,
+  },
+  shimmerProgress: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: REEL_PROGRESS_HEIGHT,
+    borderRadius: 0,
   },
 });

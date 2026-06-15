@@ -1,6 +1,7 @@
 import { ScrollView, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { getFloatingTabBarContentInset } from './CosmicBottomTabBar';
 import CosmicBackground from './CosmicBackground';
 
 /**
@@ -19,10 +20,7 @@ export const SafeScreen = ({
 }) => {
   const insets = useSafeAreaInsets();
 
-  // Floating tab bar reserve (safe area added separately below)
-  const bottomTabHeight = hasBottomTabs
-    ? (UNIFIED_THEME.colors.tabBar.floating?.contentReserve ?? 78)
-    : 0;
+  const bottomTabHeight = hasBottomTabs ? getFloatingTabBarContentInset(insets) : 0;
   const topPad = padding + (includeTopInset ? insets.top : 0);
 
   const paddingStyle = {

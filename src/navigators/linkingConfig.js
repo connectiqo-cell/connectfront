@@ -62,6 +62,7 @@ export const linking = {
       [SCREEN_NAMES.Booking]:            'booking/:mentorId',
       [SCREEN_NAMES.VideoCall]:          'call/:roomId',
       [SCREEN_NAMES.Review]:             'review/:bookingId',
+      [SCREEN_NAMES.MentorReviews]:        'mentor/:mentorId/reviews',
       [SCREEN_NAMES.Wallet]:             'wallet',
       [SCREEN_NAMES.TransactionHistory]: 'transactions',
       [SCREEN_NAMES.CategoryMentors]:    'category/:category',

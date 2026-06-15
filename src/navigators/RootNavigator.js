@@ -1,4 +1,5 @@
 import React, { useContext } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { AuthContext } from '../contexts/AuthContext';
 import { SplashScreen } from '../components/SplashScreen';
@@ -16,25 +17,21 @@ import RecordedLecturesScreen from '../scenes/settings/RecordedLecturesScreen';
 import TransactionHistoryScreen from '../scenes/settings/TransactionHistoryScreen';
 import WalletScreen from '../scenes/settings/WalletScreen';
 import ReviewScreen from '../scenes/shared/ReviewScreen';
+import MentorReviewsScreen from '../scenes/shared/MentorReviewsScreen';
 import CategoryMentorsScreen from '../scenes/learner/CategoryMentorsScreen';
 import MentorVideosScreen from '../scenes/mentor/MentorVideosScreen';
 import LearnerVideosScreen from '../scenes/learner/VideosScreen';
 import PayoutSetupScreen from '../scenes/settings/PayoutSetupScreen';
 import ConnectivityScreen from '../scenes/settings/ConnectivityScreen';
 import NotificationsScreen from '../scenes/settings/NotificationsScreen';
-import MentorStatsScreen from '../scenes/mentor/MentorStatsScreen';
 const RootStack = createStackNavigator();
 
 export const RootNavigator = () => {
   const { session, loading, pendingPasswordReset } = useContext(AuthContext);
-
-  if (loading) {
-    return <SplashScreen />;
-  }
-
   const showAuth = !session || pendingPasswordReset;
 
   return (
+    <View style={styles.root}>
     <RootStack.Navigator
       key={showAuth ? 'root-guest' : 'root-authed'}
       initialRouteName={showAuth ? 'Auth' : SCREEN_NAMES.RootUnifiedTabs}
@@ -92,10 +89,6 @@ export const RootNavigator = () => {
               component={MentorAvailabilityScreen}
             />
             <RootStack.Screen
-              name={SCREEN_NAMES.Review}
-              component={ReviewScreen}
-            />
-            <RootStack.Screen
               name={SCREEN_NAMES.CategoryMentors}
               component={CategoryMentorsScreen}
             />
@@ -119,10 +112,6 @@ export const RootNavigator = () => {
               name={SCREEN_NAMES.Notifications}
               component={NotificationsScreen}
             />
-            <RootStack.Screen
-              name={SCREEN_NAMES.MentorStats}
-              component={MentorStatsScreen}
-            />
           </RootStack.Group>
           <RootStack.Screen
             name={SCREEN_NAMES.VideoCall}
@@ -134,8 +123,34 @@ export const RootNavigator = () => {
             component={RecordingPlayerScreen}
             options={{ animationEnabled: false }}
           />
+          <RootStack.Screen
+            name={SCREEN_NAMES.Review}
+            component={ReviewScreen}
+            options={{ animationEnabled: false }}
+          />
+          <RootStack.Screen
+            name={SCREEN_NAMES.MentorReviews}
+            component={MentorReviewsScreen}
+            options={{ animationEnabled: false }}
+          />
         </>
       )}
     </RootStack.Navigator>
+    {loading ? (
+      <View style={styles.splashOverlay} pointerEvents="none">
+        <SplashScreen />
+      </View>
+    ) : null}
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  splashOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
+  },
+});

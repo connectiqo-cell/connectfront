@@ -15,7 +15,13 @@ import {
   ScrollView,
   Animated,
   StatusBar,
+  Image,
+  RefreshControl,
+  Pressable,
+  Easing,
 } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
 import CosmicButton from '../../components/CosmicButton';
@@ -26,11 +32,13 @@ import LinearGradient from 'react-native-linear-gradient';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { videoApi } from '../../api/videoApi';
+import { SCREEN_NAMES } from '../../navigators/screenNames';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
 const B = C.buttons;
 const S = C.surface;
+const TB = C.tabBar;
 
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
@@ -39,6 +47,387 @@ const PANEL_BG = '#161432';
 const INPUT_BG = '#0f0e2a';
 const SHEET_BG = '#0f0e2a';
 const GLASS_BORDER = 'rgba(167,139,250,0.22)';
+const TITLE_MAX = 80;
+const DESC_MAX = 200;
+const MAX_VIDEO_MB = 80;
+
+function runEntrance(opacity, translateY, delay = 0) {
+  opacity.setValue(0);
+  translateY.setValue(14);
+  Animated.parallel([
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 340,
+      delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }),
+    Animated.timing(translateY, {
+      toValue: 0,
+      duration: 340,
+      delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }),
+  ]).start();
+}
+
+function FadeSlideIn({ children, delay = 0, style, replayToken = 0 }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(14)).current;
+  const hasEntered = useRef(false);
+
+  useEffect(() => {
+    if (!hasEntered.current) {
+      hasEntered.current = true;
+      runEntrance(opacity, translateY, delay);
+      return;
+    }
+    if (replayToken > 0) runEntrance(opacity, translateY, delay);
+  }, [replayToken, delay, opacity, translateY]);
+
+  return (
+    <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function AnimatedPressable({
+  children,
+  style,
+  onPress,
+  disabled,
+  hoverScale = 1.08,
+  pressScale = 0.92,
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const hovered = useRef(false);
+
+  const springTo = toValue => {
+    Animated.spring(scale, {
+      toValue,
+      friction: 7,
+      tension: 260,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      onPressIn={() => !disabled && springTo(pressScale)}
+      onPressOut={() => !disabled && springTo(hovered.current ? hoverScale : 1)}
+      onHoverIn={() => {
+        if (!disabled) {
+          hovered.current = true;
+          springTo(hoverScale);
+        }
+      }}
+      onHoverOut={() => {
+        hovered.current = false;
+        springTo(1);
+      }}
+    >
+      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+    </Pressable>
+  );
+}
+
+function HoverHighlight({
+  children,
+  style,
+  onPress,
+  disabled,
+  pressScale = 0.98,
+  hoverScale = 1.02,
+  highlightRadius = 16,
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const highlight = useRef(new Animated.Value(0)).current;
+  const hovered = useRef(false);
+
+  const springTo = toValue => {
+    Animated.spring(scale, {
+      toValue,
+      friction: 7,
+      tension: 260,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const setHighlight = active => {
+    Animated.timing(highlight, {
+      toValue: active ? 1 : 0,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const highlightOpacity = highlight.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const content = (
+    <Animated.View style={[style, { transform: [{ scale }] }]}>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.hoverHighlight, { opacity: highlightOpacity, borderRadius: highlightRadius }]}
+      />
+      {children}
+    </Animated.View>
+  );
+
+  const handlers = {
+    onPressIn: () => {
+      if (disabled) return;
+      springTo(pressScale);
+      setHighlight(true);
+    },
+    onPressOut: () => {
+      springTo(hovered.current ? hoverScale : 1);
+      if (!hovered.current) setHighlight(false);
+    },
+    onHoverIn: () => {
+      if (disabled) return;
+      hovered.current = true;
+      springTo(hoverScale);
+      setHighlight(true);
+    },
+    onHoverOut: () => {
+      hovered.current = false;
+      springTo(1);
+      setHighlight(false);
+    },
+  };
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} disabled={disabled} {...handlers}>
+        {content}
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable disabled={disabled} {...handlers}>
+      {content}
+    </Pressable>
+  );
+}
+
+function PulseGlow({ color = GOLD, size = 52 }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1800,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.28] });
+  const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] });
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.pulseGlow,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderColor: color,
+          opacity: glowOpacity,
+          transform: [{ scale }],
+        },
+      ]}
+    />
+  );
+}
+
+function AnimatedPriceText({ value, style, replayToken = 0 }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    scale.setValue(0.92);
+    opacity.setValue(0);
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 6,
+        tension: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [value, replayToken, scale, opacity]);
+
+  return (
+    <Animated.Text style={[style, { opacity, transform: [{ scale }] }]}>
+      {value}
+    </Animated.Text>
+  );
+}
+
+function formatFileSize(bytes) {
+  const mb = (bytes || 0) / (1024 * 1024);
+  if (mb < 1) return `${Math.round((bytes || 0) / 1024)} KB`;
+  return `${mb.toFixed(1)} MB`;
+}
+
+function formatRupee(amount) {
+  return `₹${Number(amount || 0).toLocaleString('en-IN')}`;
+}
+
+const SectionLabel = ({ children }) => (
+  <Text style={styles.sectionLabel}>{children}</Text>
+);
+
+function UnlockPriceCard({
+  price,
+  lockedCount,
+  editing,
+  priceInput,
+  saving,
+  error,
+  onEdit,
+  onCancel,
+  onChange,
+  onSave,
+  replayToken = 0,
+}) {
+  return (
+    <HoverHighlight style={styles.unlockCard} highlightRadius={16} hoverScale={1.01} pressScale={0.995}>
+      <LinearGradient
+        colors={['rgba(240,216,117,0.14)', 'rgba(124,58,237,0.1)', 'transparent']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.unlockCardGlow}
+      />
+      <View style={styles.unlockCardInner}>
+        <View style={styles.unlockCardTop}>
+          <View style={styles.unlockIconWrap}>
+            <PulseGlow color={GOLD} size={52} />
+            <LinearGradient colors={B.premiumGradient} style={styles.unlockIconGrad}>
+              <MaterialIcons name="lock-open" size={22} color={GOLD} />
+            </LinearGradient>
+          </View>
+          <View style={styles.unlockMeta}>
+            <Text style={styles.unlockTitle}>Library unlock price</Text>
+            <Text style={styles.unlockSubtitle}>One-time access to all locked videos</Text>
+          </View>
+          {!editing ? (
+            <AnimatedPressable onPress={onEdit} style={styles.unlockEditBtn} hoverScale={1.06} pressScale={0.94}>
+              <MaterialIcons name="edit" size={16} color={TEAL} />
+              <Text style={styles.unlockEditLabel}>Edit</Text>
+            </AnimatedPressable>
+          ) : null}
+        </View>
+
+        {editing ? (
+          <View style={styles.unlockEditBlock}>
+            <Text style={styles.unlockFieldLabel}>Price per library unlock</Text>
+            <View style={[styles.unlockInputWrap, error && styles.unlockInputWrapError]}>
+              <Text style={styles.unlockCurrency}>₹</Text>
+              <TextInput
+                style={styles.unlockInput}
+                value={priceInput}
+                onChangeText={onChange}
+                keyboardType="number-pad"
+                maxLength={5}
+                placeholder="299"
+                placeholderTextColor={C.text.muted}
+                autoFocus
+                editable={!saving}
+              />
+            </View>
+            {error ? (
+              <View style={styles.unlockErrorRow}>
+                <MaterialIcons name="error-outline" size={14} color={C.accent.error} />
+                <Text style={styles.unlockErrorText}>{error}</Text>
+              </View>
+            ) : (
+              <Text style={styles.unlockInputHint}>Recommended range · ₹99 – ₹999</Text>
+            )}
+            <View style={styles.unlockActions}>
+              <AnimatedPressable
+                onPress={onCancel}
+                style={styles.unlockCancelBtn}
+                disabled={saving}
+                hoverScale={1.04}
+                pressScale={0.96}
+              >
+                <Text style={styles.unlockCancelText}>Cancel</Text>
+              </AnimatedPressable>
+              <AnimatedPressable
+                onPress={onSave}
+                style={[styles.unlockSaveBtn, saving && styles.unlockSaveBtnDisabled]}
+                disabled={saving}
+                hoverScale={1.04}
+                pressScale={0.96}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color={C.primary.void} />
+                ) : (
+                  <>
+                    <MaterialIcons name="check" size={16} color={C.primary.void} />
+                    <Text style={styles.unlockSaveText}>Save price</Text>
+                  </>
+                )}
+              </AnimatedPressable>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.unlockDisplayBlock}>
+            <AnimatedPriceText
+              value={formatRupee(price)}
+              style={styles.unlockAmount}
+              replayToken={replayToken}
+            />
+            <Text style={styles.unlockPerLabel}>per learner · full library access</Text>
+            <View style={styles.unlockInfoRow}>
+              <View style={styles.unlockInfoChip}>
+                <MaterialIcons name="lock" size={13} color={GOLD} />
+                <Text style={styles.unlockInfoChipText}>
+                  {lockedCount} locked video{lockedCount === 1 ? '' : 's'}
+                </Text>
+              </View>
+              <View style={styles.unlockInfoChip}>
+                <MaterialIcons name="payments" size={13} color={TEAL} />
+                <Text style={styles.unlockInfoChipText}>Paid once</Text>
+              </View>
+            </View>
+          </View>
+        )}
+      </View>
+    </HoverHighlight>
+  );
+}
 
 function VideoPlayerModal({ video, onClose }) {
   const videoRef = useRef(null);
@@ -141,7 +530,7 @@ const playerStyles = StyleSheet.create({
 });
 
 // ─── Video Card ───────────────────────────────────────────────────────────────
-function VideoCard({ video, onToggleFree, onDelete, onPlay, onEdit }) {
+function VideoCard({ video, index = 0, replayToken = 0, onToggleFree, onDelete, onPlay, onEdit }) {
   const [toggling, setToggling] = useState(false);
 
   const handleToggle = async (value) => {
@@ -151,44 +540,85 @@ function VideoCard({ video, onToggleFree, onDelete, onPlay, onEdit }) {
   };
 
   return (
-    <View style={styles.card}>
-      <TouchableOpacity onPress={() => onPlay(video)} activeOpacity={0.8}>
-        <LinearGradient colors={S.heroGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardThumb}>
-          <MaterialIcons name="play-circle-filled" size={36} color={PURPLE_LINK} />
-        </LinearGradient>
-      </TouchableOpacity>
-
-      <View style={styles.cardInfo}>
-        <View style={styles.cardTitleRow}>
-          <Text style={[styles.cardTitle, { flex: 1 }]} numberOfLines={2}>{video.title}</Text>
-          <TouchableOpacity onPress={() => onEdit(video)} style={styles.editBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <MaterialIcons name="edit" size={18} color={TEAL} />
-          </TouchableOpacity>
-        </View>
-        {video.description ? (
-          <Text style={styles.cardDesc} numberOfLines={1}>{video.description}</Text>
-        ) : null}
-        <View style={styles.cardFooter}>
-          <View style={styles.freeRow}>
-            <Text style={styles.freeLabel}>{video.is_free ? 'Free' : 'Locked'}</Text>
-            {toggling ? (
-              <ActivityIndicator size="small" color={TEAL} style={{ marginLeft: 6 }} />
-            ) : (
-              <Switch
-                value={video.is_free}
-                onValueChange={handleToggle}
-                trackColor={{ false: 'rgba(255,255,255,0.15)', true: TEAL }}
-                thumbColor={video.is_free ? GOLD : 'rgba(255,255,255,0.6)'}
-                style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
-              />
-            )}
+    <FadeSlideIn delay={80 + index * 55} replayToken={replayToken} style={styles.cardWrap}>
+      <HoverHighlight style={styles.card} highlightRadius={16} hoverScale={1.015} pressScale={0.99}>
+        <HoverHighlight
+          onPress={() => onPlay(video)}
+          style={styles.cardThumbWrap}
+          highlightRadius={12}
+          hoverScale={1.03}
+          pressScale={0.97}
+        >
+          {video.thumbnail_url ? (
+            <Image source={{ uri: video.thumbnail_url }} style={styles.cardThumbImg} resizeMode="cover" />
+          ) : (
+            <LinearGradient colors={S.heroGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardThumb}>
+              <MaterialIcons name="videocam" size={28} color="rgba(255,255,255,0.45)" />
+            </LinearGradient>
+          )}
+          <LinearGradient
+            colors={['transparent', 'rgba(5,5,20,0.75)']}
+            style={styles.cardThumbFade}
+          />
+          <View style={styles.cardPlayBadge}>
+            <MaterialIcons name="play-arrow" size={18} color="#fff" />
           </View>
-          <TouchableOpacity onPress={() => onDelete(video)} style={styles.deleteBtn}>
-            <MaterialIcons name="delete-outline" size={20} color={T.colors.accent.error} />
-          </TouchableOpacity>
+          <View style={[styles.statusBadge, video.is_free ? styles.statusBadgeFree : styles.statusBadgeLocked]}>
+            <MaterialIcons
+              name={video.is_free ? 'lock-open' : 'lock'}
+              size={11}
+              color={video.is_free ? C.accent.success : GOLD}
+            />
+            <Text style={[styles.statusBadgeText, video.is_free && { color: C.accent.success }]}>
+              {video.is_free ? 'Free' : 'Locked'}
+            </Text>
+          </View>
+        </HoverHighlight>
+
+        <View style={styles.cardInfo}>
+          <View style={styles.cardTitleRow}>
+            <Text style={[styles.cardTitle, { flex: 1 }]} numberOfLines={2}>{video.title}</Text>
+            <AnimatedPressable
+              onPress={() => onEdit(video)}
+              style={styles.editBtn}
+              hoverScale={1.12}
+              pressScale={0.9}
+            >
+              <MaterialIcons name="edit" size={18} color={TEAL} />
+            </AnimatedPressable>
+          </View>
+          {video.description ? (
+            <Text style={styles.cardDesc} numberOfLines={2}>{video.description}</Text>
+          ) : (
+            <Text style={styles.cardDescMuted}>No description</Text>
+          )}
+          <View style={styles.cardFooter}>
+            <View style={styles.freeRow}>
+              <Text style={styles.freeLabel}>Public access</Text>
+              {toggling ? (
+                <ActivityIndicator size="small" color={TEAL} style={{ marginLeft: 6 }} />
+              ) : (
+                <Switch
+                  value={video.is_free}
+                  onValueChange={handleToggle}
+                  trackColor={{ false: 'rgba(255,255,255,0.15)', true: TEAL }}
+                  thumbColor={video.is_free ? GOLD : 'rgba(255,255,255,0.6)'}
+                  style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
+                />
+              )}
+            </View>
+            <AnimatedPressable
+              onPress={() => onDelete(video)}
+              style={styles.deleteBtn}
+              hoverScale={1.12}
+              pressScale={0.9}
+            >
+              <MaterialIcons name="delete-outline" size={20} color={T.colors.accent.error} />
+            </AnimatedPressable>
+          </View>
         </View>
-      </View>
-    </View>
+      </HoverHighlight>
+    </FadeSlideIn>
   );
 }
 
@@ -248,7 +678,7 @@ function EditModal({ video, onClose, onSaved }) {
   return (
     <Modal visible={!!video} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity style={styles.editModalBackdrop} activeOpacity={1} onPress={onClose} />
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
 
@@ -328,6 +758,7 @@ function EditModal({ video, onClose, onSaved }) {
 
 // ─── Upload Modal ─────────────────────────────────────────────────────────────
 function UploadModal({ visible, onClose, onUploaded }) {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -336,6 +767,7 @@ function UploadModal({ visible, onClose, onUploaded }) {
   const [pickedThumbnail, setPickedThumbnail] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [formError, setFormError] = useState('');
   const progressAnim = React.useRef(new Animated.Value(0)).current;
 
   const animateProgress = (toValue) => {
@@ -354,15 +786,18 @@ function UploadModal({ visible, onClose, onUploaded }) {
     setPickedThumbnail(null);
     setUploading(false);
     setProgress(0);
+    setFormError('');
     progressAnim.setValue(0);
   };
 
   const handleClose = () => {
+    if (uploading) return;
     reset();
     onClose();
   };
 
   const pickVideo = () => {
+    if (uploading) return;
     launchImageLibrary(
       { mediaType: 'video', videoQuality: 'medium' },
       (response) => {
@@ -371,16 +806,18 @@ function UploadModal({ visible, onClose, onUploaded }) {
         if (!asset) return;
 
         const sizeMB = (asset.fileSize || 0) / (1024 * 1024);
-        if (sizeMB > 80) {
-          Toast.show('Video must be under 80 MB', Toast.LONG);
+        if (sizeMB > MAX_VIDEO_MB) {
+          Toast.show(`Video must be under ${MAX_VIDEO_MB} MB`, Toast.LONG);
           return;
         }
         setPickedFile(asset);
+        setFormError('');
       },
     );
   };
 
   const pickThumbnail = () => {
+    if (uploading) return;
     launchImageLibrary(
       { mediaType: 'photo', quality: 0.8 },
       (response) => {
@@ -393,9 +830,16 @@ function UploadModal({ visible, onClose, onUploaded }) {
   };
 
   const handleUpload = async () => {
-    if (!title.trim()) { Toast.show('Add a title first', Toast.SHORT); return; }
-    if (!pickedFile) { Toast.show('Pick a video first', Toast.SHORT); return; }
+    if (!title.trim()) {
+      setFormError('Add a title for your video');
+      return;
+    }
+    if (!pickedFile) {
+      setFormError('Select a video from your gallery');
+      return;
+    }
 
+    setFormError('');
     setUploading(true);
     setProgress(0);
     progressAnim.setValue(0);
@@ -414,11 +858,12 @@ function UploadModal({ visible, onClose, onUploaded }) {
         thumbnailUri: pickedThumbnail?.uri,
         thumbnailFileName: pickedThumbnail?.fileName || (pickedThumbnail ? `thumb_${Date.now()}.jpg` : undefined),
       });
-      Toast.show('Video uploaded!', Toast.SHORT);
+      Toast.show('Video uploaded successfully', Toast.SHORT);
       onUploaded(uploaded);
-      handleClose();
+      reset();
+      onClose();
     } catch (e) {
-      Toast.show(e.message || 'Upload failed', Toast.LONG);
+      setFormError(e.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -430,90 +875,137 @@ function UploadModal({ visible, onClose, onUploaded }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.modalOverlay}
       >
-        <View style={styles.modalSheet}>
+        <Pressable style={styles.modalBackdrop} onPress={handleClose} />
+        <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) + 20 }]}>
           <View style={styles.modalHandle} />
-          {/* Header */}
+
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Upload Video</Text>
-            <TouchableOpacity onPress={handleClose}>
-              <MaterialIcons name="close" size={22} color={C.text.muted} />
+            <View style={styles.modalHeaderIcon}>
+              <LinearGradient colors={B.nebulaGradient} style={styles.modalHeaderIconGrad}>
+                <MaterialIcons name="cloud-upload" size={18} color={B.nebulaText} />
+              </LinearGradient>
+            </View>
+            <View style={styles.modalHeaderText}>
+              <Text style={styles.modalTitle}>Upload video</Text>
+              <Text style={styles.modalSubtitle}>Share knowledge with your learners</Text>
+            </View>
+            <TouchableOpacity onPress={handleClose} style={styles.modalCloseBtn} disabled={uploading}>
+              <MaterialIcons name="close" size={20} color={C.text.muted} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Title */}
-            <Text style={styles.inputLabel}>Title *</Text>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <SectionLabel>Media</SectionLabel>
+
+            <TouchableOpacity
+              style={[styles.mediaZone, pickedFile && styles.mediaZoneFilled]}
+              onPress={pickVideo}
+              activeOpacity={0.85}
+              disabled={uploading}
+            >
+              <MaterialIcons
+                name={pickedFile ? 'check-circle' : 'video-library'}
+                size={28}
+                color={pickedFile ? C.accent.success : TEAL}
+              />
+              <Text style={styles.mediaZoneTitle}>
+                {pickedFile ? 'Video selected' : 'Choose video'}
+              </Text>
+              <Text style={styles.mediaZoneHint}>
+                {pickedFile
+                  ? `${pickedFile.fileName || 'Gallery video'} · ${formatFileSize(pickedFile.fileSize)}`
+                  : `MP4 or MOV · Max ${MAX_VIDEO_MB} MB`}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.thumbZone, pickedThumbnail && styles.thumbZoneFilled]}
+              onPress={pickThumbnail}
+              activeOpacity={0.85}
+              disabled={uploading}
+            >
+              {pickedThumbnail ? (
+                <Image source={{ uri: pickedThumbnail.uri }} style={styles.thumbPreview} resizeMode="cover" />
+              ) : (
+                <View style={styles.thumbPlaceholder}>
+                  <MaterialIcons name="image" size={22} color={PURPLE_LINK} />
+                </View>
+              )}
+              <View style={styles.thumbMeta}>
+                <Text style={styles.thumbTitle}>
+                  {pickedThumbnail ? 'Thumbnail selected' : 'Add thumbnail'}
+                </Text>
+                <Text style={styles.thumbHint}>
+                  {pickedThumbnail ? 'Tap to change' : 'Optional · helps attract viewers'}
+                </Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={22} color={C.text.muted} />
+            </TouchableOpacity>
+
+            <SectionLabel>Details</SectionLabel>
+
+            <Text style={styles.fieldLabel}>Title *</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. How to grow on Instagram"
               placeholderTextColor={C.text.muted}
               value={title}
-              onChangeText={setTitle}
-              maxLength={80}
+              onChangeText={t => { setTitle(t); setFormError(''); }}
+              maxLength={TITLE_MAX}
+              editable={!uploading}
             />
+            <Text style={styles.charCount}>{title.length}/{TITLE_MAX}</Text>
 
-            {/* Description */}
-            <Text style={styles.inputLabel}>Description</Text>
+            <Text style={styles.fieldLabel}>Description</Text>
             <TextInput
               style={[styles.input, styles.inputMulti]}
-              placeholder="Brief description of this video..."
+              placeholder="What will learners gain from this video?"
               placeholderTextColor={C.text.muted}
               value={description}
               onChangeText={setDescription}
               multiline
-              numberOfLines={3}
-              maxLength={200}
+              numberOfLines={4}
+              maxLength={DESC_MAX}
+              editable={!uploading}
             />
+            <Text style={styles.charCount}>{description.length}/{DESC_MAX}</Text>
 
-            {/* Free toggle */}
-            <View style={styles.toggleRow}>
-              <View>
-                <Text style={styles.inputLabel}>Free for all</Text>
-                <Text style={styles.toggleHint}>First 2–3 videos should be free</Text>
+            <View style={styles.visibilityCard}>
+              <View style={styles.visibilityInfo}>
+                <MaterialIcons name={isFree ? 'public' : 'lock'} size={20} color={isFree ? C.accent.success : GOLD} />
+                <View style={styles.visibilityText}>
+                  <Text style={styles.visibilityTitle}>{isFree ? 'Free for everyone' : 'Premium content'}</Text>
+                  <Text style={styles.visibilityHint}>
+                    {isFree
+                      ? 'Great for building trust — your first few videos should be free'
+                      : 'Only subscribers who unlock your library can watch'}
+                  </Text>
+                </View>
               </View>
               <Switch
                 value={isFree}
                 onValueChange={setIsFree}
+                disabled={uploading}
                 trackColor={{ false: 'rgba(255,255,255,0.15)', true: TEAL }}
                 thumbColor={isFree ? GOLD : 'rgba(255,255,255,0.6)'}
               />
             </View>
 
-            {/* Pick video */}
-            <TouchableOpacity style={styles.pickBtn} onPress={pickVideo}>
-              <MaterialIcons
-                name={pickedFile ? 'check-circle' : 'video-library'}
-                size={20}
-                color={pickedFile ? C.accent.success : TEAL}
-              />
-              <Text style={[styles.pickBtnText, pickedFile && { color: C.accent.success }]}>
-                {pickedFile
-                  ? pickedFile.fileName || 'Video selected'
-                  : 'Pick video from gallery'}
-              </Text>
-            </TouchableOpacity>
-
-            {pickedFile ? (
-              <Text style={styles.fileSize}>
-                {((pickedFile.fileSize || 0) / (1024 * 1024)).toFixed(1)} MB
-              </Text>
+            {formError ? (
+              <View style={styles.errorBanner}>
+                <MaterialIcons name="error-outline" size={14} color={T.colors.accent.error} />
+                <Text style={styles.errorBannerText}>{formError}</Text>
+              </View>
             ) : null}
 
-            {/* Pick thumbnail */}
-            <TouchableOpacity style={[styles.pickBtn, styles.pickBtnViolet]} onPress={pickThumbnail}>
-              <MaterialIcons
-                name={pickedThumbnail ? 'check-circle' : 'image'}
-                size={20}
-                color={pickedThumbnail ? C.accent.success : PURPLE_LINK}
-              />
-              <Text style={[styles.pickBtnText, styles.pickBtnTextViolet, pickedThumbnail && { color: C.accent.success }]}>
-                {pickedThumbnail ? pickedThumbnail.fileName || 'Thumbnail selected' : 'Pick thumbnail (optional)'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Progress bar */}
             {uploading && (
               <View style={styles.progressContainer}>
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressLabel}>
+                    {progress < 100 ? 'Uploading video…' : 'Saving to library…'}
+                  </Text>
+                  <Text style={styles.progressText}>{progress}%</Text>
+                </View>
                 <View style={styles.progressTrack}>
                   <Animated.View
                     style={[
@@ -528,7 +1020,6 @@ function UploadModal({ visible, onClose, onUploaded }) {
                     ]}
                   />
                 </View>
-                <Text style={styles.progressText}>{progress}%</Text>
               </View>
             )}
 
@@ -536,9 +1027,9 @@ function UploadModal({ visible, onClose, onUploaded }) {
               label={
                 uploading
                   ? progress < 100
-                    ? 'Uploading...'
-                    : 'Saving...'
-                  : 'Upload Video'
+                    ? 'Uploading…'
+                    : 'Saving…'
+                  : 'Publish video'
               }
               variant="nebula"
               icon="cloud-upload"
@@ -555,18 +1046,25 @@ function UploadModal({ visible, onClose, onUploaded }) {
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-export default function MentorVideosScreen() {
+export default function MentorVideosScreen({ embeddedInTab = false }) {
+  const navigation = useNavigation();
+  const bottomListPad = (TB.floating?.contentReserve ?? 115) + T.spacing.lg;
   const { user } = useAuth();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [playingVideo, setPlayingVideo] = useState(null);
   const [editingVideo, setEditingVideo] = useState(null);
   const [unlockPrice, setUnlockPrice] = useState(299);
   const [editingPrice, setEditingPrice] = useState(false);
   const [priceInput, setPriceInput] = useState('299');
+  const [savingPrice, setSavingPrice] = useState(false);
+  const [priceError, setPriceError] = useState('');
+  const [replayToken, setReplayToken] = useState(0);
 
-  const loadVideos = useCallback(async () => {
+  const loadVideos = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [vids, price] = await Promise.all([
         videoApi.getMentorVideos(user.id),
@@ -579,10 +1077,23 @@ export default function MentorVideosScreen() {
       Toast.show(e.message, Toast.LONG);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [user.id]);
 
   useEffect(() => { loadVideos(); }, [loadVideos]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!loading) loadVideos(true);
+    }, [loadVideos, loading]),
+  );
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadVideos(true);
+    setReplayToken(t => t + 1);
+  };
 
   const handleToggleFree = async (id, isFree) => {
     try {
@@ -594,7 +1105,7 @@ export default function MentorVideosScreen() {
   };
 
   const handleDelete = (video) => {
-    Alert.alert('Delete Video', `Delete "${video.title}"?`, [
+    Alert.alert('Delete video', `Remove "${video.title}" from your library?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -602,7 +1113,7 @@ export default function MentorVideosScreen() {
           try {
             await videoApi.deleteVideo({ id: video.id, storagePath: video.storage_path });
             setVideos(prev => prev.filter(v => v.id !== video.id));
-            Toast.show('Deleted', Toast.SHORT);
+            Toast.show('Video deleted', Toast.SHORT);
           } catch (e) {
             Toast.show(e.message, Toast.LONG);
           }
@@ -613,87 +1124,177 @@ export default function MentorVideosScreen() {
 
   const handleSavePrice = async () => {
     const p = parseInt(priceInput, 10);
-    if (isNaN(p) || p < 1) { Toast.show('Enter a valid price', Toast.SHORT); return; }
+    if (isNaN(p) || p < 1) {
+      setPriceError('Enter a valid price of at least ₹1');
+      return;
+    }
+    if (p > 9999) {
+      setPriceError('Maximum price is ₹9,999');
+      return;
+    }
+    setPriceError('');
+    setSavingPrice(true);
     try {
       await videoApi.setUnlockPrice({ mentorId: user.id, price: p });
       setUnlockPrice(p);
       setEditingPrice(false);
-      Toast.show('Price updated', Toast.SHORT);
+      setReplayToken(t => t + 1);
+      Toast.show('Unlock price updated', Toast.SHORT);
     } catch (e) {
-      Toast.show(e.message, Toast.LONG);
+      setPriceError(e.message || 'Could not save price. Try again.');
+    } finally {
+      setSavingPrice(false);
     }
   };
 
-  const freeCount = videos.filter(v => v.is_free).length;
+  const handleStartEditPrice = () => {
+    setPriceInput(String(unlockPrice));
+    setPriceError('');
+    setEditingPrice(true);
+  };
+
+  const handleCancelEditPrice = () => {
+    setPriceInput(String(unlockPrice));
+    setPriceError('');
+    setEditingPrice(false);
+  };
+
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate(SCREEN_NAMES.UnifiedHome);
+    }
+  };
+
+  const lockedCount = videos.filter(v => !v.is_free).length;
+
+  const listHeader = (
+    <>
+      <FadeSlideIn delay={40} replayToken={replayToken}>
+        <UnlockPriceCard
+          price={unlockPrice}
+          lockedCount={lockedCount}
+          editing={editingPrice}
+          priceInput={priceInput}
+          saving={savingPrice}
+          error={priceError}
+          replayToken={replayToken}
+          onEdit={handleStartEditPrice}
+          onCancel={handleCancelEditPrice}
+          onChange={text => {
+            setPriceInput(text.replace(/[^0-9]/g, ''));
+            setPriceError('');
+          }}
+          onSave={handleSavePrice}
+        />
+      </FadeSlideIn>
+
+      <FadeSlideIn delay={100} replayToken={replayToken}>
+        <CosmicButton
+          label="Upload new video"
+          variant="nebula"
+          icon="add"
+          onPress={() => setShowUpload(true)}
+          style={styles.uploadCta}
+        />
+      </FadeSlideIn>
+
+      <FadeSlideIn delay={150} replayToken={replayToken}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Your videos</Text>
+          <Text style={styles.sectionSubtitle}>
+            {videos.length ? 'Tap a video to preview' : 'Start building your library'}
+          </Text>
+        </View>
+      </FadeSlideIn>
+    </>
+  );
 
   return (
-    <SafeScreen hasBottomTabs={false} scrollable={false} padding={T.spacing.lg}>
-      {/* Unlock price card */}
-      <View style={styles.priceCard}>
-        <MaterialIcons name="lock-open" size={18} color={GOLD} />
-        <Text style={styles.priceLabel}>Library unlock price</Text>
-        {editingPrice ? (
-          <View style={styles.priceEditRow}>
-            <Text style={styles.rupee}>₹</Text>
-            <TextInput
-              style={styles.priceInput}
-              value={priceInput}
-              onChangeText={setPriceInput}
-              keyboardType="numeric"
-              maxLength={5}
-              autoFocus
-            />
-            <TouchableOpacity onPress={handleSavePrice} style={styles.savePriceBtn}>
-              <Text style={styles.savePriceTxt}>Save</Text>
-            </TouchableOpacity>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false}>
+      <View style={styles.screenBody}>
+      <FadeSlideIn delay={0} replayToken={replayToken}>
+        <View style={styles.screenHeader}>
+          {!embeddedInTab ? (
+            <AnimatedPressable onPress={handleGoBack} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
+              <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+            </AnimatedPressable>
+          ) : (
+            <View style={styles.backBtn} />
+          )}
+          <View style={styles.screenHeaderCenter}>
+            <Text style={styles.screenTitle}>Upload</Text>
+            <Text style={styles.screenSubtitle}>Manage and publish your content</Text>
           </View>
-        ) : (
-          <TouchableOpacity onPress={() => setEditingPrice(true)} style={styles.priceValueRow}>
-            <Text style={styles.priceValue}>₹{unlockPrice}</Text>
-            <MaterialIcons name="edit" size={14} color={C.text.muted} style={{ marginLeft: 4 }} />
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowUpload(true)}>
-          <LinearGradient colors={B.nebulaGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.addBtnGrad}>
-            <MaterialIcons name="add" size={22} color={B.nebulaText} />
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      {/* Stats row */}
-      <View style={styles.statsRow}>
-        <Text style={styles.statText}>{videos.length} videos total</Text>
-        <Text style={styles.statDot}>·</Text>
-        <Text style={styles.statText}>{freeCount} free</Text>
-        <Text style={styles.statDot}>·</Text>
-        <Text style={styles.statText}>{videos.length - freeCount} locked</Text>
-      </View>
+          <AnimatedPressable
+            onPress={handleRefresh}
+            style={styles.refreshBtn}
+            disabled={refreshing}
+            hoverScale={1.08}
+            pressScale={0.92}
+          >
+            {refreshing ? (
+              <ActivityIndicator size="small" color={TEAL} />
+            ) : (
+              <MaterialIcons name="refresh" size={20} color={TEAL} />
+            )}
+          </AnimatedPressable>
+        </View>
+      </FadeSlideIn>
 
       {loading ? (
-        <ActivityIndicator color={TEAL} style={{ marginTop: 40 }} />
-      ) : videos.length === 0 ? (
-        <View style={styles.emptyState}>
-          <MaterialIcons name="video-library" size={48} color={PURPLE_LINK} />
-          <Text style={styles.emptyText}>No videos yet</Text>
-          <Text style={styles.emptyHint}>Tap + to upload your first video</Text>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator color={TEAL} size="large" />
+          <Text style={styles.loadingText}>Loading your library…</Text>
         </View>
       ) : (
         <FlatList
+          style={styles.listFlex}
           data={videos}
           keyExtractor={v => v.id}
-          renderItem={({ item }) => (
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={
+            <FadeSlideIn delay={200} replayToken={replayToken}>
+              <HoverHighlight style={styles.emptyState} highlightRadius={16} hoverScale={1.01} pressScale={0.99}>
+                <View style={styles.emptyIconWrap}>
+                  <PulseGlow color={PURPLE_LINK} size={64} />
+                  <MaterialIcons name="cloud-upload" size={36} color={PURPLE_LINK} />
+                </View>
+                <Text style={styles.emptyText}>No videos yet</Text>
+                <Text style={styles.emptyHint}>
+                  Upload your first lesson to help learners discover your expertise
+                </Text>
+                <CosmicButton
+                  label="Upload your first video"
+                  variant="nebula"
+                  icon="add"
+                  onPress={() => setShowUpload(true)}
+                  style={styles.emptyCta}
+                />
+              </HoverHighlight>
+            </FadeSlideIn>
+          }
+          renderItem={({ item, index }) => (
             <VideoCard
               video={item}
+              index={index}
+              replayToken={replayToken}
               onToggleFree={handleToggleFree}
               onDelete={handleDelete}
               onPlay={setPlayingVideo}
               onEdit={setEditingVideo}
             />
           )}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: bottomListPad }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={TEAL} colors={[TEAL]} />
+          }
         />
       )}
+
+      </View>
 
       <UploadModal
         visible={showUpload}
@@ -718,107 +1319,412 @@ export default function MentorVideosScreen() {
 }
 
 const styles = StyleSheet.create({
-  priceCard: {
+  screenBody: {
+    flex: 1,
+  },
+  screenHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: T.spacing.sm,
-    backgroundColor: PANEL_BG,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(240,216,117,0.25)',
-  },
-  priceLabel: { flex: 1, color: C.text.secondary, fontSize: 13, fontWeight: '600' },
-  priceValueRow: { flexDirection: 'row', alignItems: 'center' },
-  priceValue: { color: GOLD, fontSize: 15, fontWeight: '800' },
-  priceEditRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  rupee: { color: GOLD, fontSize: 14, fontWeight: '800' },
-  priceInput: {
-    color: C.text.primary,
-    fontSize: 15,
-    fontWeight: '800',
+    paddingHorizontal: T.spacing.lg,
+    paddingVertical: T.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: GOLD,
-    minWidth: 60,
-    paddingVertical: 0,
-    textAlign: 'right',
+    borderBottomColor: 'rgba(167,139,250,0.18)',
   },
-  savePriceBtn: {
-    backgroundColor: TEAL,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginLeft: 6,
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: T.borderRadius.md,
+    backgroundColor: PANEL_BG,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
   },
-  savePriceTxt: { color: C.primary.void, fontSize: 12, fontWeight: '800' },
-  addBtn: { borderRadius: T.borderRadius.sm, overflow: 'hidden' },
-  addBtnGrad: {
-    width: 34,
-    height: 34,
+  screenHeaderCenter: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: T.spacing.sm,
+  },
+  screenTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: C.text.primary,
+  },
+  screenSubtitle: {
+    fontSize: 12,
+    color: C.text.muted,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  refreshBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: T.borderRadius.md,
+    backgroundColor: PANEL_BG,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    color: C.text.muted,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  list: {
+    paddingHorizontal: T.spacing.lg,
+    paddingTop: T.spacing.sm,
+  },
+  listFlex: {
+    flex: 1,
+  },
+
+  hoverHighlight: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(167,139,250,0.1)',
+  },
+  pulseGlow: {
+    position: 'absolute',
+    borderWidth: 2,
+  },
+
+  cardWrap: {
+    marginBottom: 12,
+  },
+
+  unlockCard: {
+    borderRadius: 16,
+    marginBottom: T.spacing.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(240,216,117,0.28)',
+    backgroundColor: PANEL_BG,
+  },
+  unlockCardGlow: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  unlockCardInner: {
+    padding: T.spacing.lg,
+  },
+  unlockCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: T.spacing.md,
+  },
+  unlockIconWrap: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  statsRow: {
+  unlockIconGrad: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unlockMeta: { flex: 1 },
+  unlockTitle: {
+    color: C.text.primary,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  unlockSubtitle: {
+    color: C.text.muted,
+    fontSize: 12,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  unlockEditBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: T.spacing.md,
-    gap: 6,
-    paddingHorizontal: 2,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: S.accentTeal,
+    borderWidth: 1,
+    borderColor: 'rgba(94,234,212,0.25)',
   },
-  statText: { color: C.text.muted, fontSize: 12, fontWeight: '600' },
-  statDot: { color: 'rgba(255,255,255,0.25)', fontSize: 12 },
+  unlockEditLabel: {
+    color: TEAL,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  unlockDisplayBlock: {
+    backgroundColor: INPUT_BG,
+    borderRadius: 14,
+    padding: T.spacing.md,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+  },
+  unlockAmount: {
+    color: GOLD,
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  unlockPerLabel: {
+    color: C.text.secondary,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  unlockInfoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  unlockInfoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  unlockInfoChipText: {
+    color: C.text.secondary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  unlockEditBlock: {
+    gap: 8,
+  },
+  unlockFieldLabel: {
+    color: PURPLE_LINK,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  unlockInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: INPUT_BG,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+  },
+  unlockInputWrapError: {
+    borderColor: 'rgba(248,113,113,0.45)',
+  },
+  unlockCurrency: {
+    color: GOLD,
+    fontSize: 22,
+    fontWeight: '800',
+    marginRight: 6,
+  },
+  unlockInput: {
+    flex: 1,
+    color: C.text.primary,
+    fontSize: 22,
+    fontWeight: '800',
+    paddingVertical: 10,
+  },
+  unlockInputHint: {
+    color: C.text.muted,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  unlockErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  unlockErrorText: {
+    color: C.accent.error,
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  unlockActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 8,
+  },
+  unlockCancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  unlockCancelText: {
+    color: C.text.muted,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  unlockSaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: TEAL,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    minWidth: 118,
+    justifyContent: 'center',
+  },
+  unlockSaveBtnDisabled: {
+    opacity: 0.75,
+  },
+  unlockSaveText: {
+    color: C.primary.void,
+    fontSize: 13,
+    fontWeight: '800',
+  },
 
-  list: { paddingBottom: 24 },
+  uploadCta: { marginBottom: T.spacing.lg },
+
+  sectionHeader: {
+    marginBottom: T.spacing.sm,
+  },
+  sectionTitle: {
+    color: C.text.primary,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  sectionSubtitle: {
+    color: C.text.muted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  sectionLabel: {
+    color: PURPLE_LINK,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+    marginTop: 4,
+  },
 
   card: {
     flexDirection: 'row',
     backgroundColor: PANEL_BG,
     borderRadius: 16,
-    marginBottom: 12,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: GLASS_BORDER,
   },
+  cardThumbWrap: {
+    width: 104,
+    height: 104,
+    position: 'relative',
+  },
   cardThumb: {
-    width: 90,
-    height: 90,
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cardThumbImg: {
+    width: '100%',
+    height: '100%',
+  },
+  cardThumbFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 40,
+  },
+  cardPlayBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  statusBadgeFree: {
+    backgroundColor: 'rgba(34,197,94,0.2)',
+  },
+  statusBadgeLocked: {
+    backgroundColor: 'rgba(240,216,117,0.18)',
+  },
+  statusBadgeText: {
+    color: GOLD,
+    fontSize: 9,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
   cardInfo: { flex: 1, padding: 12 },
-  cardTitle: { color: C.text.primary, fontSize: 14, fontWeight: '700', marginBottom: 4 },
-  cardDesc: { color: C.text.muted, fontSize: 12, marginBottom: 8 },
+  cardTitle: { color: C.text.primary, fontSize: 14, fontWeight: '700' },
+  cardDesc: { color: C.text.muted, fontSize: 12, marginBottom: 8, lineHeight: 17 },
+  cardDescMuted: { color: 'rgba(255,255,255,0.28)', fontSize: 12, fontStyle: 'italic', marginBottom: 8 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   freeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  freeLabel: { color: C.text.secondary, fontSize: 12, fontWeight: '600' },
+  freeLabel: { color: C.text.secondary, fontSize: 11, fontWeight: '600' },
   deleteBtn: { padding: 4 },
 
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 40,
-    padding: T.spacing.xxl,
+    gap: 10,
+    padding: T.spacing.xl,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: GLASS_BORDER,
     backgroundColor: PANEL_BG,
+    marginTop: 4,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: S.accentViolet,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+    position: 'relative',
   },
   emptyText: { color: C.text.primary, fontSize: 16, fontWeight: '800' },
-  emptyHint: { color: C.text.muted, fontSize: 13 },
+  emptyHint: { color: C.text.muted, fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  emptyCta: { marginTop: 8, alignSelf: 'stretch' },
 
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(3,3,8,0.75)' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(3,3,8,0.75)',
+  },
   modalSheet: {
     backgroundColor: SHEET_BG,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 36,
-    maxHeight: '90%',
+    paddingTop: 12,
+    maxHeight: '92%',
     borderTopWidth: 1,
     borderColor: GLASS_BORDER,
   },
@@ -828,17 +1734,130 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 18,
+    gap: 12,
   },
+  modalHeaderIcon: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  modalHeaderIconGrad: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalHeaderText: { flex: 1 },
   modalTitle: { color: C.text.primary, fontSize: 17, fontWeight: '800' },
+  modalSubtitle: { color: C.text.muted, fontSize: 12, marginTop: 2 },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: PANEL_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+  },
 
-  inputLabel: { color: PURPLE_LINK, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginTop: 14 },
+  mediaZone: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(94,234,212,0.3)',
+    borderStyle: 'dashed',
+    backgroundColor: S.accentTeal,
+    marginBottom: 10,
+    gap: 6,
+  },
+  mediaZoneFilled: {
+    borderStyle: 'solid',
+    borderColor: 'rgba(34,197,94,0.35)',
+    backgroundColor: 'rgba(34,197,94,0.08)',
+  },
+  mediaZoneTitle: {
+    color: C.text.primary,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  mediaZoneHint: {
+    color: C.text.muted,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+
+  thumbZone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: PANEL_BG,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    marginBottom: 8,
+  },
+  thumbZoneFilled: {
+    borderColor: 'rgba(167,139,250,0.35)',
+  },
+  thumbPreview: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+  },
+  thumbPlaceholder: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    backgroundColor: S.accentViolet,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbMeta: { flex: 1 },
+  thumbTitle: { color: C.text.primary, fontSize: 14, fontWeight: '700' },
+  thumbHint: { color: C.text.muted, fontSize: 11, marginTop: 2 },
+
+  visibilityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: PANEL_BG,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 8,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    gap: 12,
+  },
+  visibilityInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    flex: 1,
+  },
+  visibilityText: { flex: 1 },
+  visibilityTitle: {
+    color: C.text.primary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  visibilityHint: {
+    color: C.text.muted,
+    fontSize: 11,
+    marginTop: 3,
+    lineHeight: 15,
+  },
+
   input: {
     backgroundColor: INPUT_BG,
     borderRadius: 12,
@@ -849,40 +1868,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: GLASS_BORDER,
   },
-  inputMulti: { height: 72, textAlignVertical: 'top' },
+  inputMulti: { height: 88, textAlignVertical: 'top' },
+  charCount: {
+    color: C.text.muted,
+    fontSize: 10,
+    textAlign: 'right',
+    marginTop: 4,
+    marginBottom: 2,
+  },
 
-  toggleRow: {
+  progressContainer: { marginTop: 14, marginBottom: 4, gap: 8 },
+  progressHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 14,
-    marginBottom: 4,
-  },
-  toggleHint: { color: C.text.muted, fontSize: 11, marginTop: 2 },
-
-  pickBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 18,
-    backgroundColor: S.accentTeal,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(94,234,212,0.25)',
-    borderStyle: 'dashed',
   },
-  pickBtnText: { color: TEAL, fontSize: 14, fontWeight: '700', flex: 1 },
-  pickBtnViolet: {
-    marginTop: 10,
-    backgroundColor: S.accentViolet,
-    borderColor: 'rgba(167,139,250,0.35)',
-  },
-  pickBtnTextViolet: { color: PURPLE_LINK },
-  fileSize: { color: C.text.muted, fontSize: 11, marginTop: 6, textAlign: 'right' },
-
-  progressContainer: { marginTop: 18, gap: 6 },
+  progressLabel: { color: C.text.secondary, fontSize: 12, fontWeight: '600' },
   progressTrack: {
     height: 6,
     backgroundColor: 'rgba(255,255,255,0.1)',
@@ -890,7 +1891,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressFill: { height: '100%', backgroundColor: TEAL, borderRadius: 3 },
-  progressText: { color: TEAL, fontSize: 12, fontWeight: '800', textAlign: 'right' },
+  progressText: { color: TEAL, fontSize: 12, fontWeight: '800' },
 
   cardTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 4 },
   editBtn: { paddingTop: 2 },
@@ -916,7 +1917,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: 'rgba(248,113,113,0.25)',
-    marginBottom: 10,
+    marginTop: 10,
+    marginBottom: 4,
   },
   errorBannerText: {
     color: C.accent.error,
@@ -924,9 +1926,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
+  editModalBackdrop: { flex: 1, backgroundColor: 'rgba(3,3,8,0.75)' },
   savedBtn: { backgroundColor: C.accent.success },
   savedRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(3,3,8,0.75)' },
   fieldLabel: {
     color: PURPLE_LINK,
     fontSize: 11,
@@ -934,7 +1936,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 6,
-    marginTop: 14,
+    marginTop: 10,
   },
-  uploadBtn: { marginTop: 16, marginVertical: 0 },
+  uploadBtn: { marginTop: 16, marginBottom: 8 },
+  uploadBtnText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '800',
+  },
 });

@@ -10,6 +10,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-simple-toast';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,18 +25,21 @@ import { reviewsApi } from '../../api/reviewsApi';
 import { normalizeRecordingUrl } from '../../api/api';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { saveRecordingToGallery } from '../../utils/recordingActions';
+import { isBookingSessionPast, isExpiredBooking } from '../../utils/bookingSession';
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonBone({ style }) {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(anim, { toValue: 1, duration: 900, useNativeDriver: true }),
         Animated.timing(anim, { toValue: 0, duration: 900, useNativeDriver: true }),
       ]),
-    ).start();
-  }, []);
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [anim]);
   const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.45] });
   return <Animated.View style={[sk.bone, style, { opacity }]} />;
 }
@@ -238,15 +242,31 @@ export default function LearnerBookingsScreen({ navigation }) {
   const [historyPage, setHistoryPage] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
+  const hasLoadedRef = useRef(false);
 
-  useEffect(() => {
-    if (profile?.id) loadInitial();
-  }, [profile?.id]);
-
-  const loadInitial = async () => {
-    if (!profile?.id) { setLoading(false); return; }
+  const loadReviewedIds = useCallback(async bookings => {
+    const completedIds = (bookings || [])
+      .filter(b => b.status === 'completed')
+      .map(b => b.id);
+    if (!completedIds.length) {
+      setReviewedIds(new Set());
+      return;
+    }
     try {
-      setLoading(true);
+      const reviewed = await reviewsApi.getReviewedBookingIds(completedIds);
+      setReviewedIds(reviewed);
+    } catch (err) {
+      console.warn('Failed to load review status:', err?.message || err);
+    }
+  }, []);
+
+  const loadInitial = useCallback(async ({ showSkeleton = true, isActive = () => true } = {}) => {
+    if (!profile?.id) {
+      setLoading(false);
+      return;
+    }
+    try {
+      if (showSkeleton) setLoading(true);
       setHistoryPage(0);
       setHasMoreHistory(true);
       setUpcomingShown(PAGE_SIZE);
@@ -257,54 +277,60 @@ export default function LearnerBookingsScreen({ navigation }) {
         bookingApi.getBookingHistoryByLearner(profile.id, 0, PAGE_SIZE),
       ]);
 
+      if (!isActive()) return;
+
       const normalizeBooking = b => ({
         ...b,
-        recordingUrl: playbackUrlFromBooking(b),
+        recordingUrl: normalizeRecordingUrl(playbackUrlFromBooking(b)) || null,
       });
 
-      const isSessionPast = b => {
-        const date = b?.availability_slots?.date;
-        const endTime = b?.availability_slots?.end_time;
-        if (!date) return false;
-        return new Date(`${date}T${endTime || '23:59:59'}`) < new Date();
-      };
+      const isSessionPast = isBookingSessionPast;
 
       const allUpcoming = (upcomingData || []).map(normalizeBooking);
       const historyNorm = (historyData || []).map(normalizeBooking);
 
       const upcomingNorm = allUpcoming.filter(b => !isSessionPast(b));
-      const expiredNorm  = allUpcoming.filter(b => isSessionPast(b))
-        .map(b => ({ ...b, isExpired: true }));
+      const expiredNorm = allUpcoming.filter(b => isSessionPast(b));
 
       const merged = [...expiredNorm, ...historyNorm].sort((a, b) => {
         const da = `${a.availability_slots?.date ?? ''} ${a.availability_slots?.start_time ?? ''}`;
         const db = `${b.availability_slots?.date ?? ''} ${b.availability_slots?.start_time ?? ''}`;
         return db.localeCompare(da);
       });
+
+      if (!isActive()) return;
+
       setUpcomingAll(upcomingNorm);
       setHistory(merged);
       setHistoryPage(1);
       setHasMoreHistory(historyNorm.length === PAGE_SIZE);
 
-      // Check which completed bookings have reviews
-      const completedIds = historyNorm
-        .filter(b => b.status === 'completed')
-        .map(b => b.id);
-      const reviewed = new Set();
-      await Promise.all(
-        completedIds.map(async id => {
-          const r = await reviewsApi.getReviewForBooking(id);
-          if (r) reviewed.add(id);
-        }),
-      );
-      setReviewedIds(reviewed);
+      if (showSkeleton) setLoading(false);
+      void loadReviewedIds(merged);
     } catch (error) {
+      if (!isActive()) return;
       console.error('Error loading bookings:', error);
       Toast.show('Failed to load bookings: ' + error.message);
     } finally {
-      setLoading(false);
+      if (isActive()) setLoading(false);
     }
-  };
+  }, [profile?.id, loadReviewedIds]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.id) {
+        setLoading(false);
+        return undefined;
+      }
+      let active = true;
+      const showSkeleton = !hasLoadedRef.current;
+      hasLoadedRef.current = true;
+      loadInitial({ showSkeleton, isActive: () => active });
+      return () => {
+        active = false;
+      };
+    }, [profile?.id, loadInitial]),
+  );
 
   const loadMoreHistory = useCallback(async () => {
     // If there are in-memory items not yet shown, just reveal them
@@ -319,32 +345,23 @@ export default function LearnerBookingsScreen({ navigation }) {
       const data = await bookingApi.getBookingHistoryByLearner(profile.id, historyPage, PAGE_SIZE);
       const newItems = (data || []).map(b => ({
         ...b,
-        recordingUrl: playbackUrlFromBooking(b),
+        recordingUrl: normalizeRecordingUrl(playbackUrlFromBooking(b)) || null,
       }));
 
-      setHistory(prev => [...prev, ...newItems]);
+      setHistory(prev => {
+        const next = [...prev, ...newItems];
+        void loadReviewedIds(next);
+        return next;
+      });
       setHistoryShown(prev => prev + PAGE_SIZE);
       setHistoryPage(p => p + 1);
       setHasMoreHistory(newItems.length === PAGE_SIZE);
-
-      // Check reviews for newly loaded completed bookings
-      const completedIds = newItems.filter(b => b.status === 'completed').map(b => b.id);
-      if (completedIds.length > 0) {
-        const reviewed = new Set(reviewedIds);
-        await Promise.all(
-          completedIds.map(async id => {
-            const r = await reviewsApi.getReviewForBooking(id);
-            if (r) reviewed.add(id);
-          }),
-        );
-        setReviewedIds(reviewed);
-      }
     } catch {
       Toast.show('Failed to load more');
     } finally {
       setLoadingMore(false);
     }
-  }, [historyShown, history.length, loadingMore, hasMoreHistory, profile?.id, historyPage, reviewedIds]);
+  }, [historyShown, history.length, loadingMore, hasMoreHistory, profile?.id, historyPage, loadReviewedIds]);
 
   const loadMoreUpcoming = () => {
     setUpcomingShown(prev => prev + PAGE_SIZE);
@@ -352,7 +369,7 @@ export default function LearnerBookingsScreen({ navigation }) {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadInitial();
+    await loadInitial({ showSkeleton: false });
     setRefreshing(false);
   };
 
@@ -364,7 +381,7 @@ export default function LearnerBookingsScreen({ navigation }) {
     try {
       await bookingApi.cancelBooking(booking.id);
       Toast.show('Booking cancelled');
-      await loadInitial();
+      await loadInitial({ showSkeleton: false });
     } catch {
       Toast.show('Failed to cancel booking');
     }
@@ -387,7 +404,7 @@ export default function LearnerBookingsScreen({ navigation }) {
 
   const renderBooking = (item, isUpcoming, entranceDelay) => {
     let statusLabel;
-    if (item.isExpired) {
+    if (isExpiredBooking(item)) {
       statusLabel = 'Expired';
     } else if (isUpcoming && (item.status === 'pending' || item.status === 'confirmed')) {
       statusLabel = 'Booked';

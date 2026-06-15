@@ -69,14 +69,13 @@ export function MentorImageCard({ mentor, onPress, style, entranceDelay }) {
     }).start();
   };
 
-  const hasCustomSize = style?.width != null;
   const wrapperStyle = [
-    hasCustomSize ? style : styles.defaultSize,
+    styles.defaultSize,
+    style,
     {
       opacity,
       transform: [{ translateY }, { scale }],
     },
-    !hasCustomSize ? style : null,
   ];
 
   return (

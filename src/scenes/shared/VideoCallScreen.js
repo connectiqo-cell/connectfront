@@ -88,7 +88,7 @@ export default function VideoCallScreen({ navigation, route }) {
           const permissions = [
             PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
             PermissionsAndroid.PERMISSIONS.CAMERA,
-          ];
+          ]; 
 
           const granted = await PermissionsAndroid.requestMultiple(permissions);
           const allGranted = permissions.every(

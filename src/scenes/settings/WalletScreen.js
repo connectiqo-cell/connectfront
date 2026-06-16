@@ -819,7 +819,7 @@ export default function WalletScreen({ navigation }) {
         const [w, pending, payoutStatus, txs] = await Promise.all([
           paymentApi.getWallet(profile.id),
           paymentApi.getPendingEarnings(profile.id),
-          payoutApi.getAccountStatus(profile.id).catch(() => null),
+          payoutApi.getAccountStatus(profile.id).catch(err => { console.warn('⚠️ Payout status check failed:', err?.message); return null; }),
           paymentApi.getTransactions(profile.id).catch(() => []),
         ]);
         setWallet(w);

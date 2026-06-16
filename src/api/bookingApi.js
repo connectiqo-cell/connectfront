@@ -7,13 +7,17 @@ import { recordingsApi } from './recordingsApi';
 async function attachRecordings(bookings) {
   if (!bookings?.length) return bookings;
   const ids = bookings.map(b => b.id);
-  const { data: recs } = await supabase
-    .from('recordings')
-    .select('booking_id, meeting_id, recording_url, recording_playback_url')
-    .in('booking_id', ids);
-  const recMap = {};
-  (recs || []).forEach(r => { recMap[r.booking_id] = r; });
-  return bookings.map(b => ({ ...b, recordings: recMap[b.id] ?? null }));
+  try {
+    const { data: recs } = await supabase
+      .from('recordings')
+      .select('booking_id, meeting_id, recording_url, recording_playback_url')
+      .in('booking_id', ids);
+    const recMap = {};
+    (recs || []).forEach(r => { recMap[r.booking_id] = r; });
+    return bookings.map(b => ({ ...b, recordings: recMap[b.id] ?? null }));
+  } catch {
+    return bookings.map(b => ({ ...b, recordings: null }));
+  }
 }
 
 export const bookingApi = {

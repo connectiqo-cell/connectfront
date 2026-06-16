@@ -367,7 +367,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
   }, [recordingConsentPubSub.messages, isHost, recordingState, startRecording]);
 
   useEffect(() => {
-    if (Platform.OS == "ios") {
+    if (Platform.OS === "ios") {
       VideosdkRPK.addListener("onScreenShare", (event) => {
         if (event === "START_BROADCAST") {
           enableScreenShare();

@@ -45,7 +45,7 @@ export const useMentors = () => {
   const searchMentors = async (query, specialization) => {
     setLoading(true);
     try {
-      const results = await mentorApi.searchMentors({ query, specialization });
+      const results = await mentorApi.searchMentors(query || specialization || '');
       setMentors(results);
       setFilteredMentors(results);
     } catch (err) {

@@ -8,7 +8,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  useMeeting,
   MeetingProvider,
   MeetingConsumer,
 } from '@videosdk.live/react-native-sdk';
@@ -73,10 +72,6 @@ export default function VideoCallScreen({ navigation, route }) {
   const [participantCount, setParticipantCount] = useState(1);
   const joinTimeRef = useRef(null); // Track when both participants joined (use Ref to persist across re-renders)
   const recordingRef = useRef();
-
-  // Log participant count changes
-  useEffect(() => {
-  }, [participantCount]);
 
   // Track when both participants have joined
   useEffect(() => {

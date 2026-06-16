@@ -31,8 +31,8 @@ export const MentorSectionNavigator = () => {
         lazyPreloadDistance: 1,
         animationEnabled: false,
       }}
-      style={{ backgroundColor: 'transparent' }}
-      sceneContainerStyle={{ backgroundColor: 'transparent' }}
+      style={{ flex: 1, backgroundColor: 'transparent' }}
+      sceneContainerStyle={{ flex: 1, backgroundColor: 'transparent' }}
     >
       <TopTab.Screen
         name={SCREEN_NAMES.MentorDashboard}

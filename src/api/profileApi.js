@@ -83,6 +83,7 @@ export const profileApi = {
     experienceYears,
     pricePerHour,
     coverImageUrl,
+    category,
   }) => {
     try {
       const updates = {
@@ -93,6 +94,7 @@ export const profileApi = {
         price_per_hour: pricePerHour ?? 0,
       };
       if (coverImageUrl !== undefined) updates.cover_image_url = coverImageUrl;
+      if (category !== undefined) updates.category = category || '';
 
       const { data, error } = await supabase
         .from('mentor_profiles')

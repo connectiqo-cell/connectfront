@@ -12,6 +12,7 @@ import {
   Platform,
   Easing,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicButton from './CosmicButton';
@@ -82,7 +83,7 @@ function StatSegment({ icon, iconColor, value, label }) {
   );
 }
 
-function SheetReveal({ visible, delay = 0, offsetY = 18, style, children }) {
+function SheetReveal({ visible, mentorKey, delay = 0, offsetY = 18, style, children }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(offsetY)).current;
 
@@ -110,7 +111,7 @@ function SheetReveal({ visible, delay = 0, offsetY = 18, style, children }) {
       opacity.setValue(0);
       translateY.setValue(offsetY);
     }
-  }, [visible, delay, offsetY, opacity, translateY]);
+  }, [visible, mentorKey, delay, offsetY, opacity, translateY]);
 
   return (
     <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
@@ -119,7 +120,7 @@ function SheetReveal({ visible, delay = 0, offsetY = 18, style, children }) {
   );
 }
 
-function AvatarReveal({ visible, children }) {
+function AvatarReveal({ visible, mentorKey, children }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.82)).current;
 
@@ -147,7 +148,7 @@ function AvatarReveal({ visible, children }) {
       opacity.setValue(0);
       scale.setValue(0.82);
     }
-  }, [visible, opacity, scale]);
+  }, [visible, mentorKey, opacity, scale]);
 
   return (
     <Animated.View style={{ opacity, transform: [{ scale }] }}>
@@ -157,6 +158,8 @@ function AvatarReveal({ visible, children }) {
 }
 
 export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProfile }) {
+  const insets = useSafeAreaInsets();
+  const actionsBottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 8) + T.spacing.md;
   const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const actionsSlide = useRef(new Animated.Value(48)).current;
@@ -259,7 +262,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
           bounces={false}
         >
           <View style={styles.header}>
-            <AvatarReveal visible={visible} key={`avatar-${mentor.id}`}>
+            <AvatarReveal visible={visible} mentorKey={mentor.id} key={`avatar-${mentor.id}`}>
               <PressScale
                 onPress={() => {
                   onClose();
@@ -278,7 +281,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
                 </LinearGradient>
               </PressScale>
             </AvatarReveal>
-            <SheetReveal visible={visible} delay={130} offsetY={14} style={styles.headerInfo} key={`info-${mentor.id}`}>
+            <SheetReveal visible={visible} mentorKey={mentor.id} delay={130} offsetY={14} style={styles.headerInfo} key={`info-${mentor.id}`}>
               <Text style={styles.name}>{name}</Text>
               {spec ? (
                 <Text style={styles.spec} numberOfLines={2}>
@@ -292,7 +295,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             </SheetReveal>
           </View>
 
-          <SheetReveal visible={visible} delay={190} offsetY={20} key={`stats-${mentor.id}`}>
+          <SheetReveal visible={visible} mentorKey={mentor.id} delay={190} offsetY={20} key={`stats-${mentor.id}`}>
             <View style={styles.statsBar}>
               <StatSegment icon="star" iconColor={GOLD} value={rating} label="Rating" />
               <View style={styles.statDivider} />
@@ -305,7 +308,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
           </SheetReveal>
 
           {bio ? (
-            <SheetReveal visible={visible} delay={250} offsetY={20} key={`bio-${mentor.id}`}>
+            <SheetReveal visible={visible} mentorKey={mentor.id} delay={250} offsetY={20} key={`bio-${mentor.id}`}>
               <View style={styles.bioWrap}>
                 <Text style={styles.bioLabel}>About</Text>
                 <Text style={styles.bioText}>{bio}</Text>
@@ -320,6 +323,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             {
               opacity: actionsOpacity,
               transform: [{ translateY: actionsSlide }],
+              paddingBottom: actionsBottomPad,
             },
           ]}
         >
@@ -368,7 +372,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderBottomWidth: 0,
     borderColor: 'rgba(167,139,250,0.28)',
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     maxHeight: '85%',
     overflow: 'hidden',
     ...Platform.select({
@@ -540,7 +543,6 @@ const styles = StyleSheet.create({
     gap: T.spacing.md,
     paddingHorizontal: T.spacing.lg,
     paddingTop: T.spacing.lg,
-    paddingBottom: T.spacing.xs,
     borderTopWidth: 1,
     borderTopColor: 'rgba(167,139,250,0.22)',
     backgroundColor: SHEET_BG,

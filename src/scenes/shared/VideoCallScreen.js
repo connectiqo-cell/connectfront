@@ -20,8 +20,11 @@ import { supabase } from '../../lib/supabase';
 import { bookingApi } from '../../api/bookingApi';
 import { recordingsApi, meetingIdFromBooking } from '../../api/recordingsApi';
 import { earningsApi } from '../../api/earningsApi';
+import { profileApi } from '../../api/profileApi';
 import { useAuth } from '../../hooks/useAuth';
+import { resolveLobbyPartner } from '../../utils/sessionLobbyRules';
 import MeetingContainer from '../meeting/MeetingContainer';
+import SessionLobbyView from '../meeting/Components/SessionLobbyView';
 
 class CallErrorBoundary extends React.Component {
   state = { hasError: false };
@@ -64,7 +67,10 @@ export default function VideoCallScreen({ navigation, route }) {
   const [ready, setReady] = useState(false);
   const [callParams, setCallParams] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [participantCount, setParticipantCount] = useState(1); // Start with current user
+  const [booking, setBooking] = useState(null);
+  const [otherProfile, setOtherProfile] = useState(null);
+  const [lobbyOnly, setLobbyOnly] = useState(false);
+  const [participantCount, setParticipantCount] = useState(1);
   const joinTimeRef = useRef(null); // Track when both participants joined (use Ref to persist across re-renders)
   const recordingRef = useRef();
 
@@ -111,37 +117,51 @@ export default function VideoCallScreen({ navigation, route }) {
     requestPermissions();
   }, []);
 
+  const enrichBookingProfiles = async row => {
+    if (!row) return row;
+    const isMentorUser = profile?.id === row.mentor_id;
+    const otherId = isMentorUser ? row.learner_id : row.mentor_id;
+    try {
+      const other = await profileApi.getProfile(otherId);
+      setOtherProfile(other);
+    } catch (_) {
+      setOtherProfile(null);
+    }
+    return row;
+  };
+
   const initializeCall = async () => {
     try {
       const token = await getToken();
 
       let meetingId;
-      let booking;
+      let bookingRow;
 
       if (isHost) {
-        // Host: create new meeting
         meetingId = await createMeeting({ token });
-        booking = await bookingApi.getBooking(bookingId);
-        // Save meeting ID to booking + recordings row (Recorded lectures reads from recordings)
+        bookingRow = await bookingApi.getBooking(bookingId);
+        await enrichBookingProfiles(bookingRow);
         await bookingApi.setMeetingId({ bookingId, meetingId });
         await recordingsApi.upsertSessionForBooking({
           bookingId,
-          mentorId: booking?.mentor_id || profile.id,
-          learnerId: booking?.learner_id,
+          mentorId: bookingRow?.mentor_id || profile.id,
+          learnerId: bookingRow?.learner_id,
           meetingId,
         });
       } else {
-        // Guest: get meeting ID from booking
-        booking = await bookingApi.getBooking(bookingId);
-        const mid = booking?.meeting_id || meetingIdFromBooking(booking);
+        bookingRow = await bookingApi.getBooking(bookingId);
+        await enrichBookingProfiles(bookingRow);
+        const mid = bookingRow?.meeting_id || meetingIdFromBooking(bookingRow);
         if (!mid) {
-          throw new Error('Host has not started the meeting yet');
+          setBooking(bookingRow);
+          setLobbyOnly(true);
+          return;
         }
         meetingId = mid;
-        // Validate meeting exists
         await validateMeeting({ meetingId, token });
       }
 
+      setBooking(bookingRow);
       setCallParams({ token, meetingId });
       setReady(true);
     } catch (error) {
@@ -151,6 +171,33 @@ export default function VideoCallScreen({ navigation, route }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!lobbyOnly || isHost) return undefined;
+
+    const pollHost = async () => {
+      try {
+        const row = await bookingApi.getBooking(bookingId);
+        await enrichBookingProfiles(row);
+        const mid = row?.meeting_id || meetingIdFromBooking(row);
+        if (mid) {
+          setLobbyOnly(false);
+          setLoading(true);
+          const token = await getToken();
+          await validateMeeting({ meetingId: mid, token });
+          setBooking(row);
+          setCallParams({ token, meetingId: mid });
+          setReady(true);
+          setLoading(false);
+        }
+      } catch (_) {
+        /* keep polling */
+      }
+    };
+
+    const id = setInterval(pollHost, 5000);
+    return () => clearInterval(id);
+  }, [lobbyOnly, isHost, bookingId]);
 
   const handleMeetingLeft = async () => {
     try {
@@ -268,6 +315,32 @@ export default function VideoCallScreen({ navigation, route }) {
     );
   }
 
+  const isMentor = Boolean(isHost || profile?.id === booking?.mentor_id);
+  const resolvedOtherUser = resolveLobbyPartner({
+    booking,
+    isMentor,
+    otherUser: otherProfile,
+  });
+
+  if (lobbyOnly && booking) {
+    return (
+      <View style={{
+        flex: 1,
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom,
+      }}>
+        <SessionLobbyView
+          booking={booking}
+          isMentor={isMentor}
+          otherUser={resolvedOtherUser}
+          onLeave={() => navigation.goBack()}
+          onReschedule={() => navigation.goBack()}
+          onCancelRefund={() => navigation.goBack()}
+        />
+      </View>
+    );
+  }
+
   if (!ready || !callParams) {
     return (
       <View style={{
@@ -285,7 +358,6 @@ export default function VideoCallScreen({ navigation, route }) {
   return (
     <View style={{
       flex: 1,
-      backgroundColor: UNIFIED_THEME.colors.primary.dark,
       paddingTop: insets.top,
       paddingBottom: insets.bottom,
     }}>
@@ -294,7 +366,7 @@ export default function VideoCallScreen({ navigation, route }) {
           meetingId: callParams.meetingId,
           micEnabled: false,
           webcamEnabled: false,
-          name: profile.name,
+          name: profile?.name || 'Guest',
           notification: {
             title: 'Session in Progress',
             message: 'Your mentoring session is active',
@@ -310,6 +382,10 @@ export default function VideoCallScreen({ navigation, route }) {
                 meetingType="ONE_TO_ONE"
                 onParticipantCountChange={setParticipantCount}
                 isHost={isHost}
+                isMentor={isMentor}
+                booking={booking}
+                otherUser={resolvedOtherUser}
+                onLeaveSession={handleMeetingLeft}
               />
             )}
           </MeetingConsumer>

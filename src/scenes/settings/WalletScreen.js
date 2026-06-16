@@ -1,18 +1,22 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   TextInput,
   Alert,
   RefreshControl,
+  Pressable,
+  Animated,
+  Easing,
+  ActivityIndicator,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import Toast from 'react-native-simple-toast';
 import { useFocusEffect } from '@react-navigation/native';
+import moment from 'moment';
 import { SafeScreen } from '../../components/SafeScreen';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { UNIFIED_THEME } from '../../unifiedTheme';
@@ -34,14 +38,610 @@ const INPUT_BG = '#0f0e2a';
 
 const MIN_WITHDRAWAL = 5000;
 
-const fmt = (n) =>
-  `₹${parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+const fmt = n =>
+  `₹${parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const fmtCompact = n =>
+  `₹${parseFloat(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+function runEntrance(opacity, translateY, delay = 0) {
+  opacity.setValue(0);
+  translateY.setValue(14);
+  Animated.parallel([
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 340,
+      delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }),
+    Animated.timing(translateY, {
+      toValue: 0,
+      duration: 340,
+      delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }),
+  ]).start();
+}
+
+function FadeSlideIn({ children, delay = 0, style, replayToken = 0 }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(14)).current;
+  const hasEntered = useRef(false);
+
+  useEffect(() => {
+    if (!hasEntered.current) {
+      hasEntered.current = true;
+      runEntrance(opacity, translateY, delay);
+      return;
+    }
+    if (replayToken > 0) {
+      runEntrance(opacity, translateY, delay);
+    }
+  }, [replayToken, delay, opacity, translateY]);
+
+  return (
+    <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function PulseGlow({ color = TEAL, size = 68 }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1800,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.28] });
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] });
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.pulseGlow,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderColor: color,
+          opacity,
+          transform: [{ scale }],
+        },
+      ]}
+    />
+  );
+}
+
+function AnimatedBalanceText({ value, style }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    scale.setValue(0.92);
+    opacity.setValue(0);
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 6,
+        tension: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [value, scale, opacity]);
+
+  return (
+    <Animated.Text style={[style, { opacity, transform: [{ scale }] }]}>
+      {value}
+    </Animated.Text>
+  );
+}
+
+function PulseBadge({ children, style }) {
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1.06,
+          duration: 900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  return (
+    <Animated.View style={[style, { transform: [{ scale: pulse }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function HoverHighlight({ children, style, onPress, disabled, pressScale = 0.98, hoverScale = 1.02 }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const highlight = useRef(new Animated.Value(0)).current;
+  const hovered = useRef(false);
+
+  const springTo = useCallback(
+    toValue => {
+      Animated.spring(scale, {
+        toValue,
+        friction: 7,
+        tension: 260,
+        useNativeDriver: true,
+      }).start();
+    },
+    [scale],
+  );
+
+  const setHighlight = active => {
+    Animated.timing(highlight, {
+      toValue: active ? 1 : 0,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const highlightOpacity = highlight.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const content = (
+    <Animated.View style={[style, { transform: [{ scale }] }]}>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.hoverHighlight, { opacity: highlightOpacity }]}
+      />
+      {children}
+    </Animated.View>
+  );
+
+  if (!onPress) return content;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      onPressIn={() => {
+        if (disabled) return;
+        springTo(pressScale);
+        setHighlight(true);
+      }}
+      onPressOut={() => {
+        springTo(hovered.current ? hoverScale : 1);
+        if (!hovered.current) setHighlight(false);
+      }}
+      onHoverIn={() => {
+        if (disabled) return;
+        hovered.current = true;
+        springTo(hoverScale);
+        setHighlight(true);
+      }}
+      onHoverOut={() => {
+        hovered.current = false;
+        springTo(1);
+        setHighlight(false);
+      }}
+    >
+      {content}
+    </Pressable>
+  );
+}
+
+function AnimatedPressable({
+  children,
+  style,
+  onPress,
+  disabled,
+  pressScale = 0.96,
+  hoverScale = 1.04,
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const hovered = useRef(false);
+
+  const springTo = useCallback(
+    toValue => {
+      Animated.spring(scale, {
+        toValue,
+        friction: 7,
+        tension: 260,
+        useNativeDriver: true,
+      }).start();
+    },
+    [scale],
+  );
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      onPressIn={() => !disabled && springTo(pressScale)}
+      onPressOut={() => !disabled && springTo(hovered.current ? hoverScale : 1)}
+      onHoverIn={() => {
+        if (disabled) return;
+        hovered.current = true;
+        springTo(hoverScale);
+      }}
+      onHoverOut={() => {
+        hovered.current = false;
+        springTo(1);
+      }}
+    >
+      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+    </Pressable>
+  );
+}
+
+function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay = 0 }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(14)).current;
+
+  useEffect(() => {
+    runEntrance(opacity, translateY, delay);
+  }, [delay, opacity, translateY]);
+
+  return (
+    <Animated.View style={[styles.sectionBlock, { opacity, transform: [{ translateY }] }]}>
+      <View style={styles.sectionHeader}>
+        <View style={[styles.sectionIcon, { backgroundColor: accentBg || S.accentViolet }]}>
+          <MaterialIcons name={icon} size={16} color={accent || PURPLE_LINK} />
+        </View>
+        <View style={styles.sectionHeaderText}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
+        </View>
+      </View>
+      <View style={styles.sectionCard}>{children}</View>
+    </Animated.View>
+  );
+}
+
+function StatTile({ icon, label, value, color, accentBg, delay = 0, replayToken = 0 }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.92)).current;
+  const iconScale = useRef(new Animated.Value(1)).current;
+  const hasEntered = useRef(false);
+
+  const playEntrance = useCallback(() => {
+    opacity.setValue(0);
+    scale.setValue(0.92);
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 320,
+        delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 7,
+        tension: 180,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [delay, opacity, scale]);
+
+  useEffect(() => {
+    if (!hasEntered.current) {
+      hasEntered.current = true;
+      playEntrance();
+      return;
+    }
+    if (replayToken > 0) playEntrance();
+  }, [replayToken, playEntrance]);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(iconScale, {
+          toValue: 1.12,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(iconScale, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [iconScale]);
+
+  return (
+    <HoverHighlight style={styles.statTileWrap} hoverScale={1.04} pressScale={0.97}>
+      <Animated.View style={[styles.statTile, { opacity, transform: [{ scale }] }]}>
+        <Animated.View style={[styles.statIconWrap, { backgroundColor: accentBg, transform: [{ scale: iconScale }] }]}>
+          <MaterialIcons name={icon} size={18} color={color} />
+        </Animated.View>
+        <Text style={[styles.statValue, { color }]} numberOfLines={1}>
+          {value}
+        </Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </Animated.View>
+    </HoverHighlight>
+  );
+}
+
+function AnimatedProgressBar({ percent }) {
+  const widthAnim = useRef(new Animated.Value(0)).current;
+  const shimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(widthAnim, {
+      toValue: Math.min(Math.max(percent, 0), 100),
+      duration: 900,
+      delay: 200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [percent, widthAnim]);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(shimmer, {
+        toValue: 1,
+        duration: 1600,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shimmer]);
+
+  const barWidth = widthAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
+  const shimmerX = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-40, 120],
+  });
+
+  return (
+    <View style={styles.progressTrack}>
+      <Animated.View style={[styles.progressFillWrap, { width: barWidth }]}>
+        <LinearGradient
+          colors={[TEAL, GOLD]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.progressFill}
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.progressShimmer, { transform: [{ translateX: shimmerX }] }]}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+function ExpandFadeIn({ visible, children }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const height = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(-8)).current;
+
+  useEffect(() => {
+    if (!visible) {
+      opacity.setValue(0);
+      translateY.setValue(-8);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(translateY, {
+        toValue: 0,
+        friction: 8,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+      Animated.spring(height, {
+        toValue: 1,
+        friction: 8,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [visible, opacity, translateY, height]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }, { scale: height }] }}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function MenuRow({ icon, title, subtitle, onPress, accent = TEAL, accentBg = S.accentTeal, badge, index = 0, replayToken = 0 }) {
+  const chevron = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(1)).current;
+  const highlight = useRef(new Animated.Value(0)).current;
+  const iconScale = useRef(new Animated.Value(1)).current;
+  const rowOpacity = useRef(new Animated.Value(0)).current;
+  const rowY = useRef(new Animated.Value(10)).current;
+  const hovered = useRef(false);
+  const hasEntered = useRef(false);
+
+  useEffect(() => {
+    if (!hasEntered.current) {
+      hasEntered.current = true;
+      runEntrance(rowOpacity, rowY, 40 + index * 40);
+      return;
+    }
+    if (replayToken > 0) runEntrance(rowOpacity, rowY, 40 + index * 40);
+  }, [replayToken, index, rowOpacity, rowY]);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(chevron, {
+          toValue: 1,
+          duration: 1300,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(chevron, {
+          toValue: 0,
+          duration: 1300,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [chevron]);
+
+  const springTo = toValue => {
+    Animated.spring(scale, { toValue, friction: 7, tension: 260, useNativeDriver: true }).start();
+  };
+
+  const setHighlight = active => {
+    Animated.timing(highlight, {
+      toValue: active ? 1 : 0,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    Animated.spring(iconScale, {
+      toValue: active ? 1.1 : 1,
+      friction: 6,
+      tension: 220,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const nudge = chevron.interpolate({ inputRange: [0, 1], outputRange: [0, 5] });
+  const highlightOpacity = highlight.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+
+  return (
+    <Animated.View style={{ opacity: rowOpacity, transform: [{ translateY: rowY }] }}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => {
+          springTo(0.98);
+          setHighlight(true);
+        }}
+        onPressOut={() => {
+          springTo(hovered.current ? 1.02 : 1);
+          if (!hovered.current) setHighlight(false);
+        }}
+        onHoverIn={() => {
+          hovered.current = true;
+          springTo(1.02);
+          setHighlight(true);
+        }}
+        onHoverOut={() => {
+          hovered.current = false;
+          springTo(1);
+          setHighlight(false);
+        }}
+      >
+        <Animated.View style={[styles.menuRow, { transform: [{ scale }] }]}>
+          <Animated.View pointerEvents="none" style={[styles.menuHighlight, { opacity: highlightOpacity }]} />
+          <Animated.View style={[styles.menuIcon, { backgroundColor: accentBg, transform: [{ scale: iconScale }] }]}>
+            <MaterialIcons name={icon} size={20} color={accent} />
+          </Animated.View>
+          <View style={styles.menuText}>
+            <Text style={styles.menuTitle}>{title}</Text>
+            {subtitle ? <Text style={styles.menuSubtitle} numberOfLines={2}>{subtitle}</Text> : null}
+          </View>
+          {badge ? (
+            <PulseBadge style={styles.menuBadge}>
+              <Text style={styles.menuBadgeText}>{badge}</Text>
+            </PulseBadge>
+          ) : null}
+          <Animated.View style={{ transform: [{ translateX: nudge }] }}>
+            <MaterialIcons name="chevron-right" size={22} color={C.text.muted} />
+          </Animated.View>
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function QuickAmountChip({ label, active, onPress }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.spring(scale, {
+      toValue: active ? 1.06 : 1,
+      friction: 6,
+      tension: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [active, scale]);
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      style={[styles.quickChip, active && styles.quickChipActive]}
+      hoverScale={1.08}
+      pressScale={0.94}
+    >
+      <Animated.Text style={[styles.quickChipText, active && styles.quickChipTextActive, { transform: [{ scale }] }]}>
+        {label}
+      </Animated.Text>
+    </AnimatedPressable>
+  );
+}
 
 function InfoRow({ icon, label, value, valueColor }) {
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoLeft}>
-        <MaterialIcons name={icon} size={18} color={TEAL} />
+        <MaterialIcons name={icon} size={17} color={TEAL} />
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
       <Text style={[styles.infoValue, valueColor && { color: valueColor }]}>{value}</Text>
@@ -49,10 +649,139 @@ function InfoRow({ icon, label, value, valueColor }) {
   );
 }
 
+function TransactionRow({ item, isMentor, index = 0, replayToken = 0 }) {
+  const net = parseFloat(item.amount || 0) - parseFloat(item.platform_fee || 0);
+  const dateLabel = moment(item.created_at).format('DD MMM · hh:mm A');
+  const isRecent = moment(item.created_at).isAfter(moment().subtract(7, 'days'));
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateX = useRef(new Animated.Value(-12)).current;
+  const hasEntered = useRef(false);
+
+  useEffect(() => {
+    const delay = 60 + index * 55;
+    const play = () => {
+      opacity.setValue(0);
+      translateX.setValue(-12);
+      Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 300,
+          delay,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateX, {
+          toValue: 0,
+          duration: 300,
+          delay,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    };
+    if (!hasEntered.current) {
+      hasEntered.current = true;
+      play();
+      return;
+    }
+    if (replayToken > 0) play();
+  }, [replayToken, index, opacity, translateX]);
+
+  return (
+    <HoverHighlight style={styles.txRow} hoverScale={1.01} pressScale={0.99}>
+      <Animated.View style={[styles.txRowInner, { opacity, transform: [{ translateX }] }]}>
+        <View style={[styles.txIcon, { backgroundColor: isMentor ? S.accentSuccess : S.accentTeal }]}>
+          <MaterialIcons
+            name={isMentor ? 'south-west' : 'north-east'}
+            size={16}
+            color={isMentor ? C.accent.success : TEAL}
+          />
+        </View>
+        <View style={styles.txBody}>
+          <Text style={styles.txTitle}>{isMentor ? 'Session earning' : 'Session payment'}</Text>
+          <Text style={styles.txDate}>{dateLabel}</Text>
+        </View>
+        <View style={styles.txRight}>
+          <Text style={[styles.txAmount, isMentor && { color: C.accent.success }]}>
+            {isMentor ? '+' : '-'}{fmtCompact(Math.abs(net))}
+          </Text>
+          {isRecent ? (
+            <PulseBadge style={styles.txRecentDot}>
+              <Text style={styles.txRecentText}>Recent</Text>
+            </PulseBadge>
+          ) : null}
+        </View>
+      </Animated.View>
+    </HoverHighlight>
+  );
+}
+
+function GuideRow({ icon, text, index = 0 }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateX = useRef(new Animated.Value(-8)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 280,
+        delay: 80 + index * 60,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateX, {
+        toValue: 0,
+        duration: 280,
+        delay: 80 + index * 60,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [index, opacity, translateX]);
+
+  return (
+    <Animated.View style={[styles.guideRow, { opacity, transform: [{ translateX }] }]}>
+      <MaterialIcons name={icon} size={16} color={TEAL} />
+      <Text style={styles.guideText}>{text}</Text>
+    </Animated.View>
+  );
+}
+
+function RotatingRefreshIcon({ spinning }) {
+  const spin = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!spinning) {
+      spin.stopAnimation();
+      spin.setValue(0);
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [spinning, spin]);
+
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+
+  return (
+    <Animated.View style={{ transform: [{ rotate }] }}>
+      <MaterialIcons name="refresh" size={20} color={TEAL} />
+    </Animated.View>
+  );
+}
+
 export default function WalletScreen({ navigation }) {
   const { profile } = useAuth();
   const [wallet, setWallet] = useState({ balance: 0, total_earned: 0, total_withdrawn: 0 });
   const [pendingAmount, setPendingAmount] = useState(0);
+  const [transactions, setTransactions] = useState([]);
   const [storedUpi, setStoredUpi] = useState('');
   const [payoutReady, setPayoutReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -60,47 +789,85 @@ export default function WalletScreen({ navigation }) {
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const loadedRef = useRef(false);
+  const [replayToken, setReplayToken] = useState(0);
+  const bannerShimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(bannerShimmer, {
+        toValue: 1,
+        duration: 3200,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [bannerShimmer]);
+
+  const bannerShimmerX = bannerShimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-180, 280],
+  });
+
+  const loadData = useCallback(
+    async (silent = false) => {
+      if (!profile?.id) return;
+      try {
+        if (!silent) setLoading(true);
+        const [w, pending, payoutStatus, txs] = await Promise.all([
+          paymentApi.getWallet(profile.id),
+          paymentApi.getPendingEarnings(profile.id),
+          payoutApi.getAccountStatus(profile.id).catch(() => null),
+          paymentApi.getTransactions(profile.id).catch(() => []),
+        ]);
+        setWallet(w);
+        setPendingAmount(pending);
+        setStoredUpi(payoutStatus?.upiId || '');
+        setPayoutReady(payoutStatus?.status === 'active');
+        setTransactions((txs || []).slice(0, 8));
+        loadedRef.current = true;
+      } catch {
+        Toast.show('Failed to load wallet');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [profile?.id],
+  );
 
   useFocusEffect(
     useCallback(() => {
       if (!profile?.id) return;
-      loadData();
-    }, [profile?.id]),
+      loadData(loadedRef.current);
+    }, [profile?.id, loadData]),
   );
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [w, pending, payoutStatus] = await Promise.all([
-        paymentApi.getWallet(profile.id),
-        paymentApi.getPendingEarnings(profile.id),
-        payoutApi.getAccountStatus(profile.id),
-      ]);
-      setWallet(w);
-      setPendingAmount(pending);
-      setStoredUpi(payoutStatus?.upiId || '');
-      setPayoutReady(payoutStatus?.status === 'active');
-    } catch {
-      Toast.show('Failed to load wallet');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await loadData(true);
+    setReplayToken(t => t + 1);
     setRefreshing(false);
   };
 
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
-    if (!amount || isNaN(amount) || amount <= 0) { Toast.show('Enter a valid amount'); return; }
-    if (amount > wallet.balance) { Toast.show('Amount exceeds available balance'); return; }
-    if (amount < MIN_WITHDRAWAL) { Toast.show(`Minimum withdrawal is ₹${MIN_WITHDRAWAL.toLocaleString('en-IN')}`); return; }
+    if (!amount || Number.isNaN(amount) || amount <= 0) {
+      Toast.show('Enter a valid amount');
+      return;
+    }
+    if (amount > wallet.balance) {
+      Toast.show('Amount exceeds available balance');
+      return;
+    }
+    if (amount < MIN_WITHDRAWAL) {
+      Toast.show(`Minimum withdrawal is ₹${MIN_WITHDRAWAL.toLocaleString('en-IN')}`);
+      return;
+    }
 
     Alert.alert(
-      'Confirm Withdrawal',
+      'Confirm withdrawal',
       `Send ${fmt(amount)} to\n${storedUpi}\n\nProcessed within 1–2 business days.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -109,11 +876,11 @@ export default function WalletScreen({ navigation }) {
           onPress: async () => {
             try {
               setSubmitting(true);
-              const result = await paymentApi.requestWithdrawal({ mentorId: profile.id, amount });
-              Toast.show('Withdrawal requested · We\'ll send to your UPI within 1–2 days', Toast.LONG);
+              await paymentApi.requestWithdrawal({ mentorId: profile.id, amount });
+              Toast.show("Withdrawal requested · We'll send to your UPI within 1–2 days", Toast.LONG);
               setShowWithdraw(false);
               setWithdrawAmount('');
-              await loadData();
+              await loadData(true);
             } catch (e) {
               Toast.show(e.message || 'Withdrawal failed', Toast.LONG);
             } finally {
@@ -125,403 +892,769 @@ export default function WalletScreen({ navigation }) {
     );
   };
 
+  const setQuickAmount = value => {
+    setWithdrawAmount(String(Math.floor(value)));
+  };
+
   const canWithdraw = wallet.balance >= MIN_WITHDRAWAL && !!storedUpi;
   const progressPct = Math.min((wallet.balance / MIN_WITHDRAWAL) * 100, 100);
+  const amountNeeded = Math.max(MIN_WITHDRAWAL - wallet.balance, 0);
+  const mentorTx = transactions.filter(t => t.mentor_id === profile?.id);
+  const selectedChip =
+    withdrawAmount === String(MIN_WITHDRAWAL)
+      ? 'Min'
+      : withdrawAmount === String(Math.floor(wallet.balance))
+        ? 'Max'
+        : withdrawAmount === String(Math.floor(Math.max(MIN_WITHDRAWAL, wallet.balance * 0.5)))
+          ? '50%'
+          : null;
 
   return (
-    <SafeScreen hasBottomTabs={false} includeTopInset={false}>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false}>
+      <FadeSlideIn delay={0} replayToken={replayToken}>
+        <View style={styles.header}>
+          <AnimatedPressable onPress={() => navigation.goBack()} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
+            <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+          </AnimatedPressable>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>My Wallet</Text>
+            <Text style={styles.headerSubtitle}>Track earnings, pending payouts & withdrawals</Text>
+          </View>
+          <AnimatedPressable
+            onPress={handleRefresh}
+            style={styles.refreshBtn}
+            hoverScale={1.08}
+            pressScale={0.92}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <RotatingRefreshIcon spinning />
+            ) : (
+              <MaterialIcons name="refresh" size={20} color={TEAL} />
+            )}
+          </AnimatedPressable>
+        </View>
+      </FadeSlideIn>
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={TEAL} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={TEAL} colors={[TEAL]} />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <MaterialIcons name="arrow-back" size={22} color={T.colors.text.primary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Wallet</Text>
-          <View style={{ width: 38 }} />
-        </View>
-
-        {/* Balance Hero Card */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <MaterialIcons name="account-balance-wallet" size={28} color={TEAL} />
-            <View style={styles.heroTextBlock}>
-              <Text style={styles.heroLabel}>Available Balance</Text>
-              <Text style={styles.heroAmount}>{fmt(wallet.balance)}</Text>
-              <Text style={styles.heroNote}>Earned from completed sessions</Text>
-            </View>
-          </View>
-
-          {pendingAmount > 0 && (
-            <View style={styles.pendingRow}>
-              <MaterialIcons name="hourglass-top" size={14} color={T.colors.accent.warning} />
-              <Text style={styles.pendingText}>
-                {fmt(pendingAmount)} pending · unlocks after session completion
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Stats Grid */}
-        <View style={styles.statsGrid}>
-          <View style={styles.statBox}>
+        <FadeSlideIn delay={60} replayToken={replayToken}>
+          <HoverHighlight style={styles.balanceHero} hoverScale={1.005} pressScale={0.998}>
             <LinearGradient
-              colors={['rgba(52,211,153,0.12)', 'rgba(52,211,153,0.04)']}
-              style={StyleSheet.absoluteFill}
+              colors={['rgba(124,58,237,0.45)', 'rgba(94,234,212,0.22)', PANEL_BG]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.balanceBanner}
             />
-            <MaterialIcons name="trending-up" size={22} color={T.colors.accent.success} />
-            <Text style={[styles.statVal, { color: T.colors.accent.success }]}>{fmt(wallet.total_earned)}</Text>
-            <Text style={styles.statLbl}>Total Earned</Text>
-          </View>
-
-          <View style={styles.statBox}>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.balanceShimmer, { transform: [{ translateX: bannerShimmerX }] }]}
+            />
             <LinearGradient
-              colors={['rgba(240,216,117,0.12)', 'rgba(240,216,117,0.04)']}
-              style={StyleSheet.absoluteFill}
+              colors={['transparent', 'rgba(15,14,42,0.9)', PANEL_BG]}
+              style={styles.balanceFade}
             />
-            <MaterialIcons name="hourglass-top" size={22} color={T.colors.accent.warning} />
-            <Text style={[styles.statVal, { color: T.colors.accent.warning }]}>{fmt(pendingAmount)}</Text>
-            <Text style={styles.statLbl}>Pending</Text>
-          </View>
 
-          <View style={styles.statBox}>
-            <LinearGradient
-              colors={['rgba(167,139,250,0.12)', 'rgba(167,139,250,0.04)']}
-              style={StyleSheet.absoluteFill}
-            />
-            <MaterialIcons name="arrow-circle-up" size={22} color={T.colors.accent.secondary} />
-            <Text style={[styles.statVal, { color: T.colors.accent.secondary }]}>{fmt(wallet.total_withdrawn)}</Text>
-            <Text style={styles.statLbl}>Withdrawn</Text>
-          </View>
-        </View>
-
-        {/* Withdraw progress / button */}
-        <View style={styles.withdrawCard}>
-          <View style={styles.withdrawCardHeader}>
-            <Text style={styles.withdrawCardTitle}>Withdraw Earnings</Text>
-            {canWithdraw && (
-              <View style={styles.readyBadge}>
-                <MaterialIcons name="check-circle" size={13} color={T.colors.accent.success} />
-                <Text style={styles.readyText}>Ready</Text>
+            <View style={styles.balanceTopRow}>
+              <View style={styles.balanceIconWrap}>
+                <PulseGlow color={GOLD} size={72} />
+                <View style={styles.balanceIconRing}>
+                  <LinearGradient colors={B.premiumGradient} style={styles.balanceIconGrad}>
+                    <MaterialIcons name="account-balance-wallet" size={26} color={GOLD} />
+                  </LinearGradient>
+                </View>
               </View>
-            )}
+              <View style={styles.balanceMeta}>
+                <Text style={styles.balanceLabel}>Available balance</Text>
+                <AnimatedBalanceText value={fmt(wallet.balance)} style={styles.balanceAmount} />
+              </View>
+              {payoutReady ? (
+                <PulseBadge style={styles.verifiedChip}>
+                  <MaterialIcons name="verified" size={13} color={C.accent.success} />
+                  <Text style={styles.verifiedText}>Payout ready</Text>
+                </PulseBadge>
+              ) : null}
+            </View>
+
+            <Text style={styles.balanceNote}>Withdrawable after sessions complete & minimum threshold</Text>
+
+            {pendingAmount > 0 ? (
+              <PulseBadge style={styles.pendingChip}>
+                <MaterialIcons name="hourglass-top" size={14} color={C.accent.warning} />
+                <Text style={styles.pendingChipText}>
+                  {fmt(pendingAmount)} pending · unlocks after session completion
+                </Text>
+              </PulseBadge>
+            ) : null}
+          </HoverHighlight>
+        </FadeSlideIn>
+
+        <View style={styles.statsRow}>
+          <StatTile
+            icon="trending-up"
+            label="Total earned"
+            value={fmtCompact(wallet.total_earned)}
+            color={C.accent.success}
+            accentBg={S.accentSuccess}
+            delay={120}
+            replayToken={replayToken}
+          />
+          <StatTile
+            icon="hourglass-top"
+            label="Pending"
+            value={fmtCompact(pendingAmount)}
+            color={C.accent.warning}
+            accentBg={S.accentWarning}
+            delay={170}
+            replayToken={replayToken}
+          />
+          <StatTile
+            icon="arrow-circle-up"
+            label="Withdrawn"
+            value={fmtCompact(wallet.total_withdrawn)}
+            color={TEAL}
+            accentBg={S.accentTeal}
+            delay={220}
+            replayToken={replayToken}
+          />
+        </View>
+
+        {!storedUpi && !loading ? (
+          <MenuRow
+            icon="account-balance"
+            title="Complete payout setup"
+            subtitle="Add your UPI ID to enable withdrawals to your bank"
+            onPress={() => navigation.navigate(SCREEN_NAMES.PayoutSetup)}
+            accent={C.accent.warning}
+            accentBg={S.accentWarning}
+            badge="Required"
+            replayToken={replayToken}
+          />
+        ) : storedUpi ? (
+          <FadeSlideIn delay={260} replayToken={replayToken}>
+            <HoverHighlight
+              style={styles.upiCard}
+              onPress={() => navigation.navigate(SCREEN_NAMES.PayoutSetup)}
+              hoverScale={1.015}
+              pressScale={0.99}
+            >
+              <View style={styles.upiLeft}>
+                <MaterialIcons name="phone-android" size={18} color={TEAL} />
+                <View>
+                  <Text style={styles.upiLabel}>Payout UPI</Text>
+                  <Text style={styles.upiValue}>{storedUpi}</Text>
+                </View>
+              </View>
+              <AnimatedPressable
+                onPress={() => navigation.navigate(SCREEN_NAMES.PayoutSetup)}
+                style={styles.upiEditBtn}
+                hoverScale={1.08}
+                pressScale={0.94}
+              >
+                <MaterialIcons name="edit" size={16} color={GOLD} />
+              </AnimatedPressable>
+            </HoverHighlight>
+          </FadeSlideIn>
+        ) : null}
+
+        <SectionBlock
+          icon="payments"
+          title="Withdraw earnings"
+          subtitle={canWithdraw ? 'You can request a payout now' : `Minimum withdrawal · ${fmtCompact(MIN_WITHDRAWAL)}`}
+          accent={GOLD}
+          accentBg={S.accentGold}
+          delay={300}
+        >
+          <View style={styles.withdrawHeader}>
+            <Text style={styles.withdrawStatus}>
+              {canWithdraw
+                ? 'Your balance meets the withdrawal threshold'
+                : storedUpi
+                  ? `₹${amountNeeded.toLocaleString('en-IN')} more to unlock withdrawals`
+                  : 'Set up payout UPI to withdraw'}
+            </Text>
+            {canWithdraw ? (
+              <PulseBadge style={styles.readyBadge}>
+                <MaterialIcons name="check-circle" size={13} color={C.accent.success} />
+                <Text style={styles.readyBadgeText}>Ready</Text>
+              </PulseBadge>
+            ) : null}
           </View>
 
-          {!canWithdraw && (
+          {!canWithdraw ? (
             <>
-              <View style={styles.progressTrack}>
-                <LinearGradient
-                  colors={[T.colors.accent.secondary, T.colors.accent.primary]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[styles.progressFill, { width: `${progressPct}%` }]}
-                />
-              </View>
-              <Text style={styles.progressNote}>
-                {fmt(wallet.balance)} of ₹{MIN_WITHDRAWAL.toLocaleString('en-IN')} minimum
-                {wallet.balance > 0
-                  ? ` · ₹${(MIN_WITHDRAWAL - wallet.balance).toLocaleString('en-IN')} more needed`
-                  : ''}
+              <AnimatedProgressBar percent={progressPct} />
+              <Text style={styles.progressCaption}>
+                {fmtCompact(wallet.balance)} of {fmtCompact(MIN_WITHDRAWAL)} minimum
               </Text>
             </>
-          )}
+          ) : null}
 
-          <TouchableOpacity
-            style={[styles.withdrawBtn, !canWithdraw && styles.withdrawBtnOff]}
+          <AnimatedPressable
             onPress={() => setShowWithdraw(v => !v)}
             disabled={!canWithdraw}
-            activeOpacity={0.8}
+            style={[styles.withdrawCta, !canWithdraw && styles.withdrawCtaDisabled]}
+            hoverScale={canWithdraw ? 1.02 : 1}
+            pressScale={0.97}
           >
             <LinearGradient
-              colors={canWithdraw
-                ? B.nebulaGradient
-                : ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.04)']}
+              colors={canWithdraw ? B.nebulaGradient : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.04)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={styles.withdrawBtnGrad}
+              style={styles.withdrawCtaGrad}
             >
               <MaterialIcons
-                name="account-balance"
+                name={showWithdraw ? 'close' : 'account-balance'}
                 size={18}
-                color={canWithdraw ? T.colors.text.onAccent : T.colors.text.muted}
+                color={canWithdraw ? B.nebulaText || C.text.onAccent : C.text.muted}
               />
-              <Text style={[styles.withdrawBtnTxt, !canWithdraw && { color: T.colors.text.muted }]}>
-                {showWithdraw ? 'Cancel' : 'Request Withdrawal'}
+              <Text style={[styles.withdrawCtaText, !canWithdraw && { color: C.text.muted }]}>
+                {showWithdraw ? 'Cancel withdrawal' : 'Request withdrawal'}
               </Text>
             </LinearGradient>
-          </TouchableOpacity>
-        </View>
+          </AnimatedPressable>
 
-        {/* Payout not set up nudge */}
-        {!storedUpi && !loading && (
-          <TouchableOpacity
-            style={styles.setupNudge}
-            onPress={() => navigation.navigate(SCREEN_NAMES.PayoutSetup)}
-            activeOpacity={0.8}
-          >
-            <MaterialIcons name="info-outline" size={18} color={T.colors.accent.warning} />
-            <Text style={styles.setupNudgeText}>
-              Complete payout setup to enable withdrawals
-            </Text>
-            <MaterialIcons name="chevron-right" size={18} color={T.colors.accent.warning} />
-          </TouchableOpacity>
-        )}
+          <ExpandFadeIn visible={showWithdraw}>
+            <View style={styles.withdrawForm}>
+              <Text style={styles.fieldLabel}>Sending to</Text>
+              <View style={[styles.inputWrap, styles.inputReadOnly]}>
+                <MaterialIcons name="phone-android" size={18} color={TEAL} style={styles.inputIcon} />
+                <Text style={styles.upiReadOnly}>{storedUpi}</Text>
+              </View>
 
-        {/* Withdrawal Form */}
-        {showWithdraw && (
-          <View style={styles.formCard}>
-            <Text style={styles.formHeading}>Withdrawal Details</Text>
+              <Text style={styles.fieldLabel}>Amount</Text>
+              <View style={styles.inputWrap}>
+                <Text style={styles.rupeePrefix}>₹</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  value={withdrawAmount}
+                  onChangeText={setWithdrawAmount}
+                  placeholder={`Min ${fmtCompact(MIN_WITHDRAWAL)}`}
+                  placeholderTextColor={C.text.muted}
+                  keyboardType="numeric"
+                />
+              </View>
 
-            {/* UPI ID — read-only, from payout setup */}
-            <Text style={styles.fieldLabel}>Sending to</Text>
-            <View style={[styles.inputWrap, styles.inputWrapReadOnly]}>
-              <MaterialIcons name="phone-android" size={18} color={T.colors.accent.secondary} style={styles.inputIcon} />
-              <Text style={styles.upiReadOnly}>{storedUpi}</Text>
-            </View>
+              <View style={styles.quickAmountRow}>
+                {[
+                  { label: 'Min', value: MIN_WITHDRAWAL },
+                  { label: '50%', value: Math.max(MIN_WITHDRAWAL, wallet.balance * 0.5) },
+                  { label: 'Max', value: wallet.balance },
+                ].map(chip => (
+                  <QuickAmountChip
+                    key={chip.label}
+                    label={chip.label}
+                    active={selectedChip === chip.label}
+                    onPress={() => setQuickAmount(chip.value)}
+                  />
+                ))}
+              </View>
 
-            <Text style={styles.fieldLabel}>Amount (₹)</Text>
-            <View style={styles.inputWrap}>
-              <Text style={styles.rupeePrefix}>₹</Text>
-              <TextInput
-                style={styles.fieldInput}
-                value={withdrawAmount}
-                onChangeText={setWithdrawAmount}
-                placeholder={`Min ₹${MIN_WITHDRAWAL.toLocaleString('en-IN')}`}
-                placeholderTextColor={T.colors.text.muted}
-                keyboardType="numeric"
+              <InfoRow icon="schedule" label="Processing time" value="1–2 business days" />
+              <InfoRow
+                icon="account-balance-wallet"
+                label="Max withdrawable"
+                value={fmt(wallet.balance)}
+                valueColor={C.accent.success}
               />
-            </View>
 
-            <InfoRow icon="info-outline" label="Processing time" value="1–2 business days" />
-            <InfoRow
-              icon="account-balance-wallet"
-              label="Max withdrawable"
-              value={fmt(wallet.balance)}
-              valueColor={T.colors.accent.success}
-            />
-
-            <TouchableOpacity
-              style={[styles.confirmBtn, submitting && { opacity: 0.5 }]}
-              onPress={handleWithdraw}
-              disabled={submitting}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={[T.colors.accent.success, '#059669']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.confirmBtnGrad}
+              <AnimatedPressable
+                onPress={handleWithdraw}
+                disabled={submitting}
+                style={[styles.confirmBtn, submitting && styles.confirmBtnDisabled]}
+                hoverScale={1.02}
+                pressScale={0.97}
               >
-                <Text style={styles.confirmBtnTxt}>
-                  {submitting ? 'Processing…' : 'Withdraw'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={B.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.confirmBtnGrad}
+                >
+                  {submitting ? (
+                    <ActivityIndicator size="small" color={B.primaryText} />
+                  ) : (
+                    <>
+                      <MaterialIcons name="send" size={18} color={B.primaryText} />
+                      <Text style={styles.confirmBtnText}>Confirm withdrawal</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </AnimatedPressable>
+            </View>
+          </ExpandFadeIn>
+        </SectionBlock>
+
+        <SectionBlock
+          icon="receipt-long"
+          title="Recent activity"
+          subtitle={mentorTx.length ? 'Latest session payments' : 'Payments appear after completed bookings'}
+          accent={TEAL}
+          accentBg={S.accentTeal}
+          delay={380}
+        >
+          {mentorTx.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="receipt-long" size={32} color={C.text.muted} />
+              <Text style={styles.emptyTitle}>No transactions yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Completed session payments will show up here as earnings.
+              </Text>
+            </View>
+          ) : (
+            mentorTx.map((item, index) => (
+              <TransactionRow
+                key={item.id}
+                item={item}
+                isMentor
+                index={index}
+                replayToken={replayToken}
+              />
+            ))
+          )}
+        </SectionBlock>
+
+        <SectionBlock
+          icon="help-outline"
+          title="How earnings work"
+          subtitle="Quick guide for mentors"
+          accent={PURPLE_LINK}
+          accentBg={S.accentViolet}
+          delay={440}
+        >
+          <View style={styles.guideList}>
+            {[
+              { icon: 'event-available', text: 'Learners pay when they book your session.' },
+              { icon: 'hourglass-empty', text: 'Earnings stay pending until the session is completed.' },
+              { icon: 'account-balance-wallet', text: 'Available balance can be withdrawn to your UPI.' },
+              { icon: 'info-outline', text: `Minimum withdrawal amount is ${fmtCompact(MIN_WITHDRAWAL)}.` },
+            ].map((row, index) => (
+              <GuideRow key={row.icon} icon={row.icon} text={row.text} index={index} />
+            ))}
           </View>
-        )}
+        </SectionBlock>
       </ScrollView>
 
-      <LoadingOverlay visible={loading} message="Loading wallet..." />
+      <LoadingOverlay visible={loading && !loadedRef.current} message="Loading wallet…" />
     </SafeScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
-  content: { padding: T.spacing.lg, paddingBottom: 40 },
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: T.spacing.lg,
+    paddingHorizontal: T.spacing.lg,
+    paddingVertical: T.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(167,139,250,0.18)',
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: T.borderRadius.md,
     backgroundColor: PANEL_BG,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    color: C.text.primary,
-    fontWeight: '800',
-  },
-
-  heroCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    padding: T.spacing.lg,
-    marginBottom: T.spacing.lg,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.22)',
-    backgroundColor: PANEL_BG,
   },
-  heroTop: {
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: T.spacing.sm,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: C.text.primary,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: C.text.muted,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  refreshBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: T.borderRadius.md,
+    backgroundColor: PANEL_BG,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(94,234,212,0.25)',
+  },
+  scroll: { flex: 1 },
+  content: {
+    paddingHorizontal: T.spacing.lg,
+    paddingTop: T.spacing.lg,
+    paddingBottom: T.spacing.xxxl,
+  },
+  hoverHighlight: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(167,139,250,0.1)',
+    borderRadius: 18,
+  },
+  pulseGlow: {
+    position: 'absolute',
+    borderWidth: 2,
+  },
+
+  balanceHero: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.25)',
+    backgroundColor: PANEL_BG,
+    padding: T.spacing.lg,
+    marginBottom: T.spacing.lg,
+  },
+  balanceShimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 90,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    transform: [{ skewX: '-16deg' }],
+  },
+  balanceBanner: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  balanceFade: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  balanceTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: T.spacing.lg,
+    gap: T.spacing.md,
     marginBottom: T.spacing.sm,
   },
-  heroTextBlock: { flex: 1 },
-  heroLabel: {
-    ...T.typography.labelSm,
-    color: 'rgba(255,255,255,0.5)',
+  balanceIconWrap: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  balanceIconRing: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  balanceIconGrad: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  balanceMeta: { flex: 1 },
+  balanceLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: C.text.muted,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 4,
   },
-  heroAmount: {
-    fontSize: 32,
+  balanceAmount: {
+    fontSize: 30,
     fontWeight: '800',
-    color: '#fff',
+    color: C.text.primary,
     letterSpacing: -0.5,
-    marginBottom: 2,
   },
-  heroNote: {
-    ...T.typography.bodySm,
-    color: 'rgba(255,255,255,0.4)',
+  balanceNote: {
+    fontSize: 13,
+    color: C.text.muted,
+    marginTop: 2,
   },
-  pendingRow: {
+  verifiedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: S.accentSuccess,
+    borderRadius: T.borderRadius.round,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(52,211,153,0.3)',
+  },
+  verifiedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: C.accent.success,
+  },
+  pendingChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(251,191,36,0.1)',
+    marginTop: T.spacing.md,
+    alignSelf: 'flex-start',
+    backgroundColor: S.accentWarning,
     borderWidth: 1,
-    borderColor: 'rgba(251,191,36,0.2)',
+    borderColor: 'rgba(251,191,36,0.28)',
     borderRadius: T.borderRadius.round,
     paddingHorizontal: T.spacing.md,
-    paddingVertical: T.spacing.sm - 2,
-    alignSelf: 'flex-start',
-    marginTop: T.spacing.sm,
+    paddingVertical: 6,
   },
-  pendingText: {
-    ...T.typography.bodySm,
-    color: T.colors.accent.warning,
+  pendingChipText: {
+    fontSize: 12,
+    color: C.accent.warning,
+    fontWeight: '600',
   },
 
-  // Stats
-  statsGrid: {
+  statsRow: {
     flexDirection: 'row',
     gap: T.spacing.sm,
     marginBottom: T.spacing.lg,
   },
-  statBox: {
+  statTileWrap: {
     flex: 1,
+  },
+  statTile: {
+    backgroundColor: PANEL_BG,
     borderRadius: 14,
-    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: 'rgba(167,139,250,0.2)',
     padding: T.spacing.md,
     alignItems: 'center',
-    gap: T.spacing.xs,
-    backgroundColor: PANEL_BG,
+    gap: 4,
+    overflow: 'hidden',
   },
-  statVal: {
-    fontSize: 13,
+  statIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  statValue: {
+    fontSize: 14,
     fontWeight: '800',
     textAlign: 'center',
   },
-  statLbl: {
-    ...T.typography.labelSm,
-    color: T.colors.text.muted,
+  statLabel: {
+    fontSize: 11,
+    color: C.text.muted,
     textAlign: 'center',
+    fontWeight: '600',
   },
 
-  // Withdraw Card
-  withdrawCard: {
+  upiCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: PANEL_BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(94,234,212,0.25)',
+    padding: T.spacing.md,
+    marginBottom: T.spacing.lg,
+  },
+  upiLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.sm,
+    flex: 1,
+  },
+  upiLabel: {
+    fontSize: 11,
+    color: C.text.muted,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  upiValue: {
+    fontSize: 14,
+    color: TEAL,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  upiEditBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: S.accentGold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(240,216,117,0.3)',
+  },
+
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.md,
+    backgroundColor: PANEL_BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.28)',
+    padding: T.spacing.md,
+    marginBottom: T.spacing.lg,
+    overflow: 'hidden',
+  },
+  menuHighlight: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(251,191,36,0.1)',
+    borderRadius: 14,
+  },
+  menuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuText: { flex: 1 },
+  menuTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: C.text.primary,
+  },
+  menuSubtitle: {
+    fontSize: 12,
+    color: C.text.muted,
+    marginTop: 2,
+  },
+  menuBadge: {
+    backgroundColor: S.accentWarning,
+    borderRadius: T.borderRadius.round,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.35)',
+  },
+  menuBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: C.accent.warning,
+    textTransform: 'uppercase',
+  },
+
+  sectionBlock: {
+    marginBottom: T.spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.sm,
+    marginBottom: T.spacing.sm,
+    paddingHorizontal: 2,
+  },
+  sectionIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionHeaderText: { flex: 1 },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: C.text.primary,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: C.text.muted,
+    marginTop: 1,
+  },
+  sectionCard: {
     backgroundColor: PANEL_BG,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.22)',
     padding: T.spacing.lg,
-    marginBottom: T.spacing.lg,
     gap: T.spacing.md,
   },
-  withdrawCardHeader: {
+
+  withdrawHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: T.spacing.sm,
   },
-  withdrawCardTitle: {
-    ...T.typography.headingSm,
-    color: T.colors.text.primary,
-    fontWeight: '700',
+  withdrawStatus: {
+    flex: 1,
+    fontSize: 13,
+    color: C.text.secondary,
+    lineHeight: 18,
   },
   readyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(52,211,153,0.12)',
+    backgroundColor: S.accentSuccess,
     borderRadius: T.borderRadius.round,
-    paddingHorizontal: T.spacing.sm,
+    paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: 'rgba(52,211,153,0.25)',
+    borderColor: 'rgba(52,211,153,0.3)',
   },
-  readyText: {
-    ...T.typography.labelSm,
-    color: T.colors.accent.success,
+  readyBadgeText: {
+    fontSize: 11,
     fontWeight: '700',
+    color: C.accent.success,
   },
   progressTrack: {
-    height: 6,
+    height: 8,
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 3,
+    borderRadius: 4,
     overflow: 'hidden',
+  },
+  progressFillWrap: {
+    height: '100%',
+    minWidth: 8,
   },
   progressFill: {
-    height: '100%',
-    borderRadius: 3,
-    minWidth: 6,
-  },
-  progressNote: {
-    ...T.typography.bodySm,
-    color: T.colors.text.muted,
-    marginTop: -T.spacing.xs,
-  },
-  withdrawBtn: {
-    borderRadius: T.borderRadius.md,
+    flex: 1,
+    borderRadius: 4,
     overflow: 'hidden',
   },
-  withdrawBtnOff: { opacity: 0.5 },
-  withdrawBtnGrad: {
+  progressShimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 36,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  progressCaption: {
+    fontSize: 12,
+    color: C.text.muted,
+    marginTop: -4,
+  },
+  withdrawCta: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  withdrawCtaDisabled: {
+    opacity: 0.72,
+  },
+  withdrawCtaGrad: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: T.spacing.sm,
     paddingVertical: T.spacing.md,
   },
-  withdrawBtnTxt: {
-    ...T.typography.labelLg,
-    color: T.colors.text.onAccent,
-    fontWeight: '700',
+  withdrawCtaText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: B.nebulaText || C.text.onAccent,
   },
 
-  // Form
-  formCard: {
-    backgroundColor: PANEL_BG,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
-    padding: T.spacing.lg,
+  withdrawForm: {
     gap: T.spacing.sm,
-  },
-  formHeading: {
-    ...T.typography.headingSm,
-    color: T.colors.text.primary,
-    fontWeight: '700',
-    marginBottom: T.spacing.sm,
+    paddingTop: T.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(167,139,250,0.15)',
   },
   fieldLabel: {
     fontSize: 11,
@@ -529,7 +1662,6 @@ const styles = StyleSheet.create({
     color: PURPLE_LINK,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: 2,
   },
   inputWrap: {
     flexDirection: 'row',
@@ -539,7 +1671,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.22)',
     paddingHorizontal: T.spacing.md,
-    marginBottom: T.spacing.sm,
+  },
+  inputReadOnly: {
+    backgroundColor: 'rgba(94,234,212,0.06)',
+    borderColor: 'rgba(94,234,212,0.22)',
   },
   inputIcon: { marginRight: T.spacing.sm },
   rupeePrefix: {
@@ -554,12 +1689,43 @@ const styles = StyleSheet.create({
     color: C.text.primary,
     fontSize: 15,
   },
-
+  upiReadOnly: {
+    flex: 1,
+    paddingVertical: T.spacing.sm + 2,
+    color: TEAL,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  quickAmountRow: {
+    flexDirection: 'row',
+    gap: T.spacing.sm,
+    marginBottom: T.spacing.xs,
+  },
+  quickChip: {
+    paddingHorizontal: T.spacing.md,
+    paddingVertical: 6,
+    borderRadius: T.borderRadius.round,
+    backgroundColor: S.accentViolet,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.3)',
+  },
+  quickChipActive: {
+    backgroundColor: S.accentGold,
+    borderColor: 'rgba(240,216,117,0.55)',
+  },
+  quickChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: PURPLE_LINK,
+  },
+  quickChipTextActive: {
+    color: GOLD,
+  },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: T.spacing.xs,
+    paddingVertical: 4,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(167,139,250,0.15)',
   },
@@ -569,46 +1735,116 @@ const styles = StyleSheet.create({
     gap: T.spacing.sm,
   },
   infoLabel: {
-    ...T.typography.bodySm,
-    color: T.colors.text.muted,
+    fontSize: 13,
+    color: C.text.muted,
   },
   infoValue: {
-    ...T.typography.labelMd,
-    color: T.colors.text.primary,
-    fontWeight: '600',
+    fontSize: 13,
+    color: C.text.primary,
+    fontWeight: '700',
   },
-
   confirmBtn: {
-    borderRadius: T.borderRadius.md,
+    borderRadius: 14,
     overflow: 'hidden',
-    marginTop: T.spacing.sm,
+    marginTop: T.spacing.xs,
+  },
+  confirmBtnDisabled: {
+    opacity: 0.7,
   },
   confirmBtnGrad: {
-    paddingVertical: T.spacing.md,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: T.spacing.md,
+    borderWidth: 1,
+    borderColor: B.primaryBorder,
   },
-  setupNudge: {
-    flexDirection: 'row', alignItems: 'center', gap: T.spacing.sm,
-    backgroundColor: 'rgba(251,191,36,0.08)',
-    borderWidth: 1, borderColor: 'rgba(251,191,36,0.22)',
-    borderRadius: T.borderRadius.md,
-    padding: T.spacing.md,
-    marginBottom: T.spacing.lg,
+  confirmBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: B.primaryText,
   },
-  setupNudgeText: {
-    ...T.typography.bodySm, color: T.colors.accent.warning, flex: 1,
+
+  txRow: {
+    borderRadius: 12,
+    marginBottom: 2,
+    overflow: 'hidden',
   },
-  inputWrapReadOnly: {
-    backgroundColor: 'rgba(94,234,212,0.06)',
-    borderColor: 'rgba(94,234,212,0.2)',
+  txRowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.sm,
+    paddingVertical: T.spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(167,139,250,0.12)',
   },
-  upiReadOnly: {
-    flex: 1, paddingVertical: T.spacing.sm + 2,
-    color: T.colors.accent.secondary, ...T.typography.bodyMd, fontWeight: '600',
+  txIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  confirmBtnTxt: {
-    ...T.typography.labelLg,
-    color: '#fff',
+  txBody: { flex: 1 },
+  txTitle: {
+    fontSize: 14,
     fontWeight: '700',
+    color: C.text.primary,
+  },
+  txDate: {
+    fontSize: 11,
+    color: C.text.muted,
+    marginTop: 2,
+  },
+  txRight: { alignItems: 'flex-end' },
+  txAmount: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: C.text.primary,
+  },
+  txRecentDot: {
+    marginTop: 3,
+    backgroundColor: S.accentTeal,
+    borderRadius: T.borderRadius.round,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  txRecentText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: TEAL,
+    textTransform: 'uppercase',
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: T.spacing.lg,
+    gap: T.spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: C.text.primary,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: C.text.muted,
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: T.spacing.md,
+  },
+
+  guideList: { gap: T.spacing.sm },
+  guideRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: T.spacing.sm,
+  },
+  guideText: {
+    flex: 1,
+    fontSize: 13,
+    color: C.text.secondary,
+    lineHeight: 18,
   },
 });

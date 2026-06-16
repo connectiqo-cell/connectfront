@@ -611,7 +611,27 @@ function HeroSlider({ screenWidth, slides }) {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, [slides.length, snapInterval]);
 
-  if (!slides.length) return null;
+  if (!slides.length) {
+    return (
+      <View style={[styles.heroSliderWrap, styles.heroSliderEmpty]}>
+        <View style={[styles.heroSlide, styles.heroSlideEmpty, { width: slideWidth }]}>
+          <View style={styles.heroSlideFallbackBg}>
+            <Image source={FALLBACK_SLIDES[0].image} style={styles.heroSlideLogo} resizeMode="contain" />
+          </View>
+          <LinearGradient
+            colors={['transparent', 'rgba(3,3,8,0.55)', 'rgba(3,3,8,0.92)']}
+            locations={[0.35, 0.72, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+          <View style={styles.heroSlideCaption} pointerEvents="none">
+            <Text style={styles.heroSlideTitle}>Discover mentors</Text>
+            <Text style={styles.heroSlideSub}>Live 1-on-1 sessions on Connectiqo</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.heroSliderWrap}>
@@ -794,12 +814,14 @@ export default function HomeScreen() {
   }, []);
 
   const loadHome = useCallback((isRefresh = false) => {
+    let cancelled = false;
     if (isRefresh) setRefreshing(true);
     Promise.allSettled([
       homeApi.getVideos(),
       videoApi.getFreeVideos(),
       homeApi.getHeroSlides(),
     ]).then(([homeResult, freeResult, slidesResult]) => {
+      if (cancelled) return;
       const sessions = homeResult.status === 'fulfilled' ? homeResult.value.sessions : [];
       const freeVideos = freeResult.status === 'fulfilled' ? freeResult.value : [];
       if (homeResult.status === 'fulfilled' && homeResult.value.intro) {
@@ -816,21 +838,26 @@ export default function HomeScreen() {
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         setSessionVideos(merged.slice(0, 10));
       }
-      if (slidesResult.status === 'fulfilled' && slidesResult.value.length > 0) {
-        setHeroSlides(slidesResult.value);
+      if (slidesResult.status === 'fulfilled') {
+        const slides = slidesResult.value?.length ? slidesResult.value : FALLBACK_SLIDES;
+        setHeroSlides(slides);
       }
       setDataLoaded(true);
       setRefreshing(false);
     });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadHome(false);
+      const cancelLoad = loadHome(false);
       if (profile?.id) {
         notificationApi.getNotifications(profile.id).then(syncUnreadCount).catch(() => {});
       }
       return () => {
+        cancelLoad();
         setPlayerVisible(false);
         setUrlPlayback(null);
         setPlayerError(false);
@@ -1172,6 +1199,12 @@ const styles = StyleSheet.create({
   },
   heroSliderWrap: {
     marginBottom: T.spacing.xs,
+  },
+  heroSliderEmpty: {
+    paddingHorizontal: SLIDE_SIDE,
+  },
+  heroSlideEmpty: {
+    alignSelf: 'center',
   },
   heroSlide: {
     height: SLIDE_H,

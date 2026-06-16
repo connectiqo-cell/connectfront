@@ -7,7 +7,7 @@ import HomeScreen from '../scenes/home/HomeScreen';
 import { MentorSectionNavigator } from './MentorSectionNavigator';
 import { LearnerSectionNavigator } from './LearnerSectionNavigator';
 import UnifiedSettingsScreen from '../scenes/settings/UnifiedSettingsScreen';
-import MentorVideosScreen from '../scenes/mentor/MentorVideosScreen';
+import UploadTabScreen from '../scenes/shared/UploadTabScreen';
 
 const BottomTab = createBottomTabNavigator();
 
@@ -55,7 +55,7 @@ export const UnifiedTabNavigator = () => {
       />
       <BottomTab.Screen
         name={SCREEN_NAMES.UploadTab}
-        component={MentorVideosScreen}
+        component={UploadTabScreen}
         options={{
           tabBarLabel: 'Upload',
           tabBarSpecial: true,

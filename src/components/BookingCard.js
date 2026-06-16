@@ -229,6 +229,7 @@ export const BookingCard = ({
               size="compact"
               icon="videocam"
               onPress={onPressJoin}
+              pressScale
               style={[styles.joinBtn, compact && styles.actionBtnCompact]}
             />
           ) : null}
@@ -238,6 +239,7 @@ export const BookingCard = ({
               variant="outline"
               size="compact"
               onPress={onPressCancel}
+              pressScale
               style={[styles.cancelBtnOuter, compact && styles.actionBtnCompact]}
             />
           ) : null}
@@ -248,6 +250,7 @@ export const BookingCard = ({
               size="compact"
               icon="play-circle-filled"
               onPress={onPressRecording}
+              pressScale
               style={[styles.recordingBtnOuter, compact && styles.actionBtnCompact]}
             />
           ) : null}
@@ -258,6 +261,7 @@ export const BookingCard = ({
               size="compact"
               icon="file-download"
               onPress={onPressDownload}
+              pressScale
               style={[styles.downloadBtnOuter, compact && styles.actionBtnCompact]}
             />
           ) : null}
@@ -268,6 +272,7 @@ export const BookingCard = ({
               size="compact"
               icon="star-outline"
               onPress={onPressRate}
+              pressScale
               style={[styles.rateBtnOuter, compact && styles.actionBtnCompact]}
             />
           ) : null}

@@ -14,6 +14,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Image } from 'react-native';
 import CosmicBackground from '../../components/CosmicBackground';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { SCREEN_NAMES } from '../../navigators/screenNames';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -108,7 +109,7 @@ export default function WelcomeScreen({ navigation }) {
       }),
     ]).start();
 
-    Animated.loop(
+    const pulseLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(logoPulse, {
           toValue: 1.06,
@@ -123,17 +124,22 @@ export default function WelcomeScreen({ navigation }) {
           useNativeDriver: true,
         }),
       ]),
-    ).start();
-
-    Animated.loop(
+    );
+    const spinLoop = Animated.loop(
       Animated.timing(ringSpin, {
         toValue: 1,
         duration: 24000,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
-    ).start();
-  }, []);
+    );
+    pulseLoop.start();
+    spinLoop.start();
+    return () => {
+      pulseLoop.stop();
+      spinLoop.stop();
+    };
+  }, [logoPulse, ringSpin]);
 
   const ringRotate = ringSpin.interpolate({
     inputRange: [0, 1],
@@ -269,7 +275,7 @@ export default function WelcomeScreen({ navigation }) {
             ]}
           >
             <Pressable
-              onPress={() => navigation.navigate('Signup_Screen')}
+              onPress={() => navigation.navigate(SCREEN_NAMES.Signup)}
               onPressIn={onPressIn}
               onPressOut={onPressOut}
               style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
@@ -288,7 +294,7 @@ export default function WelcomeScreen({ navigation }) {
 
           <Animated.View style={{ opacity: linkO, width: '100%' }}>
             <TouchableOpacity
-              onPress={() => navigation.navigate('Login_Screen')}
+              onPress={() => navigation.navigate(SCREEN_NAMES.Login)}
               activeOpacity={0.7}
               style={styles.signInRow}
             >

@@ -5,6 +5,17 @@ import { registerFcmToken } from '../utils/fcmToken';
 
 export const AuthContext = createContext();
 
+const SESSION_BOOTSTRAP_TIMEOUT_MS = 10000;
+
+function withTimeout(promise, ms, label = 'Operation') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    }),
+  ]);
+}
+
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
@@ -13,61 +24,70 @@ export const AuthProvider = ({ children }) => {
   const [pendingPasswordReset, setPendingPasswordReset] = useState(false);
 
   useEffect(() => {
-    let active = true;
+    let cancelled = false;
+
+    const clearLoading = () => {
+      if (!cancelled) setLoading(false);
+    };
+
+    // Always unblock the UI even if getSession() never settles (common after reload).
+    const safetyTimer = setTimeout(clearLoading, SESSION_BOOTSTRAP_TIMEOUT_MS);
 
     const bootstrapSession = async () => {
       try {
-        const {
-          data: { session: initialSession },
-        } = await supabase.auth.getSession();
-
-        if (!active) return;
+        const { data: { session: initialSession }, error } = await withTimeout(
+          supabase.auth.getSession(),
+          SESSION_BOOTSTRAP_TIMEOUT_MS,
+          'Session bootstrap',
+        );
+        if (error) throw error;
+        if (cancelled) return;
 
         if (initialSession?.user) {
           setSession(initialSession);
           setUser(initialSession.user);
           // Do not block app startup on profile query.
           fetchProfile(initialSession.user.id);
-          setLoading(false);
         } else {
           setSession(null);
           setUser(null);
           setProfile(null);
-          setLoading(false);
         }
       } catch (error) {
         console.error('❌ Session bootstrap failed:', error?.message || error);
-        if (!active) return;
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
+        if (!cancelled) {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+        }
+      } finally {
+        clearTimeout(safetyTimer);
+        clearLoading();
       }
     };
 
     bootstrapSession();
 
-    // Listen for auth changes after bootstrap starts
     const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        if (!active) return;
+      async (_event, newSession) => {
+        if (cancelled) return;
         if (newSession?.user) {
           setSession(newSession);
           setUser(newSession.user);
-          // Keep auth transitions responsive even if profile query is slow.
           fetchProfile(newSession.user.id);
-          setLoading(false);
         } else {
           setSession(null);
           setUser(null);
           setProfile(null);
-          setLoading(false);
         }
-      }
+        clearTimeout(safetyTimer);
+        clearLoading();
+      },
     );
 
     return () => {
-      active = false;
+      cancelled = true;
+      clearTimeout(safetyTimer);
       listener?.subscription?.unsubscribe();
     };
   }, []);

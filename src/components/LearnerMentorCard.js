@@ -10,9 +10,15 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicButton from './CosmicButton';
-import theme, { UNIFIED_THEME as T } from '../theme';
+import { UNIFIED_THEME } from '../unifiedTheme';
 
+const T = UNIFIED_THEME;
 const C = T.colors;
+const B = C.buttons;
+
+const PURPLE_LINK = B.nebulaGradient[0];
+const GOLD = C.accent.primary;
+const TEAL = C.accent.secondary;
 
 const S = C.surface;
 
@@ -61,7 +67,7 @@ export function LearnerMentorCard({
           <View style={styles.badgeRow}>
             {rating ? (
               <View style={styles.ratingBadge}>
-                <MaterialIcons name="star" size={11} color={theme.gold} />
+                <MaterialIcons name="star" size={11} color={GOLD} />
                 <Text style={styles.ratingText}>{rating}</Text>
               </View>
             ) : null}
@@ -103,7 +109,7 @@ export function LearnerMentorCard({
             activeOpacity={0.85}
             accessibilityLabel="View profile"
           >
-            <MaterialIcons name="person-outline" size={18} color={theme.purple} />
+            <MaterialIcons name="person-outline" size={18} color={PURPLE_LINK} />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -181,7 +187,7 @@ const styles = StyleSheet.create({
   },
   avatarLetter: {
     fontSize: 18,
-    color: theme.purple,
+    color: PURPLE_LINK,
     fontWeight: '700',
   },
   headMain: {
@@ -214,7 +220,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 11,
-    color: theme.gold,
+    color: GOLD,
     fontWeight: '700',
   },
   expBadge: {
@@ -227,12 +233,12 @@ const styles = StyleSheet.create({
   },
   expText: {
     fontSize: 11,
-    color: theme.teal,
+    color: TEAL,
     fontWeight: '700',
   },
   spec: {
     fontSize: 12,
-    color: theme.gold,
+    color: GOLD,
     fontWeight: '700',
     marginBottom: T.spacing.sm,
     minHeight: 26,
@@ -250,7 +256,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   priceFree: {
-    color: theme.teal,
+    color: TEAL,
   },
   priceUnit: {
     fontSize: 11,

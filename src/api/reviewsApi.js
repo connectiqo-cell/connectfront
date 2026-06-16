@@ -30,6 +30,21 @@ export const reviewsApi = {
     }
   },
 
+  /** Single query for which bookings already have a review. */
+  getReviewedBookingIds: async (bookingIds = []) => {
+    if (!bookingIds.length) return new Set();
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('booking_id')
+        .in('booking_id', bookingIds);
+      if (error) throw error;
+      return new Set((data || []).map(r => r.booking_id));
+    } catch (error) {
+      throw new Error(getSupabaseErrorMessage(error));
+    }
+  },
+
   getReviewsForMentor: async (mentorId) => {
     try {
       const { data, error } = await supabase

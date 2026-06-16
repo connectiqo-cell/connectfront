@@ -9,6 +9,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-simple-toast';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { SafeScreen } from '../../components/SafeScreen';
@@ -75,13 +76,15 @@ function getCategoryIcon(category = '', dbIconMap = {}) {
 function SkeletonBone({ style }) {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(anim, { toValue: 1, duration: 900, useNativeDriver: true }),
         Animated.timing(anim, { toValue: 0, duration: 900, useNativeDriver: true }),
       ]),
-    ).start();
-  }, []);
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [anim]);
   const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.45] });
   return <Animated.View style={[sk.bone, style, { opacity }]} />;
 }
@@ -281,6 +284,20 @@ export default function LearnerHomeScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMentor, setSelectedMentor] = useState(null);
   const searchDebounce = useRef(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setSearchQuery('');
+        setSearchResults(null);
+        setSearchLoading(false);
+        if (searchDebounce.current) {
+          clearTimeout(searchDebounce.current);
+          searchDebounce.current = null;
+        }
+      };
+    }, []),
+  );
 
   useEffect(() => {
     loadMentors();

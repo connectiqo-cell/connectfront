@@ -1,5 +1,5 @@
 import { SafeScreen } from '../../components/SafeScreen';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,15 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
-  TouchableOpacity,
+  Pressable,
+  Animated,
+  Easing,
   Platform,
 } from 'react-native';
-import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-simple-toast';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../../unifiedTheme';
-import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { BookingCard } from '../../components/BookingCard';
 import { useAuth } from '../../hooks/useAuth';
 import { bookingApi } from '../../api/bookingApi';
@@ -23,6 +24,7 @@ import { playbackUrlFromBooking } from '../../api/recordingsApi';
 import { scheduleSessionReminder, requestNotificationPermission } from '../../utils/sessionReminder';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { saveRecordingToGallery } from '../../utils/recordingActions';
+import { isBookingSessionPast, isExpiredBooking } from '../../utils/bookingSession';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -32,8 +34,10 @@ const S = C.surface;
 const PURPLE_LINK = B.nebulaGradient[0];
 const TEAL = C.accent.secondary;
 const GOLD = C.accent.primary;
+const GLASS_BORDER = 'rgba(167,139,250,0.22)';
 const PAGE_SIZE = 6;
 const SESSIONS_POLL_MS = 30_000;
+const ENTRANCE_STEP_MS = 45;
 
 const STATUS_LABEL = {
   expired: 'Expired',
@@ -47,19 +51,261 @@ const STATUS_LABEL = {
 
 const normalize = b => ({
   ...b,
-  recordingUrl: playbackUrlFromBooking(b),
+  recordingUrl: normalizeRecordingUrl(playbackUrlFromBooking(b)) || null,
 });
 
-const isSessionPast = b => {
-  const date = b?.availability_slots?.date;
-  const endTime = b?.availability_slots?.end_time;
-  if (!date) return false;
-  return new Date(`${date}T${endTime || '23:59:59'}`) < new Date();
-};
+const isSessionPast = isBookingSessionPast;
 
-function StatSegment({ icon, iconColor, value, label }) {
+function SkeletonBone({ style }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [anim]);
+  const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.45] });
+  return <Animated.View style={[sk.bone, style, { opacity }]} />;
+}
+
+function SessionsSkeleton() {
   return (
-    <View style={styles.statSeg}>
+    <View style={sk.wrap}>
+      <SkeletonBone style={sk.statsBar} />
+      <View style={sk.sectionHeader}>
+        <SkeletonBone style={sk.sectionIcon} />
+        <SkeletonBone style={sk.sectionTitle} />
+      </View>
+      <SkeletonBone style={sk.card} />
+      <SkeletonBone style={sk.card} />
+      <View style={sk.sectionHeader}>
+        <SkeletonBone style={sk.sectionIcon} />
+        <SkeletonBone style={sk.sectionTitle} />
+      </View>
+      <SkeletonBone style={sk.card} />
+    </View>
+  );
+}
+
+const sk = StyleSheet.create({
+  bone: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: T.borderRadius.md,
+  },
+  wrap: {
+    padding: T.spacing.lg,
+    gap: T.spacing.md,
+  },
+  statsBar: { height: 72, borderRadius: 14 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.sm,
+    marginTop: T.spacing.xs,
+  },
+  sectionIcon: { width: 26, height: 26, borderRadius: 8 },
+  sectionTitle: { height: 14, width: 120, borderRadius: 6 },
+  card: { height: 120, borderRadius: 16 },
+});
+
+function FadeSlideIn({ delay = 0, children, style }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(14)).current;
+  const scale = useRef(new Animated.Value(0.97)).current;
+  const played = useRef(false);
+
+  useEffect(() => {
+    if (played.current) return;
+    played.current = true;
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 340,
+        delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(translateY, {
+        toValue: 0,
+        friction: 8,
+        tension: 90,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 7,
+        tension: 80,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [delay, opacity, scale, translateY]);
+
+  return (
+    <Animated.View style={[style, { opacity, transform: [{ translateY }, { scale }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function PressScale({ onPress, children, style, disabled, pill = false }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const glow = useRef(new Animated.Value(0)).current;
+  const bg = useRef(new Animated.Value(0)).current;
+
+  const onPressIn = () => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: 0.96,
+        friction: 6,
+        tension: 160,
+        useNativeDriver: true,
+      }),
+      Animated.timing(glow, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bg, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const onPressOut = () => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 5,
+        tension: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(glow, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bg, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const glowOpacity = glow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.5],
+  });
+  const bgOpacity = bg.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={disabled}
+        style={[styles.pressScaleHit, pill && styles.loadMorePill, style]}
+      >
+        {pill ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.loadMorePillBg, { opacity: bgOpacity }]}
+          />
+        ) : null}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            pill ? styles.loadMoreGlow : styles.pressGlow,
+            { opacity: glowOpacity },
+          ]}
+        />
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function PulseIconRing({ children, ringStyle }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 2200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 2200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.14] });
+  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.22, 0.48] });
+
+  return (
+    <View style={styles.pulseWrap}>
+      <Animated.View
+        style={[
+          styles.pulseRing,
+          ringStyle,
+          { opacity: ringOpacity, transform: [{ scale: ringScale }] },
+        ]}
+      />
+      {children}
+    </View>
+  );
+}
+
+function StatSegment({ icon, iconColor, value, label, delay = 0 }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(12)).current;
+  const played = useRef(false);
+
+  useEffect(() => {
+    if (played.current) return;
+    played.current = true;
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 320,
+        delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(translateY, {
+        toValue: 0,
+        friction: 8,
+        tension: 90,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [delay, opacity, translateY]);
+
+  return (
+    <Animated.View style={[styles.statSeg, { opacity, transform: [{ translateY }] }]}>
       <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
         {value}
       </Text>
@@ -69,35 +315,37 @@ function StatSegment({ icon, iconColor, value, label }) {
           {label}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
-function SectionHeaderRow({ title, count }) {
-  return (
-    <View style={styles.secHdrRow}>
-      <Text style={styles.secHdrTitle}>{title}</Text>
-      {count > 0 ? (
-        <View style={styles.secHdrCount}>
-          <Text style={styles.secHdrCountText}>{count}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-}
+function SectionHeader({ title, icon, isFirst, delay }) {
+  const iconScale = useRef(new Animated.Value(0.85)).current;
 
-function EmptyBlock({ icon, text }) {
+  useEffect(() => {
+    Animated.spring(iconScale, {
+      toValue: 1,
+      friction: 6,
+      tension: 120,
+      delay: delay + 80,
+      useNativeDriver: true,
+    }).start();
+  }, [delay, iconScale]);
+
   return (
-    <View style={styles.emptyBlock}>
-      <MaterialIcons name={icon} size={22} color={PURPLE_LINK} />
-      {text ? <Text style={styles.emptyBlockText}>{text}</Text> : null}
-    </View>
+    <FadeSlideIn delay={delay} style={[styles.secHdrRow, isFirst && styles.secHdrRowFirst]}>
+      <View style={styles.secHdrLeft}>
+        <Animated.View style={[styles.secIconBox, { transform: [{ scale: iconScale }] }]}>
+          <MaterialIcons name={icon} size={14} color={PURPLE_LINK} />
+        </Animated.View>
+        <Text style={styles.secHdrTitle}>{title}</Text>
+      </View>
+    </FadeSlideIn>
   );
 }
 
 export default function MentorCallsScreen({ navigation }) {
   const { profile } = useAuth();
-  const isFocused = useIsFocused();
   const [upcomingAll, setUpcomingAll] = useState([]);
   const [upcomingShown, setUpcomingShown] = useState(PAGE_SIZE);
   const [history, setHistory] = useState([]);
@@ -131,6 +379,7 @@ export default function MentorCallsScreen({ navigation }) {
 
   const loadInitial = useCallback(async (opts = {}) => {
     const silent = opts.silent === true;
+    const isActive = opts.isActive ?? (() => true);
     if (!profile?.id) {
       if (!silent) setLoading(false);
       return;
@@ -146,12 +395,12 @@ export default function MentorCallsScreen({ navigation }) {
         bookingApi.getBookingHistoryByMentor(profile.id, 0, PAGE_SIZE),
       ]);
 
+      if (!isActive()) return;
+
       const allUpcoming = (upcomingData || []).map(normalize);
       const historyNorm = (historyData || []).map(normalize);
       const upcomingNorm = allUpcoming.filter(b => !isSessionPast(b));
-      const expiredNorm = allUpcoming
-        .filter(b => isSessionPast(b))
-        .map(b => ({ ...b, isExpired: true }));
+      const expiredNorm = allUpcoming.filter(b => isSessionPast(b));
 
       const merged = [...expiredNorm, ...historyNorm].sort((a, b) => {
         const da = `${a.availability_slots?.date ?? ''} ${a.availability_slots?.start_time ?? ''}`;
@@ -164,11 +413,11 @@ export default function MentorCallsScreen({ navigation }) {
       setHasMoreHistory(historyNorm.length === PAGE_SIZE);
       upcomingForReminders = upcomingNorm;
     } catch {
-      if (!opts.quietErrors) Toast.show('Could not load');
+      if (!opts.quietErrors && isActive()) Toast.show('Could not load sessions');
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent && isActive()) setLoading(false);
     }
-    scheduleReminders(upcomingForReminders);
+    if (isActive()) scheduleReminders(upcomingForReminders);
   }, [profile?.id, scheduleReminders]);
 
   const refreshUpcoming = useCallback(async () => {
@@ -178,8 +427,7 @@ export default function MentorCallsScreen({ navigation }) {
       const all = (data || []).map(normalize);
       const stillUpcoming = all.filter(b => !isSessionPast(b));
       const nowExpired = all
-        .filter(b => isSessionPast(b))
-        .map(b => ({ ...b, isExpired: true }));
+        .filter(b => isSessionPast(b));
       setUpcomingAll(stillUpcoming);
       if (nowExpired.length > 0) {
         setHistory(prev => {
@@ -197,6 +445,8 @@ export default function MentorCallsScreen({ navigation }) {
         setLoading(false);
         return undefined;
       }
+      let active = true;
+      const isActive = () => active;
       if (lastProfileIdRef.current !== profile.id) {
         lastProfileIdRef.current = profile.id;
         sessionsLoaderShownRef.current = false;
@@ -204,11 +454,14 @@ export default function MentorCallsScreen({ navigation }) {
       if (sessionsLoaderShownRef.current) {
         refreshUpcoming();
       } else {
-        loadInitial({ silent: false });
+        loadInitial({ silent: false, isActive });
         sessionsLoaderShownRef.current = true;
       }
       const pollId = setInterval(refreshUpcoming, SESSIONS_POLL_MS);
-      return () => clearInterval(pollId);
+      return () => {
+        active = false;
+        clearInterval(pollId);
+      };
     }, [profile?.id, loadInitial, refreshUpcoming]),
   );
 
@@ -271,14 +524,15 @@ export default function MentorCallsScreen({ navigation }) {
   };
 
   const statusKey = item =>
-    item.isExpired ? 'expired' : (item.status || 'booked').toLowerCase();
+    isExpiredBooking(item) ? 'expired' : (item.status || 'booked').toLowerCase();
 
-  const renderBooking = (item, isUpcoming) => (
+  const renderBooking = (item, isUpcoming, delay) => (
     <BookingCard
       booking={item}
       isMentor
       compact
       showLearnerInfo
+      entranceDelay={delay}
       onPressJoin={isUpcoming ? () => handleJoinCall(item) : null}
       onPressCancel={null}
       onPressRecording={
@@ -288,6 +542,7 @@ export default function MentorCallsScreen({ navigation }) {
         item.recordingUrl ? () => handleDownloadRecording(item.recordingUrl) : null
       }
       statusLabel={STATUS_LABEL[statusKey(item)] || STATUS_LABEL.booked}
+      pressScale
     />
   );
 
@@ -296,25 +551,49 @@ export default function MentorCallsScreen({ navigation }) {
   const completedCount = history.filter(b => b.status === 'completed').length;
   const fullyEmpty = upcomingAll.length === 0 && history.length === 0 && !loading;
 
-  const listData = [{ type: 'stats', key: 'stats' }];
+  const listData = [];
+  let animStep = 0;
+  const nextDelay = () => {
+    const delay = animStep * ENTRANCE_STEP_MS;
+    animStep += 1;
+    return delay;
+  };
+
+  if (!fullyEmpty) {
+    listData.push({ type: 'stats', key: 'stats', delay: nextDelay() });
+  }
 
   if (fullyEmpty) {
-    listData.push({ type: 'empty', key: 'empty' });
+    listData.push({ type: 'empty', key: 'empty', delay: nextDelay() });
   } else {
     listData.push({
-      type: 'section',
-      key: 'up_hdr',
+      type: 'section_header',
+      key: 'upcoming_header',
       title: 'Upcoming',
-      count: upcomingAll.length,
+      icon: 'event',
+      isFirst: true,
+      delay: nextDelay(),
     });
     if (!upcomingAll.length) {
-      listData.push({ type: 'empty_slot', key: 'up_empty', icon: 'event-busy', text: 'No upcoming sessions' });
+      listData.push({
+        type: 'empty_section',
+        key: 'upcoming_empty',
+        icon: 'event-available',
+        text: 'No upcoming sessions',
+        delay: nextDelay(),
+      });
     } else {
       visibleUpcoming.forEach(b =>
-        listData.push({ type: 'booking', key: `u-${b.id}`, item: b, isUpcoming: true }),
+        listData.push({
+          type: 'booking',
+          key: `u-${b.id}`,
+          item: b,
+          isUpcoming: true,
+          delay: nextDelay(),
+        }),
       );
       if (hasMoreUpcoming) {
-        listData.push({ type: 'load_more_upcoming', key: 'more_upcoming' });
+        listData.push({ type: 'load_more_upcoming', key: 'more_upcoming', delay: nextDelay() });
       }
     }
 
@@ -322,21 +601,34 @@ export default function MentorCallsScreen({ navigation }) {
     const hasMoreHistoryToShow = historyShown < history.length || hasMoreHistory;
 
     listData.push({
-      type: 'section',
-      key: 'hist_hdr',
+      type: 'section_header',
+      key: 'history_header',
       title: 'History',
-      count: history.length,
+      icon: 'history',
+      delay: nextDelay(),
     });
     if (!visibleHistory.length && !loadingMore) {
-      listData.push({ type: 'empty_slot', key: 'hist_empty', icon: 'inbox', text: 'No past sessions yet' });
+      listData.push({
+        type: 'empty_section',
+        key: 'history_empty',
+        icon: 'history',
+        text: 'No past sessions yet',
+        delay: nextDelay(),
+      });
     } else {
       visibleHistory.forEach(b =>
-        listData.push({ type: 'booking', key: `h-${b.id}`, item: b, isUpcoming: false }),
+        listData.push({
+          type: 'booking',
+          key: `h-${b.id}`,
+          item: b,
+          isUpcoming: false,
+          delay: nextDelay(),
+        }),
       );
     }
 
     if (hasMoreHistoryToShow) {
-      listData.push({ type: 'load_more', key: 'more' });
+      listData.push({ type: 'load_more', key: 'more', delay: nextDelay() });
     }
   }
 
@@ -344,88 +636,107 @@ export default function MentorCallsScreen({ navigation }) {
     switch (item.type) {
       case 'stats':
         return (
-          <View style={styles.statsBar}>
-            <StatSegment
-              icon="schedule"
-              iconColor={TEAL}
-              value={String(upcomingAll.length)}
-              label="Upcoming"
-            />
-            <View style={styles.statDivider} />
-            <StatSegment
-              icon="check-circle"
-              iconColor={GOLD}
-              value={String(completedCount)}
-              label="Done"
-            />
-            <View style={styles.statDivider} />
-            <StatSegment
-              icon="history"
-              iconColor={PURPLE_LINK}
-              value={String(history.length)}
-              label="History"
-            />
-          </View>
+          <FadeSlideIn delay={item.delay} style={styles.statsWrap}>
+            <View style={styles.statsBar}>
+              <StatSegment
+                icon="schedule"
+                iconColor={TEAL}
+                value={String(upcomingAll.length)}
+                label="Upcoming"
+                delay={item.delay + 40}
+              />
+              <View style={styles.statDivider} />
+              <StatSegment
+                icon="check-circle"
+                iconColor={GOLD}
+                value={String(completedCount)}
+                label="Completed"
+                delay={item.delay + 90}
+              />
+              <View style={styles.statDivider} />
+              <StatSegment
+                icon="history"
+                iconColor={PURPLE_LINK}
+                value={String(history.length)}
+                label="History"
+                delay={item.delay + 140}
+              />
+            </View>
+          </FadeSlideIn>
         );
 
-      case 'section':
+      case 'section_header':
         return (
-          <View style={styles.sectionWrap}>
-            <SectionHeaderRow title={item.title} count={item.count} />
-          </View>
+          <SectionHeader
+            title={item.title}
+            icon={item.icon}
+            isFirst={item.isFirst}
+            delay={item.delay}
+          />
         );
 
-      case 'empty_slot':
-        return <EmptyBlock icon={item.icon} text={item.text} />;
+      case 'empty_section':
+        return (
+          <FadeSlideIn delay={item.delay} style={styles.sectionItem}>
+            <View style={styles.placeholderCard}>
+              <PulseIconRing ringStyle={styles.placeholderPulseRing}>
+                <View style={styles.placeholderIconRing}>
+                  <MaterialIcons name={item.icon} size={20} color={PURPLE_LINK} />
+                </View>
+              </PulseIconRing>
+              <Text style={styles.placeholderText}>{item.text}</Text>
+            </View>
+          </FadeSlideIn>
+        );
 
       case 'booking':
         return (
-          <View style={styles.cardWrap}>
-            {renderBooking(item.item, item.isUpcoming)}
+          <View style={styles.sectionItem}>
+            {renderBooking(item.item, item.isUpcoming, item.delay)}
           </View>
         );
 
       case 'load_more_upcoming':
         return (
-          <TouchableOpacity
-            style={styles.loadMore}
-            onPress={loadMoreUpcoming}
-            activeOpacity={0.75}
-          >
-            <MaterialIcons name="expand-more" size={20} color={PURPLE_LINK} />
-            <Text style={styles.loadMoreTxt}>Load more upcoming</Text>
-          </TouchableOpacity>
+          <FadeSlideIn delay={item.delay}>
+            <PressScale onPress={loadMoreUpcoming} pill style={styles.loadMoreBtn}>
+              <Text style={styles.loadMoreTxt}>Show more upcoming</Text>
+              <MaterialIcons name="expand-more" size={18} color={PURPLE_LINK} />
+            </PressScale>
+          </FadeSlideIn>
         );
 
       case 'load_more':
         return (
-          <TouchableOpacity
-            style={styles.loadMore}
-            onPress={loadMoreHistory}
-            activeOpacity={0.75}
-          >
-            {loadingMore ? (
-              <ActivityIndicator size="small" color={TEAL} />
-            ) : (
-              <>
-                <MaterialIcons name="expand-more" size={20} color={PURPLE_LINK} />
-                <Text style={styles.loadMoreTxt}>Load more history</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <FadeSlideIn delay={item.delay}>
+            <PressScale onPress={loadMoreHistory} disabled={loadingMore} pill style={styles.loadMoreBtn}>
+              {loadingMore ? (
+                <ActivityIndicator size="small" color={TEAL} />
+              ) : (
+                <>
+                  <Text style={styles.loadMoreTxt}>Show more history</Text>
+                  <MaterialIcons name="expand-more" size={18} color={PURPLE_LINK} />
+                </>
+              )}
+            </PressScale>
+          </FadeSlideIn>
         );
 
       case 'empty':
         return (
-          <View style={styles.emptyMain}>
-            <View style={styles.emptyRing}>
-              <MaterialIcons name="video-call" size={34} color={PURPLE_LINK} />
+          <FadeSlideIn delay={item.delay}>
+            <View style={styles.emptyWrap}>
+              <PulseIconRing ringStyle={styles.emptyPulseRing}>
+                <View style={styles.emptyIconRing}>
+                  <MaterialIcons name="video-call" size={40} color={PURPLE_LINK} />
+                </View>
+              </PulseIconRing>
+              <Text style={styles.emptyTitle}>No sessions yet</Text>
+              <Text style={styles.emptySubtitle}>
+                When learners book with you, sessions will appear here.
+              </Text>
             </View>
-            <Text style={styles.emptyTitle}>No sessions yet</Text>
-            <Text style={styles.emptySubtitle}>
-              When learners book with you, sessions will appear here.
-            </Text>
-          </View>
+          </FadeSlideIn>
         );
 
       default:
@@ -435,22 +746,26 @@ export default function MentorCallsScreen({ navigation }) {
 
   return (
     <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={false}>
-      <FlatList
-        style={styles.list}
-        data={listData}
-        keyExtractor={entry => entry.key}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={TEAL}
-          />
-        }
-      />
-      <LoadingOverlay visible={isFocused && loading && !refreshing} message="" />
+      {loading && !refreshing ? (
+        <SessionsSkeleton />
+      ) : (
+        <FlatList
+          style={styles.list}
+          data={listData}
+          keyExtractor={entry => entry.key}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={TEAL}
+              colors={[TEAL]}
+            />
+          }
+        />
+      )}
     </SafeScreen>
   );
 }
@@ -458,19 +773,22 @@ export default function MentorCallsScreen({ navigation }) {
 const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: {
-    padding: T.spacing.lg,
+    paddingHorizontal: T.spacing.lg,
+    paddingTop: T.spacing.md,
     paddingBottom: T.spacing.xxxl,
+  },
+  statsWrap: {
+    marginBottom: T.spacing.md,
   },
   statsBar: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    marginBottom: T.spacing.lg,
     paddingVertical: 11,
     paddingHorizontal: 4,
     borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: GLASS_BORDER,
   },
   statSeg: {
     flex: 1,
@@ -504,97 +822,151 @@ const styles = StyleSheet.create({
     marginVertical: 6,
     alignSelf: 'stretch',
   },
-  sectionWrap: {
-    marginTop: T.spacing.sm,
-    marginBottom: T.spacing.xs,
-  },
   secHdrRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: T.spacing.xs,
-    marginBottom: 2,
+    marginTop: T.spacing.xl,
+    marginBottom: T.spacing.sm,
   },
-  secHdrTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: C.text.primary,
+  secHdrRowFirst: {
+    marginTop: 0,
+  },
+  secHdrLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.sm,
     flex: 1,
     minWidth: 0,
   },
-  secHdrCount: {
-    minWidth: 26,
+  secIconBox: {
+    width: 26,
     height: 26,
-    paddingHorizontal: 8,
-    borderRadius: T.borderRadius.chip,
+    borderRadius: 8,
     backgroundColor: S.accentViolet,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  secHdrCountText: {
-    fontSize: 11,
+  secHdrTitle: {
+    fontSize: 15,
     fontWeight: '800',
-    color: PURPLE_LINK,
+    color: C.text.primary,
+    letterSpacing: -0.1,
   },
-  cardWrap: {
+  sectionItem: {
     marginBottom: T.spacing.sm,
   },
-  emptyBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: T.spacing.md,
-    paddingVertical: T.spacing.lg,
-    paddingHorizontal: T.spacing.lg,
-    marginBottom: T.spacing.sm,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  emptyBlockText: {
-    fontSize: 14,
-    color: C.text.muted,
-    flex: 1,
-    fontWeight: '600',
-  },
-  loadMore: {
-    flexDirection: 'row',
+  placeholderCard: {
     alignItems: 'center',
     justifyContent: 'center',
     gap: T.spacing.sm,
-    paddingVertical: T.spacing.md,
-    marginTop: T.spacing.xs,
-    marginBottom: T.spacing.lg,
-    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16,
+    paddingVertical: T.spacing.xl,
+    paddingHorizontal: T.spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderColor: GLASS_BORDER,
+  },
+  placeholderIconRing: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: S.accentViolet,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    fontSize: 13,
+    color: C.text.muted,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  pressScaleHit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  pressGlow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: PURPLE_LINK,
+  },
+  loadMorePill: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    paddingHorizontal: T.spacing.md,
+    paddingVertical: T.spacing.sm + 2,
+    marginTop: T.spacing.xs,
+    marginBottom: T.spacing.md,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  loadMorePillBg: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 12,
+    backgroundColor: 'rgba(167,139,250,0.14)',
+  },
+  loadMoreGlow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: PURPLE_LINK,
+  },
+  pulseWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pulseRing: {
+    position: 'absolute',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.45)',
+  },
+  placeholderPulseRing: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  emptyPulseRing: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+  },
+  loadMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
   },
   loadMoreTxt: {
     fontSize: 13,
     color: PURPLE_LINK,
     fontWeight: '700',
   },
-  emptyMain: {
+  emptyWrap: {
     alignItems: 'center',
     paddingVertical: T.spacing.xxxl,
     paddingHorizontal: T.spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: GLASS_BORDER,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.07)',
   },
-  emptyRing: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+  emptyIconRing: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: S.accentViolet,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.35)',
-    backgroundColor: S.accentViolet,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: T.spacing.lg,
   },
   emptyTitle: {

@@ -45,14 +45,13 @@ import Toast from "react-native-simple-toast";
 import BottomSheet from "../../../components/BottomSheet";
 import ParticipantListViewer from "../Components/ParticipantListViewer";
 import ChatViewer from "../Components/ChatViewer";
-import Lottie from "lottie-react-native";
-import recording_lottie from "../../../assets/animation/recording_lottie.json";
 import Blink from "../../../components/Blink";
 import VideosdkRPK from "../../../../VideosdkRPK";
 import ParticipantStatsViewer from "../Components/ParticipantStatsViewer";
 import { startOneToOneRecording } from "../../../utils/recordingConfig";
+import { computeSessionTiming, formatCountdown } from "../../../utils/sessionSlotTimer";
 
-export default function OneToOneMeetingViewer({ isHost }) {
+export default function OneToOneMeetingViewer({ isHost, booking }) {
   const {
     join,
     participants,
@@ -90,8 +89,6 @@ export default function OneToOneMeetingViewer({ isHost }) {
   const processedConsentMessagesRef = useRef(new Set());
   const localParticipantIdRef = useRef(null);
   const pendingRecordingRequestRef = useRef(null);
-  const recordingTimerRef = useRef(null);
-  const recordingStartedAtRef = useRef(null);
   const meetingTimerRef = useRef(null);
   const meetingStartedAtRef = useRef(null);
   const frontCameraIdRef = useRef(null);
@@ -112,8 +109,9 @@ export default function OneToOneMeetingViewer({ isHost }) {
 
   const [audioDevice, setAudioDevice] = useState([]);
   const [statParticipantId, setstatParticipantId] = useState("");
-  const [recordingElapsedSeconds, setRecordingElapsedSeconds] = useState(0);
   const [meetingElapsedSeconds, setMeetingElapsedSeconds] = useState(0);
+  const slot = booking?.availability_slots || {};
+  const [sessionTiming, setSessionTiming] = useState(() => computeSessionTiming(slot));
 
   async function updateAudioDeviceList() {
     const devices = await getAudioDeviceList();
@@ -165,6 +163,14 @@ export default function OneToOneMeetingViewer({ isHost }) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!slot.date) return undefined;
+    const update = () => setSessionTiming(computeSessionTiming(slot));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [slot.date, slot.start_time, slot.end_time]);
 
   useEffect(() => {
     if (webcamAutoEnabledRef.current) return;
@@ -332,7 +338,7 @@ export default function OneToOneMeetingViewer({ isHost }) {
             ts: Date.now(),
           });
           if (isHost) {
-            startOneToOneRecording(startRecording);
+            startOneToOneRecording(startRecording, Math.max(1, participantCount || 1));
           }
           Toast.show("Both agreed. Starting recording...");
         } else {
@@ -352,39 +358,13 @@ export default function OneToOneMeetingViewer({ isHost }) {
           !recordingState ||
           recordingState === Constants.recordingEvents.RECORDING_STOPPED
         ) {
-          startOneToOneRecording(startRecording);
+          startOneToOneRecording(startRecording, Math.max(1, participantCount || 1));
           Toast.show("Recording started.");
         }
         return;
       }
     });
   }, [recordingConsentPubSub.messages, isHost, recordingState, startRecording]);
-
-  useEffect(() => {
-    const isRecordingActive =
-      recordingState === Constants.recordingEvents.RECORDING_STARTED;
-
-    if (isRecordingActive && !recordingStartedAtRef.current) {
-      recordingStartedAtRef.current = Date.now();
-      setRecordingElapsedSeconds(0);
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-      recordingTimerRef.current = setInterval(() => {
-        const elapsed = Math.floor(
-          (Date.now() - recordingStartedAtRef.current) / 1000
-        );
-        setRecordingElapsedSeconds(elapsed);
-      }, 1000);
-    } else if (!isRecordingActive) {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-      recordingStartedAtRef.current = null;
-      setRecordingElapsedSeconds(0);
-    }
-  }, [recordingState]);
 
   useEffect(() => {
     if (Platform.OS == "ios") {
@@ -417,14 +397,31 @@ export default function OneToOneMeetingViewer({ isHost }) {
 
   useEffect(() => {
     return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
       if (meetingTimerRef.current) {
         clearInterval(meetingTimerRef.current);
       }
     };
   }, []);
+
+  const hasSlotTimer = Boolean(slot.date);
+  const reverseTimerValue = hasSlotTimer
+    ? sessionTiming.status === "upcoming"
+      ? formatCountdown(sessionTiming.untilStartSec)
+      : sessionTiming.status === "live"
+        ? formatCountdown(sessionTiming.remainingSec)
+        : "00:00"
+    : formatDuration(meetingElapsedSeconds);
+  const reverseTimerLabel = hasSlotTimer
+    ? sessionTiming.status === "upcoming"
+      ? "Starts in"
+      : sessionTiming.status === "live"
+        ? "Time left"
+        : "Ended"
+    : null;
+  const isRecordingVisible =
+    recordingState === Constants.recordingEvents.RECORDING_STARTED ||
+    recordingState === Constants.recordingEvents.RECORDING_STOPPING ||
+    recordingState === Constants.recordingEvents.RECORDING_STARTING;
 
   const openStatsBottomSheet = ({ pId }) => {
     setparticipantStatsViewer(true);
@@ -474,64 +471,100 @@ export default function OneToOneMeetingViewer({ isHost }) {
           width: "90%",
         }}
       >
-        {(recordingState === Constants.recordingEvents.RECORDING_STARTED ||
-          recordingState === Constants.recordingEvents.RECORDING_STOPPING ||
-          recordingState === Constants.recordingEvents.RECORDING_STARTING) && (
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
+        {isRecordingVisible ? (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "rgba(239, 68, 68, 0.2)",
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 8,
+            }}
+          >
             <Blink ref={recordingRef} duration={500}>
-              <Lottie
-                source={recording_lottie}
-                autoPlay
-                loop
+              <View
                 style={{
-                  height: 30,
-                  width: 5,
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: "#ef4444",
                 }}
               />
             </Blink>
             <Text
               style={{
-                marginLeft: 8,
-                color: '#4DA6FF',
+                marginLeft: 6,
+                color: "#fca5a5",
                 fontFamily: ROBOTO_FONTS.RobotoBold,
-                fontSize: 13,
+                fontSize: 12,
+                letterSpacing: 0.5,
               }}
             >
-              REC {formatDuration(recordingElapsedSeconds)}
+              REC
             </Text>
           </View>
-        )}
+        ) : null}
         <View
           style={{
             flex: 1,
             justifyContent: "space-between",
-            marginLeft:
-              recordingState === Constants.recordingEvents.RECORDING_STARTED ||
-              recordingState === Constants.recordingEvents.RECORDING_STOPPING ||
-              recordingState === Constants.recordingEvents.RECORDING_STARTING
-                ? 8
-                : 0,
+            marginLeft: isRecordingVisible ? 8 : 0,
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <View
               style={{
-                backgroundColor: "rgba(0, 0, 0, 0.45)",
+                backgroundColor:
+                  sessionTiming.status === "live"
+                    ? "rgba(34, 197, 94, 0.35)"
+                    : sessionTiming.status === "upcoming"
+                      ? "rgba(234, 179, 8, 0.35)"
+                      : "rgba(0, 0, 0, 0.45)",
                 paddingHorizontal: 10,
-                paddingVertical: 4,
+                paddingVertical: 5,
                 borderRadius: 8,
                 marginRight: 10,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                minWidth: hasSlotTimer ? 108 : undefined,
               }}
             >
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontFamily: ROBOTO_FONTS.RobotoBold,
-                  color: colors.primary[100],
-                }}
-              >
-                {formatDuration(meetingElapsedSeconds)}
-              </Text>
+              {hasSlotTimer && sessionTiming.status === "live" ? (
+                <View
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: "#4ade80",
+                  }}
+                />
+              ) : null}
+              <View>
+                {reverseTimerLabel ? (
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontFamily: ROBOTO_FONTS.RobotoMedium,
+                      color: "rgba(255, 255, 255, 0.75)",
+                      marginBottom: 1,
+                    }}
+                  >
+                    {reverseTimerLabel}
+                  </Text>
+                ) : null}
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontFamily: ROBOTO_FONTS.RobotoBold,
+                    color: colors.primary[100],
+                    fontVariant: ["tabular-nums"],
+                  }}
+                >
+                  {reverseTimerValue}
+                </Text>
+              </View>
             </View>
             <Text
               style={{

@@ -86,12 +86,15 @@ function PressableShell({ pressScale, onPress, style, children, disabled }) {
   }
 
   return (
-    <Animated.View style={[style, styles.pressScaleWrap, { transform: [{ scale }] }]}>
+    <Animated.View
+      style={[style, styles.pressScaleWrap, { transform: [{ scale }] }]}
+    >
       <Pressable
         onPress={onPress}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         style={styles.pressableFill}
+        disabled={disabled}
       >
         {children}
       </Pressable>
@@ -180,7 +183,12 @@ export default function CosmicButton({
       <PressableShell
         pressScale={pressScale}
         onPress={onPress}
-        style={[shell, { borderColor: gradientConfig.border }]}
+        disabled={isDisabled}
+        style={[
+          shell,
+          { borderColor: gradientConfig.border },
+          pressScale && styles.shellPressScale,
+        ]}
       >
         <LinearGradient
           colors={gradientConfig.colors}
@@ -233,7 +241,8 @@ export default function CosmicButton({
     <PressableShell
       pressScale={pressScale}
       onPress={onPress}
-      style={[shell, flat, compact ? styles.flatCompact : styles.flat]}
+      disabled={isDisabled}
+      style={[shell, flat, compact ? styles.flatCompact : styles.flat, pressScale && styles.shellPressScale]}
     >
       {content}
     </PressableShell>
@@ -243,6 +252,9 @@ export default function CosmicButton({
 const styles = StyleSheet.create({
   pressScaleWrap: {
     alignSelf: 'stretch',
+  },
+  shellPressScale: {
+    overflow: 'visible',
   },
   pressableFill: {
     width: '100%',

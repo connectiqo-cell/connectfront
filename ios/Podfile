@@ -36,5 +36,25 @@ target 'MyApp' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Xcode 26+ / Apple Clang: fmt 11.0.2 consteval breaks iOS builds (react-native#55601)
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'fmt'
+
+      target.build_configurations.each do |build_config|
+        build_config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+      end
+    end
+
+    fmt_base = File.join(installer.sandbox.root, 'fmt', 'include', 'fmt', 'base.h')
+    if File.exist?(fmt_base)
+      content = File.read(fmt_base)
+      patched = content.gsub('# define FMT_USE_CONSTEVAL 1', '# define FMT_USE_CONSTEVAL 0')
+      if patched != content
+        File.chmod(0o644, fmt_base)
+        File.write(fmt_base, patched)
+        Pod::UI.puts 'Patched fmt/base.h: FMT_USE_CONSTEVAL=0 for Xcode 26+'.green
+      end
+    end
   end
 end

@@ -77,7 +77,7 @@ class VideosdkRPK: RCTEventEmitter {
         frame: CGRect(x: 0, y: 0, width: 0, height: 0))
       var tap = pickerView.subviews.first as! UIButton
       pickerView.translatesAutoresizingMaskIntoConstraints = false
-      pickerView.preferredExtension = "com.ZujoNow.example.ScreenBroadcast"
+      pickerView.preferredExtension = "com.connectiqo.app.ScreenBroadcast"
       tap.sendActions(for: .touchUpInside)
       
     }

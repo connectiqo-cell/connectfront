@@ -44,9 +44,9 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Save session recordings to your photo gallery</string>
 	<key>RTCAppGroupIdentifier</key>
-	<string>group.com.ZujoNow.ScreenBroadcast</string>
+	<string>group.com.connectiqo.app</string>
 	<key>RTCScreenSharingExtension</key>
-	<string>com.ZujoNow.example.ScreenBroadcast</string>
+	<string>com.connectiqo.app.ScreenBroadcast</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

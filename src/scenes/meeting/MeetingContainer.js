@@ -15,6 +15,7 @@ export default function MeetingContainer({
   isMentor,
   otherUser,
   onLeaveSession,
+  maxDurationMs,
 }) {
   const [isJoined, setJoined] = useState(false);
   const [participantLimit, setParticipantLimit] = useState(false);
@@ -67,6 +68,16 @@ export default function MeetingContainer({
       }
     };
   }, [join, leave]);
+
+  // Auto-end session after maxDurationMs once both participants are in the call
+  useEffect(() => {
+    if (!maxDurationMs || remoteParticipantCount < 1) return undefined;
+    const timer = setTimeout(() => {
+      Toast.show('Session time limit reached (20 min)');
+      leave();
+    }, maxDurationMs);
+    return () => clearTimeout(timer);
+  }, [remoteParticipantCount, maxDurationMs, leave]);
 
   const handleLeave = () => {
     if (hasJoinedRef.current) {

@@ -317,19 +317,22 @@ function ParticipantCard({
   isSessionUpcoming,
   sessionTiming,
   slot,
+  meetingReady = false,
   animDelay = 0,
 }) {
-  const statusText = getParticipantStatusText({
-    connecting,
-    isSessionUpcoming,
-    isSessionLive,
-    untilStartSec: sessionTiming.untilStartSec,
-    remainingSec: sessionTiming.remainingSec,
-    otherLabel,
-    formatCountdown,
-  });
+  const statusText = meetingReady
+    ? `${otherLabel.charAt(0).toUpperCase() + otherLabel.slice(1)} is ready! Tap Join Call below.`
+    : getParticipantStatusText({
+        connecting,
+        isSessionUpcoming,
+        isSessionLive,
+        untilStartSec: sessionTiming.untilStartSec,
+        remainingSec: sessionTiming.remainingSec,
+        otherLabel,
+        formatCountdown,
+      });
 
-  const statusColor = connecting ? GOLD : isSessionLive ? SUCCESS : TEAL;
+  const statusColor = meetingReady ? SUCCESS : connecting ? GOLD : isSessionLive ? SUCCESS : TEAL;
 
   return (
     <FadeSlideIn delay={animDelay} style={styles.animBlock}>
@@ -516,6 +519,8 @@ export default function SessionLobbyView({
   onLeave,
   onReschedule,
   onCancelRefund,
+  meetingReady = false,
+  onJoinCall,
 }) {
   const insets = useSafeAreaInsets();
   const slot = booking?.availability_slots || {};
@@ -525,8 +530,18 @@ export default function SessionLobbyView({
   const otherLabel = isMentor ? 'learner' : 'mentor';
 
   const [phase, setPhase] = useState('main');
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [sessionTiming, setSessionTiming] = useState(() => computeSessionTiming(slot));
   const slotExpiredRef = useRef(false);
+
+  const handleRescheduleRequest = useCallback(async () => {
+    setRescheduleLoading(true);
+    try {
+      await onReschedule?.();
+    } finally {
+      setRescheduleLoading(false);
+    }
+  }, [onReschedule]);
 
   const updateSessionTimer = useCallback(() => {
     const timing = computeSessionTiming(slot);
@@ -570,18 +585,21 @@ export default function SessionLobbyView({
           </View>
           <Text style={styles.rescheduleCardTitle}>Free reschedule</Text>
           <Text style={styles.rescheduleCardSub}>
-            Move your session on {formatDateForDisplay(slot.date)} at {formatTime(slot.start_time)} to
-            another open slot — at no extra cost.
+            Your session on {formatDateForDisplay(slot.date)} at {formatTime(slot.start_time)} will be
+            rescheduled at no extra cost.
           </Text>
         </View>
         <View style={styles.rescheduleSlotPreview}>
-          <MaterialIcons name="event-available" size={18} color={GOLD} />
-          <Text style={styles.rescheduleSlotText}>Choose a new time that works for both of you</Text>
+          <MaterialIcons name="notifications-active" size={18} color={GOLD} />
+          <Text style={styles.rescheduleSlotText}>
+            {otherName} will be notified to propose a new time within 48 hours. You can then accept or suggest another.
+          </Text>
         </View>
         <CosmicButton
-          label="Confirm Reschedule"
+          label={rescheduleLoading ? 'Sending request…' : 'Send Reschedule Request'}
           variant="success"
-          onPress={() => onReschedule?.()}
+          onPress={handleRescheduleRequest}
+          disabled={rescheduleLoading}
           style={styles.fullWidthCta}
         />
         <CosmicButton label="Back to waiting room" variant="ghost" onPress={() => setPhase('main')} />
@@ -615,103 +633,314 @@ export default function SessionLobbyView({
           iconColor={ERROR}
           iconBg={B.dangerBg}
           title="Time Expired"
-          subtitle={`${otherName} didn't join within the session window. Choose what you'd like to do next.`}
+          subtitle={
+            isMentor
+              ? 'The session window has closed.'
+              : `${otherName} didn't join within the session window. You can request a free reschedule.`
+          }
         />
-        <ActionsPanel title="Your options">
-          <OptionRow
-            icon="event-repeat"
-            title="Reschedule Again"
-            subtitle="Pick another slot for free"
-            onPress={() => setPhase('reschedule')}
-            accent
-          />
-          <OptionRow
-            icon="account-balance-wallet"
-            title="Get Refund"
-            subtitle="Cancel and refund to wallet"
-            onPress={() => {
-              onCancelRefund?.();
-              setPhase('refund_success');
-            }}
-            accent
-          />
-        </ActionsPanel>
+        {!isMentor ? (
+          <ActionsPanel title="Your options">
+            <OptionRow
+              icon="event-repeat"
+              title="Request Reschedule"
+              subtitle="Mentor will propose a new time (free)"
+              onPress={() => setPhase('reschedule')}
+              accent
+            />
+          </ActionsPanel>
+        ) : null}
         <CosmicButton label="Go to Home" variant="primary" onPress={onLeave} style={styles.fullWidthCta} />
         <View style={{ height: insets.bottom + 16 }} />
       </LobbyShell>
     );
   }
 
+  const sessionProgress = sessionTiming.totalSec > 0
+    ? Math.min(1, sessionTiming.elapsedSec / sessionTiming.totalSec)
+    : 0;
+
+  // ── Mentor lobby: already in meeting, waiting for learner ─────────────────
+  if (isMentor) {
+    return (
+      <CosmicBackground style={styles.root}>
+        {/* Header */}
+        <FadeSlideIn delay={0} fromY={-10}>
+          <View style={[styles.newHeader, { paddingTop: insets.top + 10 }]}>
+            <PressScale onPress={onLeave} style={styles.backBtn} hitSlop={12}>
+              <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+            </PressScale>
+            <View style={styles.newHeaderCenter}>
+              <Text style={styles.newHeaderTitle}>Session Room</Text>
+              <Text style={styles.newHeaderSub}>1-on-1 Session</Text>
+            </View>
+            <View style={{ width: 40 }} />
+          </View>
+        </FadeSlideIn>
+
+        {/* Hero */}
+        <View style={styles.heroArea}>
+
+          {/* Learner avatar + status */}
+          <FadeSlideIn delay={ENTRANCE_STEP_MS} style={styles.avatarSection}>
+            <PulseLoop style={styles.heroPulseWrap} color={TEAL} minOpacity={0.15} maxOpacity={0.45}>
+              <View style={styles.heroAvatarFrame}>
+                {partner?.avatar_url ? (
+                  <Image source={{ uri: partner.avatar_url }} style={styles.heroAvatar} />
+                ) : (
+                  <View style={styles.heroAvatarFallback}>
+                    <Text style={styles.heroAvatarInitial}>{otherName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
+              </View>
+            </PulseLoop>
+            <Text style={styles.heroName}>{otherName}</Text>
+            <Text style={styles.heroRole}>LEARNER</Text>
+
+            <View style={styles.statusChip}>
+              <ActivityIndicator size="small" color={TEAL} style={{ marginRight: 2 }} />
+              <Text style={styles.statusChipText}>Waiting for learner to join…</Text>
+            </View>
+          </FadeSlideIn>
+
+          {/* Countdown */}
+          <FadeSlideIn delay={ENTRANCE_STEP_MS * 2} style={styles.countdownSection}>
+            <View style={[
+              styles.countdownBox,
+              sessionTiming.status === 'live' && styles.countdownBoxLive,
+              sessionTiming.status === 'upcoming' && styles.countdownBoxUpcoming,
+            ]}>
+              <View style={styles.countdownTop}>
+                <StatusBadge status={sessionTiming.status} />
+                <View style={styles.durationTag}>
+                  <MaterialIcons name="timelapse" size={12} color={C.text.secondary} />
+                  <Text style={styles.durationTagText}>{durationMin} min</Text>
+                </View>
+              </View>
+              <Text style={[
+                styles.countdownTimer,
+                sessionTiming.status === 'live' && { color: TEAL },
+                sessionTiming.status === 'upcoming' && { color: GOLD },
+                sessionTiming.status === 'ended' && { color: ERROR },
+              ]}>
+                {sessionTiming.status === 'upcoming'
+                  ? formatCountdown(sessionTiming.untilStartSec)
+                  : sessionTiming.status === 'live'
+                    ? formatCountdown(sessionTiming.remainingSec)
+                    : '00:00'}
+              </Text>
+              <Text style={styles.countdownLabel}>
+                {sessionTiming.status === 'upcoming' ? 'until session starts' : sessionTiming.status === 'live' ? 'time remaining' : 'session ended'}
+              </Text>
+              {sessionTiming.status === 'live' ? (
+                <View style={styles.progressTrack}>
+                  <AnimatedProgressFill progress={sessionProgress} colors={B.successGradient} />
+                </View>
+              ) : null}
+            </View>
+          </FadeSlideIn>
+
+          {/* Info strip */}
+          <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
+            <View style={styles.infoStrip}>
+              <View style={styles.infoStripItem}>
+                <MaterialIcons name="event" size={14} color={TEAL} />
+                <Text style={styles.infoStripText}>{formatDateForDisplay(slot.date)}</Text>
+              </View>
+              <View style={styles.infoStripDivider} />
+              <View style={styles.infoStripItem}>
+                <MaterialIcons name="access-time" size={14} color={TEAL} />
+                <Text style={styles.infoStripText}>
+                  {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
+                </Text>
+              </View>
+            </View>
+          </FadeSlideIn>
+        </View>
+
+        {/* Mic / Camera controls + End Session */}
+        <FadeSlideIn delay={ENTRANCE_STEP_MS * 4} fromY={24}>
+          <View style={[styles.mentorControlBar, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
+            {/* Mic */}
+            <PressScale
+              onPress={onToggleMic}
+              disabled={!onToggleMic}
+              style={[styles.mentorCtrlTile, !onToggleMic && styles.mentorCtrlTileDisabled]}
+            >
+              <View style={[styles.mentorCtrlIcon, micOn && styles.mentorCtrlIconActive]}>
+                <MaterialIcons name={micOn ? 'mic' : 'mic-off'} size={22} color={micOn ? TEAL : C.text.muted} />
+              </View>
+              <Text style={styles.mentorCtrlLabel}>Mic</Text>
+            </PressScale>
+
+            {/* Camera */}
+            <PressScale
+              onPress={onToggleCam}
+              disabled={!onToggleCam}
+              style={[styles.mentorCtrlTile, !onToggleCam && styles.mentorCtrlTileDisabled]}
+            >
+              <View style={[styles.mentorCtrlIcon, camOn && styles.mentorCtrlIconActive]}>
+                <MaterialIcons name={camOn ? 'videocam' : 'videocam-off'} size={22} color={camOn ? TEAL : C.text.muted} />
+              </View>
+              <Text style={styles.mentorCtrlLabel}>Camera</Text>
+            </PressScale>
+
+            {/* End Session */}
+            <PressScale onPress={onLeave} style={styles.mentorCtrlTile}>
+              <View style={styles.mentorCtrlIconEnd}>
+                <MaterialIcons name="call-end" size={22} color="#fff" />
+              </View>
+              <Text style={[styles.mentorCtrlLabel, { color: ERROR }]}>End</Text>
+            </PressScale>
+          </View>
+        </FadeSlideIn>
+      </CosmicBackground>
+    );
+  }
+
+  // ── Learner lobby ─────────────────────────────────────────────────────────
   return (
-    <LobbyShell insets={insets}>
-      <LobbyHeader title="Waiting Room" subtitle="1-on-1 session" onBack={onLeave} />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.mainScrollContent}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
-        <SessionStatusCard timing={sessionTiming} durationMin={durationMin} animDelay={ENTRANCE_STEP_MS} />
-        <ParticipantCard
-          otherUser={partner}
-          otherName={otherName}
-          otherLabel={otherLabel}
-          connecting={connecting}
-          isSessionLive={isSessionLive}
-          isSessionUpcoming={isSessionUpcoming}
-          sessionTiming={sessionTiming}
-          slot={slot}
-          animDelay={ENTRANCE_STEP_MS * 2}
-        />
-        {mainPanelType === 'pre_start' ? (
-          <ActionsPanel title="Before your session starts" animDelay={ENTRANCE_STEP_MS * 3}>
-            <View style={styles.preStartNote}>
-              <MaterialIcons name="info-outline" size={18} color={GOLD} />
-              <Text style={styles.preStartNoteText}>
-                Your slot opens in {formatCountdown(sessionTiming.untilStartSec)} at{' '}
-                {formatTime(slot.start_time)}. Stay here — {otherName} is expected to join when
-                the session begins.
+    <CosmicBackground style={styles.root}>
+      {/* ── Header ─────────────────────────────────────── */}
+      <FadeSlideIn delay={0} fromY={-10}>
+        <View style={[styles.newHeader, { paddingTop: insets.top + 10 }]}>
+          <PressScale onPress={onLeave} style={styles.backBtn} hitSlop={12}>
+            <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+          </PressScale>
+          <View style={styles.newHeaderCenter}>
+            <Text style={styles.newHeaderTitle}>Waiting Room</Text>
+            <Text style={styles.newHeaderSub}>1-on-1 Session</Text>
+          </View>
+          <View style={{ width: 40 }} />
+        </View>
+      </FadeSlideIn>
+
+      {/* ── Hero ───────────────────────────────────────── */}
+      <View style={styles.heroArea}>
+
+        {/* Avatar + name + status */}
+        <FadeSlideIn delay={ENTRANCE_STEP_MS} style={styles.avatarSection}>
+          <PulseLoop
+            style={styles.heroPulseWrap}
+            color={meetingReady ? SUCCESS : TEAL}
+            minOpacity={0.15}
+            maxOpacity={0.45}
+          >
+            <View style={styles.heroAvatarFrame}>
+              {partner?.avatar_url ? (
+                <Image source={{ uri: partner.avatar_url }} style={styles.heroAvatar} />
+              ) : (
+                <View style={styles.heroAvatarFallback}>
+                  <Text style={styles.heroAvatarInitial}>{otherName.charAt(0).toUpperCase()}</Text>
+                </View>
+              )}
+            </View>
+          </PulseLoop>
+          <Text style={styles.heroName}>{otherName}</Text>
+          <Text style={styles.heroRole}>{otherLabel.toUpperCase()}</Text>
+
+          <View style={[styles.statusChip, meetingReady && styles.statusChipReady]}>
+            {meetingReady ? (
+              <PulseLoop style={styles.chipDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
+                <View style={styles.chipDot} />
+              </PulseLoop>
+            ) : (
+              <ActivityIndicator size="small" color={TEAL} style={{ marginRight: 2 }} />
+            )}
+            <Text style={[styles.statusChipText, meetingReady && styles.statusChipTextReady]}>
+              {meetingReady ? 'Ready to join' : 'Waiting for mentor…'}
+            </Text>
+          </View>
+        </FadeSlideIn>
+
+        {/* Countdown card */}
+        <FadeSlideIn delay={ENTRANCE_STEP_MS * 2} style={styles.countdownSection}>
+          <View style={[
+            styles.countdownBox,
+            sessionTiming.status === 'live' && styles.countdownBoxLive,
+            sessionTiming.status === 'upcoming' && styles.countdownBoxUpcoming,
+          ]}>
+            <View style={styles.countdownTop}>
+              <StatusBadge status={sessionTiming.status} />
+              <View style={styles.durationTag}>
+                <MaterialIcons name="timelapse" size={12} color={C.text.secondary} />
+                <Text style={styles.durationTagText}>{durationMin} min</Text>
+              </View>
+            </View>
+            <Text style={[
+              styles.countdownTimer,
+              sessionTiming.status === 'live' && { color: TEAL },
+              sessionTiming.status === 'upcoming' && { color: GOLD },
+              sessionTiming.status === 'ended' && { color: ERROR },
+            ]}>
+              {sessionTiming.status === 'upcoming'
+                ? formatCountdown(sessionTiming.untilStartSec)
+                : sessionTiming.status === 'live'
+                  ? formatCountdown(sessionTiming.remainingSec)
+                  : '00:00'}
+            </Text>
+            <Text style={styles.countdownLabel}>
+              {sessionTiming.status === 'upcoming'
+                ? 'until session starts'
+                : sessionTiming.status === 'live'
+                  ? 'time remaining'
+                  : 'session window closed'}
+            </Text>
+            {sessionTiming.status === 'live' ? (
+              <View style={styles.progressTrack}>
+                <AnimatedProgressFill progress={sessionProgress} colors={B.successGradient} />
+              </View>
+            ) : null}
+          </View>
+        </FadeSlideIn>
+
+        {/* Session info strip */}
+        <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
+          <View style={styles.infoStrip}>
+            <View style={styles.infoStripItem}>
+              <MaterialIcons name="event" size={14} color={TEAL} />
+              <Text style={styles.infoStripText}>{formatDateForDisplay(slot.date)}</Text>
+            </View>
+            <View style={styles.infoStripDivider} />
+            <View style={styles.infoStripItem}>
+              <MaterialIcons name="access-time" size={14} color={TEAL} />
+              <Text style={styles.infoStripText}>
+                {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
               </Text>
             </View>
-            <OptionRow
-              icon="event-repeat"
-              title="Reschedule for free"
-              subtitle="Move to another open slot"
-              onPress={() => setPhase('reschedule')}
-              accent
-            />
-            <OptionRow
-              icon="logout"
-              title="Leave waiting room"
-              subtitle="You can rejoin before the session starts"
-              onPress={onLeave}
-            />
-          </ActionsPanel>
-        ) : mainPanelType === 'no_show' ? (
-          <ActionsPanel title={`${otherName} hasn't joined yet?`} animDelay={ENTRANCE_STEP_MS * 3}>
-            <OptionRow
-              icon="event-repeat"
-              title="Reschedule for free"
-              subtitle="Move to another open slot"
-              onPress={() => setPhase('reschedule')}
-              accent
-            />
-            <OptionRow
-              icon="undo"
-              title={isMentor ? 'End Session' : 'Cancel & Get Refund'}
-              subtitle={isMentor ? 'Leave without completing' : 'Full refund to your wallet'}
-              onPress={() => {
-                onCancelRefund?.();
-                if (!isMentor) setPhase('refund_success');
-                else onLeave?.();
-              }}
-              danger={!isMentor}
-            />
-          </ActionsPanel>
-        ) : null}
-      </ScrollView>
-      {controlBar}
-    </LobbyShell>
+          </View>
+        </FadeSlideIn>
+      </View>
+
+      {/* ── Bottom CTA ─────────────────────────────────── */}
+      <FadeSlideIn delay={ENTRANCE_STEP_MS * 4} fromY={24}>
+        <View style={[styles.bottomCta, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
+          <PressScale onPress={onJoinCall} style={styles.joinCallBtn}>
+            <LinearGradient
+              colors={meetingReady ? B.successGradient : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.04)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.joinCallGradient}
+            >
+              <MaterialIcons name="video-call" size={24} color={meetingReady ? '#000' : C.text.muted} />
+              <Text style={[styles.joinCallText, !meetingReady && styles.joinCallTextMuted]}>
+                Join Call
+              </Text>
+              {meetingReady ? (
+                <PulseLoop style={styles.joinBtnDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
+                  <View style={styles.joinBtnDot} />
+                </PulseLoop>
+              ) : (
+                <ActivityIndicator size="small" color={C.text.muted} />
+              )}
+            </LinearGradient>
+          </PressScale>
+          <PressScale onPress={onLeave} style={styles.leaveLink}>
+            <Text style={styles.leaveLinkText}>Leave quietly</Text>
+          </PressScale>
+        </View>
+      </FadeSlideIn>
+    </CosmicBackground>
   );
 }
 
@@ -1224,5 +1453,294 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: GOLD,
     lineHeight: 18,
+  },
+
+  /* ── New main lobby styles ──────────────────────────── */
+  newHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: T.spacing.md,
+    paddingBottom: T.spacing.sm,
+  },
+  newHeaderCenter: { flex: 1, alignItems: 'center' },
+  newHeaderTitle: {
+    ...T.typography.headingXs,
+    color: C.text.primary,
+    fontWeight: '800',
+  },
+  newHeaderSub: {
+    ...T.typography.bodyXs,
+    color: C.text.muted,
+    marginTop: 2,
+  },
+
+  heroArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: T.spacing.lg,
+    gap: T.spacing.lg,
+  },
+
+  avatarSection: {
+    alignItems: 'center',
+    gap: T.spacing.xs,
+  },
+  heroPulseWrap: {
+    width: 120,
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: T.spacing.sm,
+  },
+  heroAvatarFrame: {
+    width: 110,
+    height: 110,
+    borderRadius: T.borderRadius.lg,
+    borderWidth: 2,
+    borderColor: C.border.default,
+    overflow: 'hidden',
+    backgroundColor: C.primary.void,
+  },
+  heroAvatar: { width: '100%', height: '100%' },
+  heroAvatarFallback: {
+    flex: 1,
+    backgroundColor: S.accentViolet,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroAvatarInitial: {
+    fontSize: 44,
+    fontWeight: '800',
+    color: PURPLE_LINK,
+  },
+  heroName: {
+    ...T.typography.headingSm,
+    color: C.text.primary,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    marginTop: T.spacing.xs,
+  },
+  heroRole: {
+    ...T.typography.labelSm,
+    color: PURPLE_LINK,
+    letterSpacing: 1.2,
+    marginTop: 2,
+  },
+
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: T.spacing.sm,
+    paddingHorizontal: T.spacing.md,
+    paddingVertical: 8,
+    borderRadius: T.borderRadius.full ?? 999,
+    backgroundColor: S.chip,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+  },
+  statusChipReady: {
+    backgroundColor: S.accentSuccess,
+    borderColor: B.successBorder,
+  },
+  chipDotWrap: {
+    width: 10,
+    height: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: SUCCESS,
+  },
+  statusChipText: {
+    ...T.typography.bodySm,
+    fontWeight: '700',
+    color: C.text.muted,
+  },
+  statusChipTextReady: {
+    color: SUCCESS,
+  },
+
+  countdownSection: {
+    width: '100%',
+  },
+  countdownBox: {
+    borderRadius: T.borderRadius.lg,
+    padding: T.spacing.lg,
+    borderWidth: 1,
+    backgroundColor: GLASS_BG,
+    borderColor: GLASS_BORDER,
+    alignItems: 'center',
+    gap: 4,
+  },
+  countdownBoxLive: {
+    backgroundColor: S.accentSuccess,
+    borderColor: B.successBorder,
+  },
+  countdownBoxUpcoming: {
+    backgroundColor: S.accentGold,
+    borderColor: B.goldOutlineBorder,
+  },
+  countdownTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: T.spacing.xs,
+  },
+  countdownTimer: {
+    fontSize: 44,
+    fontWeight: '800',
+    color: C.text.primary,
+    letterSpacing: 3,
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
+  },
+  countdownLabel: {
+    ...T.typography.bodySm,
+    fontWeight: '600',
+    color: C.text.muted,
+    marginTop: 2,
+  },
+
+  infoStripSection: {
+    width: '100%',
+  },
+  infoStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PANEL,
+    borderRadius: T.borderRadius.md,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    paddingVertical: T.spacing.md,
+    paddingHorizontal: T.spacing.lg,
+    gap: T.spacing.md,
+  },
+  infoStripItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  infoStripDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: GLASS_BORDER,
+  },
+  infoStripText: {
+    ...T.typography.bodySm,
+    fontWeight: '700',
+    color: C.text.secondary,
+  },
+
+  bottomCta: {
+    paddingHorizontal: T.spacing.lg,
+    paddingTop: T.spacing.md,
+    gap: T.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: GLASS_BORDER,
+    backgroundColor: 'rgba(10,10,26,0.6)',
+  },
+
+  joinCallBtn: {
+    width: '100%',
+    borderRadius: T.borderRadius.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+  },
+  joinCallGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: T.spacing.sm,
+    paddingVertical: 18,
+  },
+  joinCallText: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#000',
+    letterSpacing: 0.4,
+    flex: 0,
+  },
+  joinCallTextMuted: {
+    color: C.text.muted,
+  },
+  joinBtnDotWrap: {
+    width: 12,
+    height: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  joinBtnDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#000',
+  },
+
+  leaveLink: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: T.spacing.sm,
+  },
+  leaveLinkText: {
+    ...T.typography.bodySm,
+    color: C.text.muted,
+    fontWeight: '600',
+  },
+
+  /* ── Mentor control bar ─────────────────────────────── */
+  mentorControlBar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: T.spacing.xl,
+    paddingHorizontal: T.spacing.xl,
+    paddingTop: T.spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: GLASS_BORDER,
+    backgroundColor: 'rgba(10,10,26,0.6)',
+  },
+  mentorCtrlTile: {
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 64,
+  },
+  mentorCtrlTileDisabled: { opacity: 0.45 },
+  mentorCtrlIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: T.borderRadius.md,
+    backgroundColor: GLASS_BG,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mentorCtrlIconActive: {
+    backgroundColor: S.accentTeal,
+    borderColor: C.border.default,
+  },
+  mentorCtrlIconEnd: {
+    width: 56,
+    height: 56,
+    borderRadius: T.borderRadius.md,
+    backgroundColor: B.dangerSolid,
+    borderWidth: 1,
+    borderColor: B.dangerBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mentorCtrlLabel: {
+    ...T.typography.bodyXs,
+    fontWeight: '700',
+    color: C.text.secondary,
   },
 });

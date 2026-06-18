@@ -148,7 +148,8 @@ export const earningsApi = {
       const { data, error } = await supabase
         .from('earnings')
         .select('amount')
-        .eq('mentor_id', mentorId);
+        .eq('mentor_id', mentorId)
+        .eq('status', 'completed');
 
       if (error) throw error;
 

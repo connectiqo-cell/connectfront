@@ -91,6 +91,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
   const pendingRecordingRequestRef = useRef(null);
   const meetingTimerRef = useRef(null);
   const meetingStartedAtRef = useRef(null);
+  const bothJoinedAtRef = useRef(null);
   const frontCameraIdRef = useRef(null);
   const webcamAutoEnabledRef = useRef(false);
 
@@ -145,6 +146,12 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     const t = setTimeout(() => fetchFrontCamera(), 800);
     return () => { cancelled = true; clearTimeout(t); };
   }, []);
+
+  useEffect(() => {
+    if (participantCount >= 2 && !bothJoinedAtRef.current) {
+      bothJoinedAtRef.current = Date.now();
+    }
+  }, [participantCount]);
 
   useEffect(() => {
     meetingStartedAtRef.current = Date.now();
@@ -429,20 +436,47 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     bottomSheetRef.current.show();
   };
 
+  const MIN_SESSION_SECONDS = 300; // 5 minutes
+
+  const tryLeave = (endForAll = false) => {
+    if (bothJoinedAtRef.current) {
+      const elapsed = Math.floor((Date.now() - bothJoinedAtRef.current) / 1000);
+      if (elapsed < MIN_SESSION_SECONDS) {
+        const remainingSec = MIN_SESSION_SECONDS - elapsed;
+        const remainingMin = Math.ceil(remainingSec / 60);
+        Toast.show(
+          `Minimum 5 minutes required. ${remainingMin} min${remainingMin !== 1 ? 's' : ''} remaining.`
+        );
+        return;
+      }
+    }
+    if (endForAll) {
+      end();
+    } else {
+      leave();
+    }
+  };
+
   const confirmLeaveMeeting = () => {
+    if (bothJoinedAtRef.current) {
+      const elapsed = Math.floor((Date.now() - bothJoinedAtRef.current) / 1000);
+      if (elapsed < MIN_SESSION_SECONDS) {
+        const remainingSec = MIN_SESSION_SECONDS - elapsed;
+        const remainingMin = Math.ceil(remainingSec / 60);
+        Alert.alert(
+          'Cannot leave yet',
+          `Sessions must be at least 5 minutes long. Please wait ${remainingMin} more minute${remainingMin !== 1 ? 's' : ''}.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
     Alert.alert(
       "Leave meeting?",
       "Are you sure you want to leave this meeting?",
       [
-        {
-          text: "Stay in meeting",
-          style: "cancel",
-        },
-        {
-          text: "Leave meeting",
-          style: "destructive",
-          onPress: () => leave(),
-        },
+        { text: "Stay in meeting", style: "cancel" },
+        { text: "Leave meeting", style: "destructive", onPress: () => leave() },
       ],
       { cancelable: true }
     );
@@ -678,10 +712,8 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       >
         <MenuItem
           title={"Leave call"}
-          // description={"Leave call"}
-          // icon={<Leave width={22} height={22} />}
           onPress={() => {
-            leave();
+            tryLeave(false);
             moreOptionsMenu.current.close();
           }}
         />
@@ -695,10 +727,8 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
             />
             <MenuItem
               title={"End call"}
-              // description={"End call"}
-              // icon={<EndForAll />}
               onPress={() => {
-                end();
+                tryLeave(true);
                 moreOptionsMenu.current.close();
               }}
             />

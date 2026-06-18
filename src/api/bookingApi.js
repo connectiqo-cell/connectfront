@@ -116,7 +116,7 @@ export const bookingApi = {
           availability_slots (date, start_time, end_time)
         `)
         .eq('learner_id', learnerId)
-        .in('status', ['pending', 'confirmed']);
+        .in('status', ['pending', 'confirmed', 'reschedule_pending']);
 
       if (error) throw error;
       const sorted = (data || []).sort((a, b) => {
@@ -142,7 +142,7 @@ export const bookingApi = {
           availability_slots (date, start_time, end_time)
         `)
         .eq('learner_id', learnerId)
-        .in('status', ['completed', 'cancelled', 'rejected'])
+        .in('status', ['completed', 'cancelled', 'rejected', 'rescheduled'])
         .order('date', { referencedTable: 'availability_slots', ascending: false })
         .order('start_time', { referencedTable: 'availability_slots', ascending: false })
         .range(from, to);
@@ -183,7 +183,7 @@ export const bookingApi = {
           availability_slots (date, start_time, end_time)
         `)
         .eq('mentor_id', mentorId)
-        .in('status', ['pending', 'confirmed']);
+        .in('status', ['pending', 'confirmed', 'reschedule_pending']);
 
       if (error) throw error;
       const sorted = (data || []).sort((a, b) => {
@@ -209,7 +209,7 @@ export const bookingApi = {
           availability_slots (date, start_time, end_time)
         `)
         .eq('mentor_id', mentorId)
-        .in('status', ['completed', 'cancelled', 'rejected'])
+        .in('status', ['completed', 'cancelled', 'rejected', 'rescheduled'])
         .order('date', { referencedTable: 'availability_slots', ascending: false })
         .order('start_time', { referencedTable: 'availability_slots', ascending: false })
         .range(from, to);
@@ -278,35 +278,28 @@ export const bookingApi = {
   updateBookingStatus: async ({ bookingId, status }) => {
     try {
 
-      // Update the booking status
+      // Only update if not already completed — prevents double-processing when
+      // both mentor and learner call this at session end.
       const { data, error } = await supabase
         .from('bookings')
         .update({ status })
         .eq('id', bookingId)
+        .neq('status', status)
         .select()
         .single();
 
       if (error) throw error;
 
+      // data is null when the row was already in this status — skip side effects
+      if (!data) return null;
+
       // If status is 'completed':
-      // 1. Increment mentor's total_sessions
+      // 1. Increment mentor's total_sessions (atomic — won't run twice due to guard above)
       // 2. Move earnings from pending → available balance (complete_session_payment RPC)
       if (status === 'completed' && data?.mentor_id) {
 
-        // Increment total_sessions
-        const { data: mentorData, error: fetchError } = await supabase
-          .from('mentor_profiles')
-          .select('total_sessions')
-          .eq('id', data.mentor_id)
-          .single();
-
-        if (!fetchError && mentorData) {
-          const newCount = (mentorData.total_sessions || 0) + 1;
-          await supabase
-            .from('mentor_profiles')
-            .update({ total_sessions: newCount })
-            .eq('id', data.mentor_id);
-        }
+        // Atomic increment — safe because the guard above ensures this runs exactly once
+        await supabase.rpc('increment_mentor_sessions', { p_mentor_id: data.mentor_id });
 
         // Credit wallet: move pending earnings → available balance
         const { error: walletError } = await supabase.rpc('complete_session_payment', {
@@ -316,7 +309,6 @@ export const bookingApi = {
 
         if (walletError) {
           console.error('❌ Failed to credit wallet:', walletError);
-        } else {
         }
       }
 

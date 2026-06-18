@@ -24,6 +24,8 @@ import LearnerVideosScreen from '../scenes/learner/VideosScreen';
 import PayoutSetupScreen from '../scenes/settings/PayoutSetupScreen';
 import ConnectivityScreen from '../scenes/settings/ConnectivityScreen';
 import NotificationsScreen from '../scenes/settings/NotificationsScreen';
+import RescheduleRequestScreen from '../scenes/shared/RescheduleRequestScreen';
+import RescheduleResponseScreen from '../scenes/shared/RescheduleResponseScreen';
 const RootStack = createStackNavigator();
 
 export const RootNavigator = () => {
@@ -131,6 +133,16 @@ export const RootNavigator = () => {
           <RootStack.Screen
             name={SCREEN_NAMES.MentorReviews}
             component={MentorReviewsScreen}
+            options={{ animationEnabled: false }}
+          />
+          <RootStack.Screen
+            name={SCREEN_NAMES.RescheduleRequest}
+            component={RescheduleRequestScreen}
+            options={{ animationEnabled: false }}
+          />
+          <RootStack.Screen
+            name={SCREEN_NAMES.RescheduleResponse}
+            component={RescheduleResponseScreen}
             options={{ animationEnabled: false }}
           />
         </>

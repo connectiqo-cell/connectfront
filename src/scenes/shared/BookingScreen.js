@@ -838,6 +838,9 @@ export default function BookingScreen({ navigation, route }) {
           name: profile.name || '',
         },
         theme: { color: T.colors.accent.secondary },
+        // Force UPI collect flow so user types their UPI ID (e.g. success@razorpay in test mode)
+        // instead of the SDK launching a UPI intent that opens payment apps directly.
+        upi: { flow: 'collect' },
       };
 
       const paymentData = await RazorpayCheckout.open(razorpayOptions);

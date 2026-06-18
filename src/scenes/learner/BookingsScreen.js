@@ -26,6 +26,7 @@ import { normalizeRecordingUrl } from '../../api/api';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { saveRecordingToGallery } from '../../utils/recordingActions';
 import { isBookingSessionPast, isExpiredBooking } from '../../utils/bookingSession';
+import { rescheduleApi } from '../../api/rescheduleApi';
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonBone({ style }) {
@@ -242,6 +243,7 @@ export default function LearnerBookingsScreen({ navigation }) {
   const [historyPage, setHistoryPage] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
+  const [pendingProposals, setPendingProposals] = useState([]);
   const hasLoadedRef = useRef(false);
 
   const loadReviewedIds = useCallback(async bookings => {
@@ -272,10 +274,12 @@ export default function LearnerBookingsScreen({ navigation }) {
       setUpcomingShown(PAGE_SIZE);
       setHistoryShown(PAGE_SIZE);
 
-      const [upcomingData, historyData] = await Promise.all([
+      const [upcomingData, historyData, proposalsData] = await Promise.all([
         bookingApi.getUpcomingBookingsByLearner(profile.id),
         bookingApi.getBookingHistoryByLearner(profile.id, 0, PAGE_SIZE),
+        rescheduleApi.getProposalsForLearner(profile.id).catch(() => []),
       ]);
+      if (isActive()) setPendingProposals(proposalsData || []);
 
       if (!isActive()) return;
 
@@ -377,16 +381,6 @@ export default function LearnerBookingsScreen({ navigation }) {
     navigation.navigate('VideoCall_Screen', { bookingId: booking.id, isHost: false });
   };
 
-  const handleCancelBooking = async booking => {
-    try {
-      await bookingApi.cancelBooking(booking.id);
-      Toast.show('Booking cancelled');
-      await loadInitial({ showSkeleton: false });
-    } catch {
-      Toast.show('Failed to cancel booking');
-    }
-  };
-
   const handleOpenRecording = rawUrl => {
     const url = normalizeRecordingUrl(rawUrl);
     if (!url) { Toast.show('Recording link is unavailable'); return; }
@@ -424,7 +418,7 @@ export default function LearnerBookingsScreen({ navigation }) {
         booking={item}
         isMentor={false}
         onPressJoin={isUpcoming ? () => handleJoinCall(item) : null}
-        onPressCancel={isUpcoming ? () => handleCancelBooking(item) : null}
+        onPressCancel={null}
         onPressRecording={item.recordingUrl ? () => handleOpenRecording(item.recordingUrl) : null}
         onPressDownload={
           item.recordingUrl ? () => handleDownloadRecording(item.recordingUrl) : null
@@ -445,11 +439,17 @@ export default function LearnerBookingsScreen({ navigation }) {
     );
   };
 
-  const visibleUpcoming = upcomingAll.slice(0, upcomingShown);
-  const hasMoreUpcoming = upcomingAll.length > upcomingShown;
+  const reschedulePendingBookings = upcomingAll.filter(b => b.status === 'reschedule_pending');
+  const regularUpcoming = upcomingAll.filter(b => b.status !== 'reschedule_pending');
+  // Map proposal by booking_id for O(1) lookup
+  const proposalByBookingId = {};
+  pendingProposals.forEach(p => { proposalByBookingId[p.booking_id] = p; });
+
+  const visibleUpcoming = regularUpcoming.slice(0, upcomingShown);
+  const hasMoreUpcoming = regularUpcoming.length > upcomingShown;
   const fullyEmpty = upcomingAll.length === 0 && history.length === 0 && !loading;
 
-  // Build FlatList data: upcoming section + history section
+  // Build FlatList data: reschedule section + upcoming section + history section
   const listData = [];
   let animStep = 0;
   const nextDelay = () => {
@@ -461,15 +461,37 @@ export default function LearnerBookingsScreen({ navigation }) {
   if (fullyEmpty) {
     listData.push({ type: 'empty', key: 'empty', delay: nextDelay() });
   } else {
+    // Reschedule section (shown before regular upcoming)
+    if (reschedulePendingBookings.length > 0 || pendingProposals.length > 0) {
+      listData.push({
+        type: 'section_header',
+        key: 'reschedule_header',
+        title: 'Reschedule',
+        icon: 'event-repeat',
+        isFirst: true,
+        delay: nextDelay(),
+      });
+      reschedulePendingBookings.forEach(b => {
+        const proposal = proposalByBookingId[b.id];
+        listData.push({
+          type: 'reschedule_banner',
+          key: `reschedule_${b.id}`,
+          booking: b,
+          proposal: proposal || null,
+          delay: nextDelay(),
+        });
+      });
+    }
+
     listData.push({
       type: 'section_header',
       key: 'upcoming_header',
       title: 'Upcoming',
       icon: 'event',
-      isFirst: true,
+      isFirst: reschedulePendingBookings.length === 0 && pendingProposals.length === 0,
       delay: nextDelay(),
     });
-    if (upcomingAll.length === 0) {
+    if (regularUpcoming.length === 0) {
       listData.push({
         type: 'empty_section',
         key: 'upcoming_empty',
@@ -553,6 +575,46 @@ export default function LearnerBookingsScreen({ navigation }) {
             {renderBooking(item.item, item.isUpcoming, item.delay)}
           </View>
         );
+
+      case 'reschedule_banner': {
+        const { booking: rb, proposal, delay } = item;
+        const mentorName = rb.profiles?.name || 'Your mentor';
+        const hasProposal = !!proposal?.proposed_date;
+        return (
+          <FadeSlideIn delay={delay} style={styles.sectionItem}>
+            <View style={[styles.rescheduleBanner, hasProposal && styles.rescheduleBannerActive]}>
+              <View style={styles.rescheduleBannerLeft}>
+                <MaterialIcons
+                  name={hasProposal ? 'event-available' : 'hourglass-empty'}
+                  size={22}
+                  color={hasProposal ? TEAL : GLASS_BORDER}
+                />
+              </View>
+              <View style={styles.rescheduleBannerBody}>
+                <Text style={styles.rescheduleBannerTitle}>
+                  {hasProposal ? 'New time proposed' : 'Awaiting proposal'}
+                </Text>
+                <Text style={styles.rescheduleBannerSub}>
+                  {hasProposal
+                    ? `${mentorName} suggested a new time. Tap to review.`
+                    : `${mentorName} is choosing a new time for your session.`}
+                </Text>
+              </View>
+              <PressScale
+                onPress={() =>
+                  navigation.navigate(SCREEN_NAMES.RescheduleResponse, { proposal: proposal || { booking_id: rb.id, bookings: rb } })
+                }
+                disabled={!hasProposal}
+                style={[styles.rescheduleBannerCta, !hasProposal && styles.rescheduleBannerCtaDisabled]}
+              >
+                <Text style={[styles.rescheduleBannerCtaText, !hasProposal && styles.rescheduleBannerCtaTextMuted]}>
+                  {hasProposal ? 'Review' : 'Waiting'}
+                </Text>
+              </PressScale>
+            </View>
+          </FadeSlideIn>
+        );
+      }
 
       case 'load_more_upcoming':
         return (
@@ -745,5 +807,56 @@ const styles = StyleSheet.create({
     color: C.text.muted,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  rescheduleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.sm,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    padding: T.spacing.md,
+  },
+  rescheduleBannerActive: {
+    backgroundColor: S.accentTeal,
+    borderColor: C.border.default,
+  },
+  rescheduleBannerLeft: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rescheduleBannerBody: { flex: 1 },
+  rescheduleBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: C.text.primary,
+  },
+  rescheduleBannerSub: {
+    fontSize: 11,
+    color: C.text.muted,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  rescheduleBannerCta: {
+    paddingHorizontal: T.spacing.md,
+    paddingVertical: T.spacing.sm,
+    borderRadius: 8,
+    backgroundColor: TEAL,
+  },
+  rescheduleBannerCtaDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  rescheduleBannerCtaText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#000',
+  },
+  rescheduleBannerCtaTextMuted: {
+    color: C.text.muted,
   },
 });

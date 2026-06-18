@@ -25,6 +25,7 @@ import { scheduleSessionReminder, requestNotificationPermission } from '../../ut
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { saveRecordingToGallery } from '../../utils/recordingActions';
 import { isBookingSessionPast, isExpiredBooking } from '../../utils/bookingSession';
+import { rescheduleApi } from '../../api/rescheduleApi';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -546,8 +547,11 @@ export default function MentorCallsScreen({ navigation }) {
     />
   );
 
-  const visibleUpcoming = upcomingAll.slice(0, upcomingShown);
-  const hasMoreUpcoming = upcomingAll.length > upcomingShown;
+  const reschedulePendingBookings = upcomingAll.filter(b => b.status === 'reschedule_pending');
+  const regularUpcoming = upcomingAll.filter(b => b.status !== 'reschedule_pending');
+
+  const visibleUpcoming = regularUpcoming.slice(0, upcomingShown);
+  const hasMoreUpcoming = regularUpcoming.length > upcomingShown;
   const completedCount = history.filter(b => b.status === 'completed').length;
   const fullyEmpty = upcomingAll.length === 0 && history.length === 0 && !loading;
 
@@ -566,15 +570,35 @@ export default function MentorCallsScreen({ navigation }) {
   if (fullyEmpty) {
     listData.push({ type: 'empty', key: 'empty', delay: nextDelay() });
   } else {
+    // Reschedule requests section
+    if (reschedulePendingBookings.length > 0) {
+      listData.push({
+        type: 'section_header',
+        key: 'reschedule_header',
+        title: 'Reschedule Requests',
+        icon: 'event-repeat',
+        isFirst: false,
+        delay: nextDelay(),
+      });
+      reschedulePendingBookings.forEach(b =>
+        listData.push({
+          type: 'reschedule_banner',
+          key: `resc_${b.id}`,
+          booking: b,
+          delay: nextDelay(),
+        }),
+      );
+    }
+
     listData.push({
       type: 'section_header',
       key: 'upcoming_header',
       title: 'Upcoming',
       icon: 'event',
-      isFirst: true,
+      isFirst: reschedulePendingBookings.length === 0,
       delay: nextDelay(),
     });
-    if (!upcomingAll.length) {
+    if (!regularUpcoming.length) {
       listData.push({
         type: 'empty_section',
         key: 'upcoming_empty',
@@ -695,6 +719,34 @@ export default function MentorCallsScreen({ navigation }) {
             {renderBooking(item.item, item.isUpcoming, item.delay)}
           </View>
         );
+
+      case 'reschedule_banner': {
+        const { booking: rb, delay } = item;
+        const learnerName = rb.profiles?.name || 'Learner';
+        const reason = rb.reschedule_reason;
+        const reasonLabel =
+          reason === 'mentor_noshow' ? 'You did not join the session' :
+          reason === 'technical' ? 'Session ended too early' : 'Session not completed';
+        return (
+          <FadeSlideIn delay={delay} style={styles.sectionItem}>
+            <View style={styles.rescheduleBanner}>
+              <View style={styles.rescheduleBannerLeft}>
+                <MaterialIcons name="event-repeat" size={22} color={GOLD} />
+              </View>
+              <View style={styles.rescheduleBannerBody}>
+                <Text style={styles.rescheduleBannerTitle}>{learnerName} — Reschedule</Text>
+                <Text style={styles.rescheduleBannerSub}>{reasonLabel}</Text>
+              </View>
+              <PressScale
+                onPress={() => navigation.navigate(SCREEN_NAMES.RescheduleRequest, { booking: rb })}
+                style={styles.rescheduleBannerCta}
+              >
+                <Text style={styles.rescheduleBannerCtaText}>Propose Time</Text>
+              </PressScale>
+            </View>
+          </FadeSlideIn>
+        );
+      }
 
       case 'load_more_upcoming':
         return (
@@ -980,5 +1032,46 @@ const styles = StyleSheet.create({
     color: C.text.muted,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  rescheduleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.sm,
+    backgroundColor: S.accentGold,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: B.goldOutlineBorder,
+    padding: T.spacing.md,
+  },
+  rescheduleBannerLeft: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rescheduleBannerBody: { flex: 1 },
+  rescheduleBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: C.text.primary,
+  },
+  rescheduleBannerSub: {
+    fontSize: 11,
+    color: C.text.muted,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  rescheduleBannerCta: {
+    paddingHorizontal: T.spacing.md,
+    paddingVertical: T.spacing.sm,
+    borderRadius: 8,
+    backgroundColor: GOLD,
+  },
+  rescheduleBannerCtaText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#000',
   },
 });

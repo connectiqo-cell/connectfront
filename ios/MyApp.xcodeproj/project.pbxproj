@@ -16,6 +16,11 @@
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		94C4DDCBCE65DAC27A6D4B60 /* libPods-MyApp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3480D91DBF618CA692456F93 /* libPods-MyApp.a */; };
 		D74B9B71AAEA66C9AE0C967A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
+		2CA355A12E001C84003D6E3E /* Atomic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CA355A02E001C84003D6E3E /* Atomic.swift */; };
+		2CA355A32E001C84003D6E3E /* DarwinNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CA355A22E001C84003D6E3E /* DarwinNotification.swift */; };
+		2CA355A52E001C84003D6E3E /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CA355A42E001C84003D6E3E /* SampleHandler.swift */; };
+		2CA355A72E001C84003D6E3E /* SampleUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CA355A62E001C84003D6E3E /* SampleUploader.swift */; };
+		2CA355A92E001C84003D6E3E /* SocketConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CA355A82E001C84003D6E3E /* SocketConnection.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,32 +64,14 @@
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = MyApp/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A0EF07A861FEEC3347D3FEDA /* Pods-MyApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MyApp.debug.xcconfig"; path = "Target Support Files/Pods-MyApp/Pods-MyApp.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		2CA355A02E001C84003D6E3E /* Atomic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Atomic.swift; sourceTree = "<group>"; };
+		2CA355A22E001C84003D6E3E /* DarwinNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DarwinNotification.swift; sourceTree = "<group>"; };
+		2CA355A42E001C84003D6E3E /* SampleHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleHandler.swift; sourceTree = "<group>"; };
+		2CA355A62E001C84003D6E3E /* SampleUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleUploader.swift; sourceTree = "<group>"; };
+		2CA355A82E001C84003D6E3E /* SocketConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocketConnection.swift; sourceTree = "<group>"; };
+		2CA355AA2E001C84003D6E3E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		2CA355AB2E001C84003D6E3E /* ScreenBroadcast.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ScreenBroadcast.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		2CA354E42E001C84003D6E3E /* Exceptions for "ScreenBroadcast" folder in "ScreenBroadcast" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 2CA354D92E001C84003D6E3E /* ScreenBroadcast */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		2CA354DD2E001C84003D6E3E /* ScreenBroadcast */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				2CA354E42E001C84003D6E3E /* Exceptions for "ScreenBroadcast" folder in "ScreenBroadcast" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = ScreenBroadcast;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		13B07F8C1A680F5B00A75B9A /* Frameworks */ = {
@@ -120,6 +107,20 @@
 				2CA354F42E001E34003D6E3E /* MyApp-Bridging-Header.h */,
 			);
 			name = MyApp;
+			sourceTree = "<group>";
+		};
+		2CA354DD2E001C84003D6E3E /* ScreenBroadcast */ = {
+			isa = PBXGroup;
+			children = (
+				2CA355A02E001C84003D6E3E /* Atomic.swift */,
+				2CA355A22E001C84003D6E3E /* DarwinNotification.swift */,
+				2CA355AA2E001C84003D6E3E /* Info.plist */,
+				2CA355A42E001C84003D6E3E /* SampleHandler.swift */,
+				2CA355A62E001C84003D6E3E /* SampleUploader.swift */,
+				2CA355AB2E001C84003D6E3E /* ScreenBroadcast.entitlements */,
+				2CA355A82E001C84003D6E3E /* SocketConnection.swift */,
+			);
+			path = ScreenBroadcast;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
@@ -209,9 +210,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				2CA354DD2E001C84003D6E3E /* ScreenBroadcast */,
 			);
 			name = ScreenBroadcast;
 			productName = ScreenBroadcast;
@@ -364,6 +362,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2CA355A12E001C84003D6E3E /* Atomic.swift in Sources */,
+				2CA355A32E001C84003D6E3E /* DarwinNotification.swift in Sources */,
+				2CA355A52E001C84003D6E3E /* SampleHandler.swift in Sources */,
+				2CA355A72E001C84003D6E3E /* SampleUploader.swift in Sources */,
+				2CA355A92E001C84003D6E3E /* SocketConnection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

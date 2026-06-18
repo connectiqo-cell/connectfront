@@ -49,6 +49,7 @@ GoogleService-Info.plist
 
 # CocoaPods
 /ios/Pods/
+ios/.xcode.env.local
 .env
 yarn.lock
 android/local.properties

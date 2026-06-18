@@ -37,6 +37,16 @@ target 'MyApp' do
       # :ccache_enabled => true
     )
 
+    # Raise stale pod deployment targets (avoids Xcode 26 warnings/errors)
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |build_config|
+        deployment_target = build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        if deployment_target.nil? || deployment_target.to_f < 15.1
+          build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+        end
+      end
+    end
+
     # Xcode 26+ / Apple Clang: fmt 11.0.2 consteval breaks iOS builds (react-native#55601)
     installer.pods_project.targets.each do |target|
       next unless target.name == 'fmt'
@@ -54,6 +64,23 @@ target 'MyApp' do
         File.chmod(0o644, fmt_base)
         File.write(fmt_base, patched)
         Pod::UI.puts 'Patched fmt/base.h: FMT_USE_CONSTEVAL=0 for Xcode 26+'.green
+      end
+    end
+
+    # WebRTC-SDK m125+: FrameCryptionState renamed to RTCFrameCryptorState
+    webrtc_cryptor = File.expand_path(
+      '../node_modules/@videosdk.live/react-native-webrtc/ios/RCTWebRTC/WebRTCModule+RTCFrameCryptor.m',
+      __dir__
+    )
+    if File.exist?(webrtc_cryptor)
+      content = File.read(webrtc_cryptor)
+      patched = content
+        .gsub('FrameEncryptionState', 'RTCFrameCryptorState')
+        .gsub('FrameCryptionState', 'RTCFrameCryptorState')
+      if patched != content
+        File.chmod(0o644, webrtc_cryptor)
+        File.write(webrtc_cryptor, patched)
+        Pod::UI.puts 'Patched WebRTCModule+RTCFrameCryptor.m for WebRTC-SDK compatibility'.green
       end
     end
   end

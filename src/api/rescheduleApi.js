@@ -1,5 +1,17 @@
-import { supabase } from '../lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
+
+function notifyReschedule(payload) {
+  fetch(`${SUPABASE_URL}/functions/v1/notify-reschedule`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'apikey': SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify(payload),
+  }).catch(err => console.warn('notify-reschedule fire-and-forget failed:', err));
+}
 
 export const rescheduleApi = {
   /**
@@ -23,6 +35,8 @@ export const rescheduleApi = {
         .single();
 
       if (error) throw error;
+      // Fire-and-forget: notify mentor that learner requested a reschedule
+      notifyReschedule({ type: 'reschedule_requested', bookingId });
       return data;
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
@@ -102,6 +116,8 @@ export const rescheduleApi = {
         .single();
 
       if (error) throw error;
+      // Fire-and-forget: notify learner that mentor proposed a new time
+      notifyReschedule({ type: 'reschedule_proposed', bookingId, requestId: data.id });
       return data;
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));

@@ -6,7 +6,8 @@ import {
   ScrollView,
   Platform,
   TouchableOpacity,
-  TextInput,
+  Modal,
+  FlatList,
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,87 +29,147 @@ const GOLD = C.accent.primary;
 const GLASS_BORDER = C.border.light;
 const PANEL = S.panel;
 
-// Validates YYYY-MM-DD
-function isValidDate(str) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
-  const d = new Date(str);
-  return !isNaN(d.getTime());
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function generateDates(daysAhead = 21) {
+  const items = [];
+  const today = new Date();
+  for (let i = 1; i <= daysAhead; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth() + 1).padStart(2, '0');
+    const dd   = String(d.getDate()).padStart(2, '0');
+    const value = `${yyyy}-${mm}-${dd}`;
+    const label = d.toLocaleDateString('en-IN', {
+      weekday: 'short', day: 'numeric', month: 'short',
+    });
+    items.push({ label, value });
+  }
+  return items;
 }
 
-// Validates HH:MM (24-hour)
-function isValidTime(str) {
-  if (!/^\d{2}:\d{2}$/.test(str)) return false;
-  const [h, m] = str.split(':').map(Number);
-  return h >= 0 && h <= 23 && m >= 0 && m <= 59;
+function generateTimeSlots() {
+  const slots = [];
+  for (let h = 6; h <= 22; h++) {
+    for (const m of [0, 30]) {
+      if (h === 22 && m === 30) break;
+      const hh = String(h).padStart(2, '0');
+      const mm = String(m).padStart(2, '0');
+      const value = `${hh}:${mm}`;
+      const period = h < 12 ? 'AM' : 'PM';
+      const displayH = h % 12 === 0 ? 12 : h % 12;
+      const label = `${displayH}:${mm} ${period}`;
+      slots.push({ label, value });
+    }
+  }
+  return slots;
 }
 
-// Auto-insert dashes as user types date: "20260618" → "2026-06-18"
-function autoFormatDate(raw) {
-  const digits = raw.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+const SESSION_DURATION_MINUTES = 20;
+
+function addMinutes(timeStr, minutes) {
+  const [h, m] = timeStr.split(':').map(Number);
+  const total = h * 60 + m + minutes;
+  const endH = Math.floor(total / 60) % 24;
+  const endM = total % 60;
+  return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
 }
 
-// Auto-insert colon as user types time: "1430" → "14:30"
-function autoFormatTime(raw) {
-  const digits = raw.replace(/\D/g, '').slice(0, 4);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+function formatDisplayTime(hhmm) {
+  if (!hhmm) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  const period = h < 12 ? 'AM' : 'PM';
+  const displayH = h % 12 === 0 ? 12 : h % 12;
+  return `${displayH}:${String(m).padStart(2, '0')} ${period}`;
 }
 
-function InputField({ label, placeholder, value, onChangeText, hint, error, keyboardType = 'default' }) {
-  const [focused, setFocused] = useState(false);
+// ── DropdownSheet ─────────────────────────────────────────────────────────────
+
+function DropdownSheet({ visible, title, items, selected, onSelect, onClose, insets }) {
   return (
-    <View style={styles.inputField}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <TextInput
-        style={[
-          styles.input,
-          focused && styles.inputFocused,
-          error && styles.inputError,
-        ]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={C.text.muted}
-        keyboardType={keyboardType}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        autoCorrect={false}
-        autoCapitalize="none"
-      />
-      {hint ? <Text style={styles.inputHint}>{hint}</Text> : null}
-      {error ? <Text style={styles.inputErrText}>{error}</Text> : null}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity style={sheet.backdrop} activeOpacity={1} onPress={onClose} />
+      <View style={[sheet.panel, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
+        {/* Handle */}
+        <View style={sheet.handle} />
+
+        {/* Title + close */}
+        <View style={sheet.header}>
+          <Text style={sheet.title}>{title}</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={12}>
+            <MaterialIcons name="close" size={22} color={C.text.muted} />
+          </TouchableOpacity>
+        </View>
+
+        <FlatList
+          data={items}
+          keyExtractor={item => String(item.value)}
+          showsVerticalScrollIndicator={false}
+          style={sheet.list}
+          renderItem={({ item }) => {
+            const isSelected = item.value === selected;
+            return (
+              <TouchableOpacity
+                style={[sheet.item, isSelected && sheet.itemSelected]}
+                onPress={() => { onSelect(item.value); onClose(); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[sheet.itemText, isSelected && sheet.itemTextSelected]}>
+                  {item.label}
+                </Text>
+                {isSelected ? (
+                  <MaterialIcons name="check-circle" size={20} color={TEAL} />
+                ) : (
+                  <MaterialIcons name="radio-button-unchecked" size={20} color={C.text.muted} />
+                )}
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </View>
+    </Modal>
+  );
+}
+
+// ── SelectorRow ───────────────────────────────────────────────────────────────
+
+function SelectorRow({ label, icon, value, placeholder, onPress, error }) {
+  return (
+    <View style={styles.selectorWrap}>
+      <Text style={styles.selectorLabel}>{label}</Text>
+      <TouchableOpacity
+        style={[styles.selector, error && styles.selectorError]}
+        onPress={onPress}
+        activeOpacity={0.75}
+      >
+        <MaterialIcons name={icon} size={18} color={value ? TEAL : C.text.muted} />
+        <Text style={[styles.selectorValue, !value && styles.selectorPlaceholder]}>
+          {value || placeholder}
+        </Text>
+        <MaterialIcons name="expand-more" size={20} color={C.text.muted} />
+      </TouchableOpacity>
+      {error ? <Text style={styles.selectorErrText}>{error}</Text> : null}
     </View>
   );
 }
 
-function InfoRow({ icon, label, value }) {
-  return (
-    <View style={styles.infoRow}>
-      <MaterialIcons name={icon} size={16} color={TEAL} />
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
-    </View>
-  );
-}
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function RescheduleRequestScreen({ navigation, route }) {
   const { booking } = route.params;
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const slot = booking?.availability_slots || {};
+  const slot        = booking?.availability_slots || {};
   const learnerName = booking?.profiles?.name || 'Learner';
-  const reason = booking?.reschedule_reason;
-  const deadline = booking?.reschedule_deadline;
-
-  const [date, setDate] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
+  const reason      = booking?.reschedule_reason;
+  const deadline    = booking?.reschedule_deadline;
 
   const reasonLabel =
     reason === 'mentor_noshow'
@@ -117,19 +178,26 @@ export default function RescheduleRequestScreen({ navigation, route }) {
         ? 'Session ended too early (technical)'
         : 'Session could not be completed';
 
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
+  const [errors,       setErrors]       = useState({});
+  const [loading,      setLoading]      = useState(false);
+
+  const [showDate, setShowDate] = useState(false);
+  const [showTime, setShowTime] = useState(false);
+
+  const endTime = selectedTime ? addMinutes(selectedTime, SESSION_DURATION_MINUTES) : null;
+
+  const dateItems = generateDates(21);
+  const timeItems = generateTimeSlots();
+
   const validate = () => {
     const e = {};
-    if (!isValidDate(date)) e.date = 'Enter a valid date (YYYY-MM-DD), at least tomorrow';
-    else {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(0, 0, 0, 0);
-      if (new Date(date) < tomorrow) e.date = 'Date must be tomorrow or later';
-    }
-    if (!isValidTime(startTime)) e.startTime = 'Enter a valid time (HH:MM, 24-hour)';
-    if (!isValidTime(endTime)) e.endTime = 'Enter a valid time (HH:MM, 24-hour)';
-    if (!e.startTime && !e.endTime && startTime >= endTime) {
-      e.endTime = 'End time must be after start time';
+    if (!selectedDate) e.date = 'Please select a date';
+    if (!selectedTime) e.time = 'Please select a start time';
+    if (selectedTime) {
+      const [h] = endTime.split(':').map(Number);
+      if (h >= 23) e.time = 'Session would end too late — pick an earlier start time';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -137,16 +205,15 @@ export default function RescheduleRequestScreen({ navigation, route }) {
 
   const handleSubmit = useCallback(async () => {
     if (!validate()) return;
-
     setLoading(true);
     try {
       await rescheduleApi.proposeSlot({
         bookingId: booking.id,
-        mentorId: profile.id,
+        mentorId:  profile.id,
         learnerId: booking.learner_id,
-        date,
-        startTime: `${startTime}:00`,
-        endTime: `${endTime}:00`,
+        date:      selectedDate,
+        startTime: `${selectedTime}:00`,
+        endTime:   `${endTime}:00`,
         reason,
       });
       Toast.show('Proposal sent! Learner will be notified.');
@@ -156,7 +223,9 @@ export default function RescheduleRequestScreen({ navigation, route }) {
     } finally {
       setLoading(false);
     }
-  }, [date, startTime, endTime, booking, profile, reason, navigation]);
+  }, [selectedDate, selectedTime, endTime, booking, profile, reason, navigation]);
+
+  const selectedDateLabel = dateItems.find(d => d.value === selectedDate)?.label || '';
 
   return (
     <CosmicBackground style={{ flex: 1 }}>
@@ -178,7 +247,7 @@ export default function RescheduleRequestScreen({ navigation, route }) {
             <Text style={styles.headerTitle}>Propose New Time</Text>
             <Text style={styles.headerSub}>For {learnerName}</Text>
           </View>
-          <View style={styles.headerSide} />
+          <View style={{ width: 40 }} />
         </View>
 
         {/* Context card */}
@@ -189,63 +258,62 @@ export default function RescheduleRequestScreen({ navigation, route }) {
           <Text style={styles.contextTitle}>Reschedule Request</Text>
           <Text style={styles.contextReason}>{reasonLabel}</Text>
           <View style={styles.contextDivider} />
-          <InfoRow icon="event" label="Original date" value={formatDateForDisplay(slot.date)} />
-          <InfoRow
-            icon="access-time"
-            label="Original time"
-            value={`${formatTime(slot.start_time)} – ${formatTime(slot.end_time)}`}
-          />
+          <View style={styles.infoRow}>
+            <MaterialIcons name="event" size={16} color={TEAL} />
+            <Text style={styles.infoLabel}>Original date</Text>
+            <Text style={styles.infoValue}>{formatDateForDisplay(slot.date)}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <MaterialIcons name="access-time" size={16} color={TEAL} />
+            <Text style={styles.infoLabel}>Original time</Text>
+            <Text style={styles.infoValue}>{formatTime(slot.start_time)} – {formatTime(slot.end_time)}</Text>
+          </View>
           {deadline ? (
-            <InfoRow
-              icon="schedule"
-              label="Propose by"
-              value={formatDateForDisplay(deadline.split('T')[0])}
-            />
+            <View style={styles.infoRow}>
+              <MaterialIcons name="schedule" size={16} color={GOLD} />
+              <Text style={styles.infoLabel}>Propose by</Text>
+              <Text style={styles.infoValue}>{formatDateForDisplay(deadline.split('T')[0])}</Text>
+            </View>
           ) : null}
         </View>
 
-        {/* Input section */}
+        {/* Selectors */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your available time</Text>
+          <Text style={styles.sectionTitle}>Pick a new time</Text>
           <Text style={styles.sectionSub}>
-            Pick a date and time that works for you. This slot will be reserved exclusively for {learnerName}.
+            This slot will be reserved exclusively for {learnerName}.
           </Text>
 
-          <InputField
+          <SelectorRow
             label="Date"
-            placeholder="YYYY-MM-DD"
-            value={date}
-            onChangeText={v => setDate(autoFormatDate(v))}
-            hint="e.g. 2026-07-15"
+            icon="event"
+            value={selectedDateLabel}
+            placeholder="Select a date"
+            onPress={() => setShowDate(true)}
             error={errors.date}
-            keyboardType="numeric"
           />
-          <InputField
-            label="Start time (24-hour)"
-            placeholder="HH:MM"
-            value={startTime}
-            onChangeText={v => setStartTime(autoFormatTime(v))}
-            hint="e.g. 14:00 for 2:00 PM"
-            error={errors.startTime}
-            keyboardType="numeric"
+          <SelectorRow
+            label="Start Time"
+            icon="access-time"
+            value={selectedTime ? formatDisplayTime(selectedTime) : ''}
+            placeholder="Select start time"
+            onPress={() => setShowTime(true)}
+            error={errors.time}
           />
-          <InputField
-            label="End time (24-hour)"
-            placeholder="HH:MM"
-            value={endTime}
-            onChangeText={v => setEndTime(autoFormatTime(v))}
-            hint="e.g. 15:00 for 3:00 PM"
-            error={errors.endTime}
-            keyboardType="numeric"
-          />
+
+          {/* Fixed duration chip */}
+          <View style={styles.durationChip}>
+            <MaterialIcons name="timelapse" size={16} color={TEAL} />
+            <Text style={styles.durationChipText}>Session duration: 20 minutes</Text>
+          </View>
         </View>
 
         {/* Preview */}
-        {isValidDate(date) && isValidTime(startTime) && isValidTime(endTime) ? (
+        {selectedDate && selectedTime ? (
           <View style={styles.previewRow}>
             <MaterialIcons name="event-available" size={16} color={TEAL} />
             <Text style={styles.previewText}>
-              {formatDateForDisplay(date)} · {startTime} – {endTime}
+              {selectedDateLabel} · {formatDisplayTime(selectedTime)} – {formatDisplayTime(endTime)}
             </Text>
           </View>
         ) : null}
@@ -263,7 +331,7 @@ export default function RescheduleRequestScreen({ navigation, route }) {
           variant="success"
           onPress={handleSubmit}
           disabled={loading}
-          style={styles.cta}
+          style={{ marginTop: T.spacing.sm }}
         />
         <CosmicButton
           label="Cancel"
@@ -271,9 +339,94 @@ export default function RescheduleRequestScreen({ navigation, route }) {
           onPress={() => navigation.goBack()}
         />
       </ScrollView>
+
+      {/* Dropdown sheets */}
+      <DropdownSheet
+        visible={showDate}
+        title="Select Date"
+        items={dateItems}
+        selected={selectedDate}
+        onSelect={setSelectedDate}
+        onClose={() => setShowDate(false)}
+        insets={insets}
+      />
+      <DropdownSheet
+        visible={showTime}
+        title="Select Start Time"
+        items={timeItems}
+        selected={selectedTime}
+        onSelect={setSelectedTime}
+        onClose={() => setShowTime(false)}
+        insets={insets}
+      />
     </CosmicBackground>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const sheet = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  panel: {
+    backgroundColor: S.panel,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderColor: GLASS_BORDER,
+    paddingHorizontal: T.spacing.md,
+    maxHeight: '70%',
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GLASS_BORDER,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: T.spacing.sm,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: T.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: GLASS_BORDER,
+    marginBottom: T.spacing.xs,
+  },
+  title: {
+    ...T.typography.labelLg,
+    fontWeight: '800',
+    color: C.text.primary,
+  },
+  list: {
+    flexGrow: 0,
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: T.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: GLASS_BORDER,
+  },
+  itemSelected: {
+    backgroundColor: S.accentTeal,
+  },
+  itemText: {
+    ...T.typography.bodyMd,
+    color: C.text.secondary,
+    fontWeight: '600',
+  },
+  itemTextSelected: {
+    color: TEAL,
+    fontWeight: '800',
+  },
+});
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
@@ -298,7 +451,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerSide: { width: 40 },
   headerTitle: {
     ...T.typography.headingXs,
     color: C.text.primary,
@@ -385,39 +537,58 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  inputField: { gap: 6 },
-  inputLabel: {
+  selectorWrap: { gap: 6 },
+  selectorLabel: {
     ...T.typography.labelSm,
     color: C.text.secondary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  input: {
+  selector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.sm,
     backgroundColor: S.chipStrong,
     borderRadius: T.borderRadius.md,
     borderWidth: 1,
     borderColor: GLASS_BORDER,
     paddingHorizontal: T.spacing.md,
     paddingVertical: 14,
+  },
+  selectorError: {
+    borderColor: C.accent.error,
+  },
+  selectorValue: {
+    flex: 1,
     ...T.typography.bodyMd,
     fontWeight: '700',
     color: C.text.primary,
   },
-  inputFocused: {
-    borderColor: TEAL,
-    backgroundColor: S.accentTeal,
-  },
-  inputError: {
-    borderColor: C.accent.error,
-  },
-  inputHint: {
-    ...T.typography.bodyXs,
+  selectorPlaceholder: {
     color: C.text.muted,
+    fontWeight: '400',
   },
-  inputErrText: {
+  selectorErrText: {
     ...T.typography.bodyXs,
     color: C.accent.error,
     fontWeight: '600',
+  },
+
+  durationChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.sm,
+    backgroundColor: S.accentTeal,
+    borderRadius: T.borderRadius.md,
+    borderWidth: 1,
+    borderColor: C.border.default,
+    paddingHorizontal: T.spacing.md,
+    paddingVertical: 10,
+  },
+  durationChipText: {
+    ...T.typography.bodySm,
+    fontWeight: '700',
+    color: TEAL,
   },
 
   previewRow: {
@@ -453,6 +624,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '600',
   },
-
-  cta: { marginTop: T.spacing.sm },
 });

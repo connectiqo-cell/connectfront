@@ -62,4 +62,8 @@ export const SCREEN_NAMES = {
 
   // Standalone video feed (pushed from mentor profile — back returns to profile)
   MentorVideoFeed: "MentorVideoFeed_Screen",
+
+  // Reschedule flow
+  RescheduleRequest: "RescheduleRequest_Screen",   // mentor proposes time
+  RescheduleResponse: "RescheduleResponse_Screen", // learner accepts/declines
 };

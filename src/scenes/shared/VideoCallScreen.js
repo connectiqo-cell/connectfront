@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   Platform,
   PermissionsAndroid,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -17,8 +18,8 @@ import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { getToken, createMeeting, validateMeeting, fetchRecordingUrl } from '../../api/api';
 import { supabase } from '../../lib/supabase';
 import { bookingApi } from '../../api/bookingApi';
+import { rescheduleApi } from '../../api/rescheduleApi';
 import { recordingsApi, meetingIdFromBooking } from '../../api/recordingsApi';
-import { earningsApi } from '../../api/earningsApi';
 import { profileApi } from '../../api/profileApi';
 import { useAuth } from '../../hooks/useAuth';
 import { resolveLobbyPartner } from '../../utils/sessionLobbyRules';
@@ -69,6 +70,8 @@ export default function VideoCallScreen({ navigation, route }) {
   const [booking, setBooking] = useState(null);
   const [otherProfile, setOtherProfile] = useState(null);
   const [lobbyOnly, setLobbyOnly] = useState(false);
+  const [meetingReady, setMeetingReady] = useState(false);
+  const [pendingCallParams, setPendingCallParams] = useState(null);
   const [participantCount, setParticipantCount] = useState(1);
   const joinTimeRef = useRef(null); // Track when both participants joined (use Ref to persist across re-renders)
   const recordingRef = useRef();
@@ -168,7 +171,7 @@ export default function VideoCallScreen({ navigation, route }) {
   };
 
   useEffect(() => {
-    if (!lobbyOnly || isHost) return undefined;
+    if (!lobbyOnly || isHost || meetingReady) return undefined;
 
     const pollHost = async () => {
       try {
@@ -176,14 +179,12 @@ export default function VideoCallScreen({ navigation, route }) {
         await enrichBookingProfiles(row);
         const mid = row?.meeting_id || meetingIdFromBooking(row);
         if (mid) {
-          setLobbyOnly(false);
-          setLoading(true);
           const token = await getToken();
           await validateMeeting({ meetingId: mid, token });
           setBooking(row);
-          setCallParams({ token, meetingId: mid });
-          setReady(true);
-          setLoading(false);
+          setPendingCallParams({ token, meetingId: mid });
+          setMeetingReady(true);
+          // Learner taps "Join Call" manually — no auto-transition
         }
       } catch (_) {
         /* keep polling */
@@ -192,16 +193,30 @@ export default function VideoCallScreen({ navigation, route }) {
 
     const id = setInterval(pollHost, 5000);
     return () => clearInterval(id);
-  }, [lobbyOnly, isHost, bookingId]);
+  }, [lobbyOnly, isHost, bookingId, meetingReady]);
+
+  const handleJoinCall = () => {
+    if (!meetingReady || !pendingCallParams) {
+      Alert.alert(
+        'Session Not Started',
+        'The mentor hasn\'t started the session yet. Please wait a moment and try again.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    setLobbyOnly(false);
+    setCallParams(pendingCallParams);
+    setReady(true);
+  };
 
   const handleMeetingLeft = async () => {
     try {
       // Only mark as completed if:
       // 1. BOTH mentor and learner joined (joinTimeRef proves both were in call)
-      // 2. Meeting lasted at least 10 minutes (600 seconds)
+      // 2. Meeting lasted at least 5 minutes (300 seconds)
       const endTime = new Date();
       const callDuration = joinTimeRef.current ? Math.round((endTime - joinTimeRef.current) / 1000) : 0;
-      const MIN_DURATION_SECONDS = 600; // 10 minutes
+      const MIN_DURATION_SECONDS = 300; // 5 minutes
       const shouldMarkComplete = !!joinTimeRef.current && callDuration >= MIN_DURATION_SECONDS;
 
 
@@ -245,25 +260,6 @@ export default function VideoCallScreen({ navigation, route }) {
           }
         }
 
-        // If host, create earnings record
-        if (isHost) {
-          try {
-            const { data: mp } = await supabase
-              .from('mentor_profiles')
-              .select('price_per_hour')
-              .eq('id', profile.id)
-              .single();
-            const pricePerHour = mp?.price_per_hour || 0;
-            await earningsApi.createEarning({
-              mentorId: profile.id,
-              bookingId,
-              amount: pricePerHour,
-            });
-          } catch (earningsErr) {
-            console.warn('⚠️ Earnings record skipped:', earningsErr);
-          }
-        }
-
         Toast.show('Session completed');
       } else {
         // Check why session wasn't completed
@@ -281,7 +277,7 @@ export default function VideoCallScreen({ navigation, route }) {
           reason = `call was too short (${callDuration}s, min: ${MIN_DURATION_SECONDS}s)`;
           try {
             await bookingApi.clearMeetingId(bookingId);
-            Toast.show(`Session too short (${Math.round(callDuration / 60)}min, need 10min)`);
+            Toast.show('Session ended — minimum 5 minutes required for completion');
           } catch (cleanupError) {
             console.error('⚠️ Failed to clean up meeting_id:', cleanupError);
             Toast.show('Session ended');
@@ -328,8 +324,17 @@ export default function VideoCallScreen({ navigation, route }) {
           booking={booking}
           isMentor={isMentor}
           otherUser={resolvedOtherUser}
+          meetingReady={meetingReady}
+          onJoinCall={handleJoinCall}
           onLeave={() => navigation.goBack()}
-          onReschedule={() => navigation.goBack()}
+          onReschedule={async () => {
+            try {
+              await rescheduleApi.markForReschedule(bookingId, 'mentor_noshow');
+            } catch (e) {
+              console.warn('⚠️ markForReschedule failed:', e.message);
+            }
+            navigation.goBack();
+          }}
           onCancelRefund={() => navigation.goBack()}
         />
       </View>
@@ -381,6 +386,7 @@ export default function VideoCallScreen({ navigation, route }) {
                 booking={booking}
                 otherUser={resolvedOtherUser}
                 onLeaveSession={handleMeetingLeft}
+                maxDurationMs={20 * 60 * 1000}
               />
             )}
           </MeetingConsumer>

@@ -248,6 +248,7 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
         order_id:    order.orderId,
         prefill:     { email: user.email || '' },
         theme:       { color: '#5eead4' },
+        upi:         { flow: 'collect' },
       });
 
       await videoApi.verifyVideoSubscription({

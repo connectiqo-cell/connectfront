@@ -1059,6 +1059,7 @@ export default function MentorProfileScreen({ navigation, route }) {
         order_id: order.orderId,
         prefill: { email: user.email || '' },
         theme: { color: '#5eead4' },
+        upi: { flow: 'collect' },
       });
 
       await videoApi.verifyVideoSubscription({

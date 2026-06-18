@@ -1,26 +1,10 @@
-﻿import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
 
 async function invokeFunction(name, body) {
-  const url = `${SUPABASE_URL}/functions/v1/${name}`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'apikey': SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const text = await res.text();
-
-  if (!res.ok) {
-    throw new Error(`Function error (${res.status}): ${text}`);
-  }
-
-  return JSON.parse(text);
+  const { data, error } = await supabase.functions.invoke(name, { body });
+  if (error) throw new Error(error.message || `Function error: ${name}`);
+  return data;
 }
 
 export const paymentApi = {
@@ -30,14 +14,7 @@ export const paymentApi = {
    */
   createOrder: async ({ mentorId, learnerId, slotId, message }) => {
     try {
-      const data = await invokeFunction('create-razorpay-order', {
-        mentorId,
-        learnerId,
-        slotId,
-        message,
-      });
-
-      return data;
+      return await invokeFunction('create-razorpay-order', { mentorId, learnerId, slotId, message });
     } catch (error) {
       console.error('💳 createOrder error:', error?.message);
       throw new Error(error?.message || 'Failed to create order');
@@ -59,7 +36,7 @@ export const paymentApi = {
     message,
   }) => {
     try {
-      const data = await invokeFunction('verify-razorpay-payment', {
+      return await invokeFunction('verify-razorpay-payment', {
         razorpayOrderId,
         razorpayPaymentId,
         razorpaySignature,
@@ -68,8 +45,6 @@ export const paymentApi = {
         slotId,
         message,
       });
-
-      return data;
     } catch (error) {
       console.error('💳 verifyAndBook error:', error?.message);
       throw new Error(error?.message || 'Payment verification failed');
@@ -88,8 +63,7 @@ export const paymentApi = {
         .eq('status', 'pending');
 
       if (error) throw error;
-      const total = (data || []).reduce((sum, row) => sum + parseFloat(row.amount || 0), 0);
-      return total;
+      return (data || []).reduce((sum, row) => sum + parseFloat(row.amount || 0), 0);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -120,7 +94,7 @@ export const paymentApi = {
     try {
       const { data, error } = await supabase
         .from('transactions')
-        .select('id, status, created_at, learner_id, mentor_id, razorpay_order_id, razorpay_payment_id, amount, platform_fee')
+        .select('id, status, created_at, learner_id, mentor_id, razorpay_order_id, razorpay_payment_id, amount_total_paise, platform_fee_paise, mentor_earning_paise')
         .or(`learner_id.eq.${userId},mentor_id.eq.${userId}`)
         .eq('status', 'paid')
         .order('created_at', { ascending: false });
@@ -134,35 +108,17 @@ export const paymentApi = {
 
   /**
    * Trigger a RazorpayX UPI payout via Edge Function.
-   * Deducts balance and inserts withdrawal_request atomically server-side.
    */
   requestWithdrawal: async ({ mentorId, amount }) => {
     try {
-      const url = `${SUPABASE_URL}/functions/v1/process-withdrawal`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'apikey': SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ mentorId, amount }),
-      });
-      const text = await res.text();
-      if (!res.ok) throw new Error(JSON.parse(text)?.error || `Payout failed (${res.status})`);
-      return JSON.parse(text);
+      return await invokeFunction('process-withdrawal', { mentorId, amount });
     } catch (error) {
       throw new Error(error.message || 'Withdrawal failed');
     }
   },
 
   /**
-   * Resolve fee/GST rule for a learner+mentor combination.
-   * Priority:
-   * 1) exact learner+mentor
-   * 2) learner-specific (mentor null)
-   * 3) mentor-specific (learner null)
-   * 4) global default (both null)
+   * Resolve fee/GST rule for the platform.
    */
   getFeeRule: async () => {
     try {

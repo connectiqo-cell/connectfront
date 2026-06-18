@@ -40,8 +40,13 @@ target 'MyApp' do
       # :ccache_enabled => true
     )
 
+    installer.pods_project.build_configurations.each do |build_config|
+      build_config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+    end
+
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |build_config|
+        build_config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
         deployment_target = build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
         if deployment_target.nil? || deployment_target.to_f < 15.1
           build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'

@@ -8,8 +8,9 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
-# Required for @react-native-firebase with static iOS libraries
-use_modular_headers!
+# @react-native-firebase requires static frameworks (NOT global use_modular_headers!)
+# Global use_modular_headers! breaks UIKit/Hermes on Xcode 16+ (Could not build module UIKit)
+$RNFirebaseAsStaticFramework = true
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
@@ -18,6 +19,8 @@ if linkage != nil
 end
 
 target 'MyApp' do
+  use_frameworks! :linkage => :static
+
   config = use_native_modules!
 
   use_react_native!(
@@ -26,7 +29,7 @@ target 'MyApp' do
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
- pod 'react-native-webrtc', :path => '../node_modules/@videosdk.live/react-native-webrtc'
+  pod 'react-native-webrtc', :path => '../node_modules/@videosdk.live/react-native-webrtc'
 
   post_install do |installer|
     # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
@@ -37,13 +40,14 @@ target 'MyApp' do
       # :ccache_enabled => true
     )
 
-    # Raise stale pod deployment targets (avoids Xcode 26 warnings/errors)
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |build_config|
         deployment_target = build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
         if deployment_target.nil? || deployment_target.to_f < 15.1
           build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
         end
+        # Xcode 26: avoid explicit module build failures in Hermes/runtime pods
+        build_config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
       end
     end
 

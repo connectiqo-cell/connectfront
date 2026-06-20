@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
-import { REACT_APP_AUTH_URL, AUTH_URL, VIDEO_SDK_AUTH_URL } from '@env';
 import { SafeScreen } from '../../components/SafeScreen';
 import Button from '../../components/Button';
 import { UNIFIED_THEME } from '../../unifiedTheme';
@@ -18,11 +17,6 @@ const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
 const PANEL_BG = '#161432';
 const INPUT_BG = '#0f0e2a';
-
-function tokenServerUrl() {
-  const raw = REACT_APP_AUTH_URL || AUTH_URL || VIDEO_SDK_AUTH_URL || '';
-  return typeof raw === 'string' ? raw.replace(/\r$/, '').trim() : '';
-}
 
 function maskHost(url) {
   if (!url) return 'Not configured';
@@ -54,7 +48,7 @@ export default function ConnectivityScreen({ navigation }) {
   const endpoints = useMemo(
     () => ({
       supabase: maskHost(SUPABASE_URL),
-      tokenServer: maskHost(tokenServerUrl()),
+      tokenServer: maskHost(`${SUPABASE_URL}/functions/v1/get-videosdk-token`),
     }),
     [],
   );

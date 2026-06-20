@@ -838,9 +838,6 @@ export default function BookingScreen({ navigation, route }) {
           name: profile.name || '',
         },
         theme: { color: T.colors.accent.secondary },
-        // Force UPI collect flow so user types their UPI ID (e.g. success@razorpay in test mode)
-        // instead of the SDK launching a UPI intent that opens payment apps directly.
-        upi: { flow: 'collect' },
       };
 
       const paymentData = await RazorpayCheckout.open(razorpayOptions);
@@ -1217,7 +1214,7 @@ export default function BookingScreen({ navigation, route }) {
                   <View key={i} style={styles.perfDot} />
                 ))}
               </View>
-              <FeeRow label="Session fee (1 hr)" amount={fees?.mentorAmount} />
+              <FeeRow label="Session fee (20 min)" amount={fees?.mentorAmount} />
               <FeeRow label={`Convenience (${fees?.platformFeePercent}%)`} amount={fees?.platformBaseFee} />
               <FeeRow label={`GST (${fees?.gstPercent}%)`} amount={fees?.gstOnFee} />
               <View style={styles.feeDivider} />

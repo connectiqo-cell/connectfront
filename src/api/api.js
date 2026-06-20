@@ -1,42 +1,37 @@
-﻿import { REACT_APP_AUTH_URL, AUTH_URL, VIDEO_SDK_AUTH_URL } from "@env";
-import ApiErrorHandler from "../utils/apiErrorHandler";
+﻿import ApiErrorHandler from "../utils/apiErrorHandler";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@env";
 
 const API_BASE_URL = "https://api.videosdk.live/v2";
 const MEETING_RECORDINGS_V1_URL = "https://api.videosdk.live/v1/meeting-recordings";
 const VIDEO_SDK_CDN_BASE = "https://cdn.videosdk.live/";
-const API_AUTH_URL = (
-  REACT_APP_AUTH_URL ||
-  AUTH_URL ||
-  VIDEO_SDK_AUTH_URL ||
-  ""
-).trim();
 
-export const isTokenEndpointConfigured = Boolean(API_AUTH_URL);
+export const isTokenEndpointConfigured = true;
 
 export const getToken = async () => {
   try {
-    if (!API_AUTH_URL) {
-      throw new Error(
-        "REACT_APP_AUTH_URL not configured. Please set REACT_APP_AUTH_URL (or AUTH_URL / VIDEO_SDK_AUTH_URL) in .env file"
-      );
-    }
-
-
     const token = await ApiErrorHandler.retryWithBackoff(
       async () => {
-        const res = await fetch(`${API_AUTH_URL}/get-token`, {
-          method: "GET",
-          timeout: 10000, // 10 second timeout
-        });
+        const res = await fetch(
+          `${SUPABASE_URL}/functions/v1/get-videosdk-token`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+          },
+        );
 
         if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.error || `HTTP ${res.status}`);
         }
 
         const data = await res.json();
+        if (!data.token) throw new Error('No token in response');
         return data.token;
       },
-      3 // Max retries
+      3,
     );
 
     return token;

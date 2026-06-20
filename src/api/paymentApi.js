@@ -3,7 +3,15 @@ import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
 
 async function invokeFunction(name, body) {
   const { data, error } = await supabase.functions.invoke(name, { body });
-  if (error) throw new Error(error.message || `Function error: ${name}`);
+  if (error) {
+    // On non-2xx, data is null — the real error body is in error.context (Response)
+    let detail = error.message;
+    try {
+      const body = await error.context?.json?.();
+      if (body?.error) detail = body.error;
+    } catch (_) { /* ignore parse failure */ }
+    throw new Error(detail);
+  }
   return data;
 }
 

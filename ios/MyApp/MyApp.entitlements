@@ -4,7 +4,7 @@
 <dict>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.ZujoNow.ScreenBroadcast</string>
+		<string>group.com.connectiqo.app</string>
 	</array>
 </dict>
 </plist>

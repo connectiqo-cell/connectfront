@@ -12,6 +12,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { iosGradientInner, PLATFORM_LAYOUT } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const B = T.colors.buttons;
@@ -146,7 +147,7 @@ export default function CosmicButton({
   })();
 
   const content = (
-    <View style={styles.row}>
+    <View style={[styles.row, iosGradientInner]}>
       {loading ? (
         <ActivityIndicator size="small" color={textColor} style={styles.loader} />
       ) : icon ? (
@@ -161,11 +162,10 @@ export default function CosmicButton({
         style={[
           compact ? styles.textCompact : styles.text,
           { color: textColor },
+          Platform.OS === 'ios' && styles.textOnGradient,
           textStyle,
         ]}
         numberOfLines={1}
-        adjustsFontSizeToFit={Platform.OS === 'ios'}
-        minimumFontScale={0.82}
       >
         {label}
       </Text>
@@ -260,6 +260,7 @@ export default function CosmicButton({
 const styles = StyleSheet.create({
   touchableShell: {
     alignSelf: 'stretch',
+    width: '100%',
   },
   pressScaleWrap: {
     alignSelf: 'stretch',
@@ -269,14 +270,15 @@ const styles = StyleSheet.create({
   },
   pressableFill: {
     width: '100%',
-    flexGrow: 1,
+    flex: 1,
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight,
     justifyContent: 'center',
     alignItems: 'stretch',
   },
   shell: {
     width: '100%',
     alignSelf: 'stretch',
-    minHeight: Platform.OS === 'ios' ? 52 : 50,
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight,
     borderRadius: T.borderRadius.md,
     borderWidth: 1,
     overflow: 'hidden',
@@ -285,7 +287,7 @@ const styles = StyleSheet.create({
   shellCompact: {
     width: '100%',
     alignSelf: 'stretch',
-    minHeight: Platform.OS === 'ios' ? 42 : 40,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
     borderRadius: T.borderRadius.sm,
     borderWidth: 1,
     overflow: 'hidden',
@@ -302,8 +304,8 @@ const styles = StyleSheet.create({
   },
   gradient: {
     width: '100%',
-    flexGrow: 1,
-    minHeight: Platform.OS === 'ios' ? 50 : 48,
+    flex: 1,
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
     paddingVertical: Platform.OS === 'ios' ? 15 : 14,
     paddingHorizontal: T.spacing.lg,
     justifyContent: 'center',
@@ -311,7 +313,8 @@ const styles = StyleSheet.create({
   },
   gradientCompact: {
     width: '100%',
-    minHeight: Platform.OS === 'ios' ? 40 : 38,
+    flex: 1,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
     paddingVertical: Platform.OS === 'ios' ? 11 : 10,
     paddingHorizontal: T.spacing.md,
     justifyContent: 'center',
@@ -354,5 +357,8 @@ const styles = StyleSheet.create({
     lineHeight: Platform.OS === 'ios' ? 16 : T.typography.labelMd.lineHeight,
     textAlign: 'center',
     flexShrink: 1,
+  },
+  textOnGradient: {
+    backgroundColor: 'transparent',
   },
 });

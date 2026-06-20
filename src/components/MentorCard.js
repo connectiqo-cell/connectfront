@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   info: {
-    flex: 1,
+    ...iosFlexChild(),
     justifyContent: 'center',
   },
   name: {

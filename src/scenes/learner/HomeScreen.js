@@ -8,8 +8,10 @@ import {
   RefreshControl,
   Animated,
   Easing,
+  Platform,
+  InteractionManager,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, CommonActions } from '@react-navigation/native';
 import Toast from 'react-native-simple-toast';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { SafeScreen } from '../../components/SafeScreen';
@@ -364,12 +366,28 @@ export default function LearnerHomeScreen({ navigation }) {
     return mentorsByCategory;
   };
 
-  const handleBookMentor = mentor => {
-    navigation.navigate('Booking_Screen', {
-      mentorId: mentor.id,
-      mentorName: mentor.profiles?.name || 'Mentor',
-    });
-  };
+  const navigateToBooking = useCallback(
+    mentor => {
+      const action = CommonActions.navigate({
+        name: SCREEN_NAMES.Booking,
+        params: {
+          mentorId: mentor.id,
+          mentorName: mentor.profiles?.name || 'Mentor',
+        },
+      });
+      const go = () => navigation.dispatch(action);
+      if (Platform.OS === 'ios') {
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(go, 320);
+        });
+      } else {
+        go();
+      }
+    },
+    [navigation],
+  );
+
+  const handleBookMentor = navigateToBooking;
 
   const handleViewProfile = mentor => {
     navigation.navigate(SCREEN_NAMES.MentorProfile, { mentorId: mentor.id });

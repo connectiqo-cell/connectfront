@@ -11,6 +11,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicButton from './CosmicButton';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { iosFlexChild } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -135,7 +136,7 @@ export function LearnerMentorCard({
 
 const styles = StyleSheet.create({
   card: {
-    width: 176,
+    width: Platform.OS === 'ios' ? 184 : 176,
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16,
     padding: T.spacing.md,
@@ -162,12 +163,19 @@ const styles = StyleSheet.create({
   },
   topRow: {
     flexDirection: 'row',
-    gap: T.spacing.sm,
     marginBottom: T.spacing.sm,
     alignItems: 'flex-start',
+    ...Platform.select({
+      ios: {},
+      default: { gap: T.spacing.sm },
+    }),
   },
   avatarRingWrap: {
     alignItems: 'center',
+    ...Platform.select({
+      ios: { marginRight: T.spacing.sm },
+      default: {},
+    }),
   },
   avatarRingGrad: {
     padding: 2,
@@ -191,17 +199,15 @@ const styles = StyleSheet.create({
     color: PURPLE_LINK,
     fontWeight: '700',
   },
-  headMain: {
-    flex: 1,
-    minWidth: 0,
-  },
+  headMain: iosFlexChild(),
   name: {
-    fontSize: 13,
+    fontSize: Platform.OS === 'ios' ? 14 : 13,
     color: C.text.primary,
     fontWeight: '800',
     marginBottom: 5,
-    lineHeight: Platform.OS === 'ios' ? 18 : 17,
-    letterSpacing: -0.2,
+    lineHeight: Platform.OS === 'ios' ? 19 : 17,
+    letterSpacing: Platform.OS === 'ios' ? 0 : -0.2,
+    flexShrink: 1,
   },
   badgeRow: {
     flexDirection: 'row',

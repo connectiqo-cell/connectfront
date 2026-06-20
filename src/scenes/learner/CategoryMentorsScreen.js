@@ -11,6 +11,8 @@ import {
   Animated,
   Easing,
   useWindowDimensions,
+  Platform,
+  InteractionManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -289,12 +291,24 @@ export default function CategoryMentorsScreen({ route, navigation }) {
     setRefreshing(false);
   };
 
-  const handleBookMentor = mentor => {
-    navigation.navigate(SCREEN_NAMES.Booking, {
-      mentorId: mentor.id,
-      mentorName: mentor.profiles?.name || 'Mentor',
-    });
-  };
+  const handleBookMentor = useCallback(
+    mentor => {
+      const go = () => {
+        navigation.navigate(SCREEN_NAMES.Booking, {
+          mentorId: mentor.id,
+          mentorName: mentor.profiles?.name || 'Mentor',
+        });
+      };
+      if (Platform.OS === 'ios') {
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(go, 320);
+        });
+      } else {
+        go();
+      }
+    },
+    [navigation],
+  );
 
   const handleViewProfile = mentor => {
     navigation.navigate(SCREEN_NAMES.MentorProfile, { mentorId: mentor.id });

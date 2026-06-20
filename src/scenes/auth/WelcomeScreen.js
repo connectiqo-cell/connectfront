@@ -6,14 +6,13 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  Pressable,
-  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CosmicBackground from '../../components/CosmicBackground';
+import CosmicButton from '../../components/CosmicButton';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
@@ -68,7 +67,6 @@ export default function WelcomeScreen({ navigation }) {
 
   const btnO = useRef(new Animated.Value(0)).current;
   const btnY = useRef(new Animated.Value(24)).current;
-  const btnScale = useRef(new Animated.Value(1)).current;
 
   const statsO = useRef(new Animated.Value(0)).current;
   const statsY = useRef(new Animated.Value(20)).current;
@@ -150,22 +148,6 @@ export default function WelcomeScreen({ navigation }) {
     inputRange: [0, 1],
     outputRange: ['0deg', '-360deg'],
   });
-
-  const onPressIn = () => {
-    Animated.spring(btnScale, {
-      toValue: 0.97,
-      friction: 5,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const onPressOut = () => {
-    Animated.spring(btnScale, {
-      toValue: 1,
-      friction: 4,
-      useNativeDriver: true,
-    }).start();
-  };
 
   return (
     <CosmicBackground style={styles.background}>
@@ -271,26 +253,18 @@ export default function WelcomeScreen({ navigation }) {
               styles.buttonWrap,
               {
                 opacity: btnO,
-                transform: [{ translateY: btnY }, { scale: btnScale }],
+                transform: [{ translateY: btnY }],
               },
             ]}
           >
-            <Pressable
+            <CosmicButton
+              label="Get started"
+              variant="nebula"
+              icon="arrow-forward"
               onPress={() => navigation.navigate(SCREEN_NAMES.Signup)}
-              onPressIn={onPressIn}
-              onPressOut={onPressOut}
-              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-            >
-              <LinearGradient
-                colors={B.nebulaGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.buttonGradient}
-              >
-                <Text style={styles.buttonText}>Get started</Text>
-                <MaterialIcons name="arrow-forward" size={22} color={B.nebulaText} />
-              </LinearGradient>
-            </Pressable>
+              pressScale
+              style={styles.welcomeButton}
+            />
           </Animated.View>
 
           <Animated.View style={{ opacity: linkO, width: '100%' }}>
@@ -493,35 +467,8 @@ const styles = StyleSheet.create({
     marginBottom: T.spacing.md,
   },
 
-  button: {
-    width: '100%',
-    borderRadius: 12,
-    overflow: 'hidden',
-    alignSelf: 'stretch',
-    ...T.shadows.medium,
-  },
-
-  buttonPressed: {
-    opacity: 0.95,
-  },
-
-  buttonGradient: {
-    width: '100%',
-    minHeight: Platform.OS === 'ios' ? 54 : 50,
-    paddingVertical: Platform.OS === 'ios' ? 16 : T.spacing.lg,
-    paddingHorizontal: T.spacing.xl,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: T.spacing.sm,
-  },
-
-  buttonText: {
-    fontSize: 16,
-    color: B.nebulaText,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-    lineHeight: Platform.OS === 'ios' ? 20 : 22,
+  welcomeButton: {
+    marginVertical: 0,
   },
 
   signInRow: {

@@ -344,10 +344,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             icon="event-available"
             variant="nebula"
             pressScale
-            onPress={() => {
-              onClose();
-              onBook(mentor);
-            }}
+            onPress={() => onBook(mentor)}
             style={styles.actionBtn}
           />
         </Animated.View>

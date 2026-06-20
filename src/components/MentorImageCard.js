@@ -11,6 +11,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { iosGradientTextBlock } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -111,13 +112,15 @@ export function MentorImageCard({ mentor, onPress, style, entranceDelay }) {
         style={styles.strip}
         pointerEvents="none"
       >
-        <Text style={styles.name} numberOfLines={1}>{name}</Text>
-        {spec ? (
-          <Text style={styles.spec} numberOfLines={1}>{spec}</Text>
-        ) : null}
-        <View style={styles.metaRow}>
-          <MaterialIcons name="history-edu" size={10} color={C.text.muted} />
-          <Text style={styles.sessions}>{sessions} sessions</Text>
+        <View style={[styles.stripContent, iosGradientTextBlock]}>
+          <Text style={styles.name} numberOfLines={1}>{name}</Text>
+          {spec ? (
+            <Text style={styles.spec} numberOfLines={1}>{spec}</Text>
+          ) : null}
+          <View style={styles.metaRow}>
+            <MaterialIcons name="history-edu" size={10} color={C.text.muted} />
+            <Text style={styles.sessions}>{sessions} sessions</Text>
+          </View>
         </View>
       </LinearGradient>
       </Pressable>
@@ -193,12 +196,19 @@ const styles = StyleSheet.create({
     paddingTop: T.spacing.xxl,
     paddingBottom: T.spacing.sm,
   },
+  stripContent: {
+    width: '100%',
+  },
   name: {
     color: C.text.primary,
     fontWeight: '800',
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Platform.OS === 'ios' ? 13 : 12,
+    lineHeight: Platform.OS === 'ios' ? 17 : 16,
     marginBottom: 2,
+    ...Platform.select({
+      ios: { backgroundColor: 'transparent' },
+      default: {},
+    }),
   },
   spec: {
     fontSize: 10,

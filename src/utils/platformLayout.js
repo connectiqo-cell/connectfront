@@ -18,6 +18,27 @@ export function iosFlexChild(extra = {}) {
     : { flex: 1, minWidth: 0, ...extra };
 }
 
+/** Wrap centered content inside LinearGradient so labels render on iOS. */
+export const iosGradientInner = Platform.select({
+  ios: {
+    width: '100%',
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  default: {},
+});
+
+/** Left-aligned text block inside LinearGradient on iOS. */
+export const iosGradientTextBlock = Platform.select({
+  ios: {
+    width: '100%',
+    alignSelf: 'stretch',
+    backgroundColor: 'transparent',
+  },
+  default: {},
+});
+
 /** Auth / settings text fields — use with local chip/surface colors. */
 export function createFormFieldStyles({ chipBg, borderColor, textColor }) {
   return {

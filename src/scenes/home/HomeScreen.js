@@ -30,6 +30,7 @@ import { ThunderTransition } from '../../components/ThunderTransition';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
+import { iosFlexChild, iosGradientTextBlock } from '../../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -277,47 +278,47 @@ function HowItWorksCard({ video, onPress }) {
             style={[styles.howItWorksBorderRing, { opacity: haloOpacity }]}
           />
           <View style={styles.howItWorksCard}>
-          <LinearGradient
-            colors={['rgba(124,58,237,0.2)', 'rgba(12,12,40,0.72)', 'rgba(94,234,212,0.08)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.howItWorksGrad}
-          >
-            <View style={styles.howItWorksPlayWrap}>
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.howItWorksPlayGlow,
-                  { opacity: playGlowOpacity, transform: [{ scale: playGlowScale }] },
-                ]}
-              >
+            <LinearGradient
+              colors={['rgba(124,58,237,0.2)', 'rgba(12,12,40,0.72)', 'rgba(94,234,212,0.08)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.howItWorksGrad}
+            >
+              <View style={styles.howItWorksPlayWrap}>
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.howItWorksPlayGlow,
+                    { opacity: playGlowOpacity, transform: [{ scale: playGlowScale }] },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[PURPLE_LINK, GOLD, C.accent.secondary]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.howItWorksPlayGlowGrad}
+                  />
+                </Animated.View>
                 <LinearGradient
-                  colors={[PURPLE_LINK, GOLD, C.accent.secondary]}
+                  colors={B.nebulaGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.howItWorksPlayGlowGrad}
-                />
-              </Animated.View>
-              <LinearGradient
-                colors={B.nebulaGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.howItWorksPlay}
-              >
-                <MaterialIcons name="play-arrow" size={18} color={B.nebulaText} style={{ marginLeft: 2 }} />
-              </LinearGradient>
-            </View>
-            <View style={styles.howItWorksCopy}>
-              <Text style={styles.howItWorksEyebrowTxt}>Connectiqo intro</Text>
-              <Text style={styles.howItWorksTitle} numberOfLines={1}>
-                {video.title}
-              </Text>
-              <Text style={styles.howItWorksStepsLine} numberOfLines={1}>
-                {stepLine}
-              </Text>
-            </View>
-          <MaterialIcons name="chevron-right" size={20} color={PURPLE_LINK} />
-        </LinearGradient>
+                  style={styles.howItWorksPlay}
+                >
+                  <MaterialIcons name="play-arrow" size={18} color={B.nebulaText} style={{ marginLeft: 2 }} />
+                </LinearGradient>
+              </View>
+              <View style={[styles.howItWorksCopy, iosGradientTextBlock]}>
+                <Text style={styles.howItWorksEyebrowTxt}>Connectiqo intro</Text>
+                <Text style={styles.howItWorksTitle} numberOfLines={1}>
+                  {video.title}
+                </Text>
+                <Text style={styles.howItWorksStepsLine} numberOfLines={1}>
+                  {stepLine}
+                </Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={PURPLE_LINK} style={styles.howItWorksChevron} />
+            </LinearGradient>
           </View>
         </Pressable>
       </Animated.View>
@@ -1358,15 +1359,24 @@ const styles = StyleSheet.create({
   howItWorksGrad: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: T.spacing.sm + 2,
-    paddingVertical: 10,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
     paddingHorizontal: T.spacing.sm + 2,
+    minHeight: Platform.OS === 'ios' ? 68 : undefined,
+    ...Platform.select({
+      ios: {},
+      default: { gap: T.spacing.sm + 2 },
+    }),
   },
   howItWorksPlayWrap: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+    ...Platform.select({
+      ios: { marginRight: T.spacing.sm + 2 },
+      default: {},
+    }),
   },
   howItWorksPlayGlow: {
     position: 'absolute',
@@ -1397,28 +1407,47 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   howItWorksCopy: {
-    flex: 1,
-    minWidth: 0,
+    ...iosFlexChild(),
     gap: 1,
+    ...Platform.select({
+      ios: { marginRight: T.spacing.xs },
+      default: {},
+    }),
+  },
+  howItWorksChevron: {
+    flexShrink: 0,
   },
   howItWorksEyebrowTxt: {
-    fontSize: 9,
+    fontSize: Platform.OS === 'ios' ? 10 : 9,
     fontWeight: '700',
     color: GOLD,
     letterSpacing: 0.35,
     textTransform: 'uppercase',
+    ...Platform.select({
+      ios: { backgroundColor: 'transparent' },
+      default: {},
+    }),
   },
   howItWorksTitle: {
-    fontSize: 13,
+    fontSize: Platform.OS === 'ios' ? 14 : 13,
     fontWeight: '800',
     color: C.text.primary,
-    lineHeight: 17,
+    lineHeight: Platform.OS === 'ios' ? 19 : 17,
+    ...Platform.select({
+      ios: { backgroundColor: 'transparent' },
+      default: {},
+    }),
   },
   howItWorksStepsLine: {
-    fontSize: 10,
+    fontSize: Platform.OS === 'ios' ? 11 : 10,
     fontWeight: '600',
     color: C.text.muted,
     marginTop: 1,
+    lineHeight: Platform.OS === 'ios' ? 15 : 14,
+    ...Platform.select({
+      ios: { backgroundColor: 'transparent' },
+      default: {},
+    }),
   },
 
   catSection: {

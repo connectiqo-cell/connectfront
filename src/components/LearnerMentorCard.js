@@ -11,7 +11,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicButton from './CosmicButton';
 import { UNIFIED_THEME } from '../unifiedTheme';
-import { iosFlexChild } from '../utils/platformLayout';
+import { iosAvatarClip, iosAvatarImageStyle, iosFlexChild } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -50,10 +50,16 @@ export function LearnerMentorCard({
             colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.avatarRingGrad}
+            style={[styles.avatarRingGrad, Platform.OS === 'ios' && styles.avatarRingGradIos]}
           >
             {mentor.profiles?.avatar_url ? (
-              <Image source={{ uri: mentor.profiles.avatar_url }} style={styles.avatarImg} />
+              <View style={iosAvatarClip(44, styles.avatarImg)}>
+                <Image
+                  source={{ uri: mentor.profiles.avatar_url }}
+                  style={[styles.avatarImgFill, iosAvatarImageStyle(44)]}
+                  resizeMode="cover"
+                />
+              </View>
             ) : (
               <View style={[styles.avatarImg, styles.avatarPh]}>
                 <Text style={styles.avatarLetter}>{initial}</Text>
@@ -136,7 +142,7 @@ export function LearnerMentorCard({
 
 const styles = StyleSheet.create({
   card: {
-    width: Platform.OS === 'ios' ? 184 : 176,
+    width: Platform.OS === 'ios' ? 192 : 176,
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16,
     padding: T.spacing.md,
@@ -183,11 +189,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
+  avatarRingGradIos: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarImg: {
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: C.primary.void,
+  },
+  avatarImgFill: {
+    width: 44,
+    height: 44,
   },
   avatarPh: {
     justifyContent: 'center',
@@ -201,13 +218,19 @@ const styles = StyleSheet.create({
   },
   headMain: iosFlexChild(),
   name: {
-    fontSize: Platform.OS === 'ios' ? 14 : 13,
+    fontSize: Platform.OS === 'ios' ? 15 : 13,
     color: C.text.primary,
-    fontWeight: '800',
+    fontWeight: Platform.OS === 'ios' ? '700' : '800',
     marginBottom: 5,
-    lineHeight: Platform.OS === 'ios' ? 19 : 17,
+    lineHeight: Platform.OS === 'ios' ? 20 : 17,
     letterSpacing: Platform.OS === 'ios' ? 0 : -0.2,
     flexShrink: 1,
+    ...(Platform.OS === 'ios'
+      ? {
+          backgroundColor: 'transparent',
+          width: '100%',
+        }
+      : {}),
   },
   badgeRow: {
     flexDirection: 'row',

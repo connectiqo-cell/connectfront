@@ -35,9 +35,33 @@ export const iosGradientTextBlock = Platform.select({
     width: '100%',
     alignSelf: 'stretch',
     backgroundColor: 'transparent',
+    zIndex: 1,
   },
   default: {},
 });
+
+/** Circular clip wrapper for profile photos on iOS. */
+export function iosAvatarClip(size, extra = {}) {
+  const radius = size / 2;
+  return Platform.OS === 'ios'
+    ? {
+        width: size,
+        height: size,
+        borderRadius: radius,
+        overflow: 'hidden',
+        backgroundColor: '#0f0e2a',
+        ...extra,
+      }
+    : extra;
+}
+
+/** Full-bleed image inside a circular clip on iOS. */
+export function iosAvatarImageStyle(size) {
+  return {
+    width: size,
+    height: size,
+  };
+}
 
 /** Auth / settings text fields — use with local chip/surface colors. */
 export function createFormFieldStyles({ chipBg, borderColor, textColor }) {

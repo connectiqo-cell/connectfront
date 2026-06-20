@@ -28,6 +28,7 @@ import { SafeScreen } from '../../components/SafeScreen';
 import { getFloatingTabBarContentInset } from '../../components/CosmicBottomTabBar';
 import CosmicButton from '../../components/CosmicButton';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { iosAvatarClip, iosAvatarImageStyle } from '../../utils/platformLayout';
 import { profileApi } from '../../api/profileApi';
 import { videoApi } from '../../api/videoApi';
 import { bookingApi } from '../../api/bookingApi';
@@ -1243,10 +1244,16 @@ export default function MentorProfileScreen({ navigation, route }) {
                   colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.avatarRingGrad}
+                  style={[styles.avatarRingGrad, Platform.OS === 'ios' && styles.avatarRingGradIos]}
                 >
                   {avatarUrl ? (
-                    <Image source={{ uri: avatarUrl }} style={styles.avatar} resizeMode="cover" />
+                    <View style={iosAvatarClip(88, styles.avatar)}>
+                      <Image
+                        source={{ uri: avatarUrl }}
+                        style={iosAvatarImageStyle(88)}
+                        resizeMode="cover"
+                      />
+                    </View>
                   ) : (
                     <View style={[styles.avatar, styles.avatarPlaceholder]}>
                       <MaterialIcons name="person" size={48} color={PURPLE_LINK} />
@@ -1578,6 +1585,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
     ...Platform.select({ ios: T.shadows.medium, android: { elevation: 8 } }),
+  },
+  avatarRingGradIos: {
+    width: 94,
+    height: 94,
+    borderRadius: 47,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: SCREEN_BG },
   avatarPlaceholder: { justifyContent: 'center', alignItems: 'center' },

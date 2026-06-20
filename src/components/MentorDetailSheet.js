@@ -17,6 +17,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicButton from './CosmicButton';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { iosAvatarClip, iosAvatarImageStyle, iosFlexChild } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -270,10 +271,17 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
                 }}
                 accessibilityLabel={`View ${name} full profile`}
               >
-                <LinearGradient colors={B.premiumGradient} style={styles.avatarRing}>
-                  <View style={styles.avatarInner}>
+                <LinearGradient
+                  colors={B.premiumGradient}
+                  style={[styles.avatarRing, Platform.OS === 'ios' && styles.avatarRingIos]}
+                >
+                  <View style={[styles.avatarInner, iosAvatarClip(72)]}>
                     {avatarUrl ? (
-                      <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+                      <Image
+                        source={{ uri: avatarUrl }}
+                        style={[styles.avatar, iosAvatarImageStyle(72)]}
+                        resizeMode="cover"
+                      />
                     ) : (
                       <Text style={styles.avatarInitial}>{initial}</Text>
                     )}
@@ -425,6 +433,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
+  avatarRingIos: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarInner: {
     width: 72,
     height: 72,
@@ -445,7 +460,7 @@ const styles = StyleSheet.create({
     color: PURPLE_LINK,
   },
   headerInfo: {
-    flex: 1,
+    ...iosFlexChild(),
     paddingTop: 4,
   },
   name: {

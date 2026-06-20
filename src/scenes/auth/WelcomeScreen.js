@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -180,12 +181,12 @@ export default function WelcomeScreen({ navigation }) {
                 colors={B.premiumGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.logoRingGrad}
+                style={[styles.logoRingGrad, Platform.OS === 'ios' && styles.logoRingGradIos]}
               >
-                <View style={styles.logoInner}>
+                <View style={[styles.logoInner, Platform.OS === 'ios' && styles.logoInnerIos]}>
                   <Image
                     source={require('../../assets/images/logo.png')}
-                    style={styles.logoImage}
+                    style={[styles.logoImage, Platform.OS === 'ios' && styles.logoImageIos]}
                     resizeMode="contain"
                   />
                 </View>
@@ -366,6 +367,15 @@ const styles = StyleSheet.create({
     ...T.shadows.medium,
   },
 
+  logoRingGradIos: {
+    width: 94,
+    height: 94,
+    borderRadius: 47,
+    padding: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   logoInner: {
     width: 88,
     height: 88,
@@ -376,9 +386,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
+  logoInnerIos: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+  },
+
   logoImage: {
     width: 56,
     height: 56,
+  },
+
+  logoImageIos: {
+    width: 50,
+    height: 50,
+    alignSelf: 'center',
   },
 
   eyebrow: {

@@ -12,7 +12,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
-import { iosGradientInner, PLATFORM_LAYOUT } from '../utils/platformLayout';
+import { PLATFORM_LAYOUT } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const B = T.colors.buttons;
@@ -147,7 +147,7 @@ export default function CosmicButton({
   })();
 
   const content = (
-    <View style={[styles.row, iosGradientInner]}>
+    <View style={[styles.row, Platform.OS === 'ios' && styles.rowIos]}>
       {loading ? (
         <ActivityIndicator size="small" color={textColor} style={styles.loader} />
       ) : icon ? (
@@ -187,6 +187,32 @@ export default function CosmicButton({
   }
 
   if (gradientConfig) {
+    const gradientFill = compact ? styles.gradientCompact : styles.gradient;
+    const gradientNode =
+      Platform.OS === 'ios' ? (
+        <View style={[gradientFill, styles.iosGradientStack]}>
+          <LinearGradient
+            colors={gradientConfig.colors}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={StyleSheet.absoluteFillObject}
+            pointerEvents="none"
+          />
+          <View style={compact ? styles.iosGradientForegroundCompact : styles.iosGradientForeground}>
+            {content}
+          </View>
+        </View>
+      ) : (
+        <LinearGradient
+          colors={gradientConfig.colors}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={gradientFill}
+        >
+          {content}
+        </LinearGradient>
+      );
+
     return (
       <PressableShell
         pressScale={pressScale}
@@ -198,14 +224,7 @@ export default function CosmicButton({
           pressScale && styles.shellPressScale,
         ]}
       >
-        <LinearGradient
-          colors={gradientConfig.colors}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={compact ? styles.gradientCompact : styles.gradient}
-        >
-          {content}
-        </LinearGradient>
+        {gradientNode}
       </PressableShell>
     );
   }
@@ -320,6 +339,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  iosGradientStack: {
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  iosGradientForeground: {
+    zIndex: 2,
+    width: '100%',
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
+    paddingVertical: 15,
+    paddingHorizontal: T.spacing.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iosGradientForegroundCompact: {
+    zIndex: 2,
+    width: '100%',
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
+    paddingVertical: 11,
+    paddingHorizontal: T.spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rowIos: {
+    zIndex: 1,
+  },
   flat: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -348,17 +392,20 @@ const styles = StyleSheet.create({
   text: {
     fontSize: T.typography.labelLg.fontSize,
     fontWeight: '700',
-    lineHeight: Platform.OS === 'ios' ? 18 : T.typography.labelLg.lineHeight,
+    lineHeight: Platform.OS === 'ios' ? 20 : T.typography.labelLg.lineHeight,
     textAlign: 'center',
+    ...(Platform.OS === 'ios' ? { letterSpacing: 0.2 } : {}),
   },
   textCompact: {
     fontSize: T.typography.labelMd.fontSize,
-    fontWeight: '800',
-    lineHeight: Platform.OS === 'ios' ? 16 : T.typography.labelMd.lineHeight,
+    fontWeight: '700',
+    lineHeight: Platform.OS === 'ios' ? 18 : T.typography.labelMd.lineHeight,
     textAlign: 'center',
     flexShrink: 1,
+    ...(Platform.OS === 'ios' ? { letterSpacing: 0.15 } : {}),
   },
   textOnGradient: {
     backgroundColor: 'transparent',
+    ...(Platform.OS === 'ios' ? { opacity: 1 } : {}),
   },
 });

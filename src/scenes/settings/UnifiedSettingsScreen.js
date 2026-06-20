@@ -31,6 +31,7 @@ import { videoApi } from '../../api/videoApi';
 import { paymentApi } from '../../api/paymentApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { formatDate } from '../../utils/dateHelpers';
+import { iosAvatarClip, iosAvatarImageStyle } from '../../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -830,10 +831,18 @@ export default function UnifiedSettingsScreen({ navigation }) {
             <View style={styles.avatarRow}>
               <View style={styles.avatarWrapper}>
                 <AvatarGlowRing />
-                <LinearGradient colors={B.premiumGradient} style={styles.avatarRing}>
-                  <View style={styles.avatarInner}>
+                <LinearGradient
+                  colors={B.premiumGradient}
+                  style={[styles.avatarRing, Platform.OS === 'ios' && styles.avatarRingIos]}
+                >
+                  <View style={[styles.avatarInner, iosAvatarClip(72)]}>
                     {avatarUrl ? (
-                      <Image key={avatarUrl} source={{ uri: avatarUrl, cache: 'reload' }} style={styles.avatar} />
+                      <Image
+                        key={avatarUrl}
+                        source={{ uri: avatarUrl, cache: 'reload' }}
+                        style={[styles.avatar, iosAvatarImageStyle(72)]}
+                        resizeMode="cover"
+                      />
                     ) : (
                       <View style={[styles.avatar, styles.avatarPlaceholder]}>
                         <MaterialIcons name="person" size={36} color={PURPLE_LINK} />
@@ -1216,6 +1225,13 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
+  },
+  avatarRingIos: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarInner: {
     width: 72,

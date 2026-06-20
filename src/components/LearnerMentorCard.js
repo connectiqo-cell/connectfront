@@ -141,6 +141,7 @@ const styles = StyleSheet.create({
     padding: T.spacing.md,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.14)',
+    alignSelf: 'flex-start',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -199,7 +200,7 @@ const styles = StyleSheet.create({
     color: C.text.primary,
     fontWeight: '800',
     marginBottom: 5,
-    lineHeight: 17,
+    lineHeight: Platform.OS === 'ios' ? 18 : 17,
     letterSpacing: -0.2,
   },
   badgeRow: {
@@ -241,8 +242,8 @@ const styles = StyleSheet.create({
     color: GOLD,
     fontWeight: '700',
     marginBottom: T.spacing.sm,
-    minHeight: 26,
-    lineHeight: 16,
+    minHeight: Platform.OS === 'ios' ? 32 : 26,
+    lineHeight: Platform.OS === 'ios' ? 18 : 16,
   },
   priceRow: {
     flexDirection: 'row',
@@ -280,7 +281,7 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 'auto',
   },
-  bookBtnThemed: { flex: 1, marginVertical: 0 },
+  bookBtnThemed: { flex: 1, flexBasis: 0, minWidth: 0, marginVertical: 0 },
   profileBtn: {
     width: 38,
     height: 38,

@@ -7,6 +7,7 @@ import {
   View,
   ActivityIndicator,
   Animated,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -79,7 +80,12 @@ function PressableShell({ pressScale, onPress, style, children, disabled }) {
 
   if (!pressScale || disabled) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.88} style={style} disabled={disabled}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.88}
+        style={[style, styles.touchableShell]}
+        disabled={disabled}
+      >
         {children}
       </TouchableOpacity>
     );
@@ -158,6 +164,8 @@ export default function CosmicButton({
           textStyle,
         ]}
         numberOfLines={1}
+        adjustsFontSizeToFit={Platform.OS === 'ios'}
+        minimumFontScale={0.82}
       >
         {label}
       </Text>
@@ -250,6 +258,9 @@ export default function CosmicButton({
 }
 
 const styles = StyleSheet.create({
+  touchableShell: {
+    alignSelf: 'stretch',
+  },
   pressScaleWrap: {
     alignSelf: 'stretch',
   },
@@ -260,10 +271,12 @@ const styles = StyleSheet.create({
     width: '100%',
     flexGrow: 1,
     justifyContent: 'center',
+    alignItems: 'stretch',
   },
   shell: {
     width: '100%',
-    minHeight: 50,
+    alignSelf: 'stretch',
+    minHeight: Platform.OS === 'ios' ? 52 : 50,
     borderRadius: T.borderRadius.md,
     borderWidth: 1,
     overflow: 'hidden',
@@ -271,7 +284,8 @@ const styles = StyleSheet.create({
   },
   shellCompact: {
     width: '100%',
-    minHeight: 40,
+    alignSelf: 'stretch',
+    minHeight: Platform.OS === 'ios' ? 42 : 40,
     borderRadius: T.borderRadius.sm,
     borderWidth: 1,
     overflow: 'hidden',
@@ -287,16 +301,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: T.spacing.lg,
   },
   gradient: {
+    width: '100%',
     flexGrow: 1,
-    minHeight: 48,
-    paddingVertical: 14,
+    minHeight: Platform.OS === 'ios' ? 50 : 48,
+    paddingVertical: Platform.OS === 'ios' ? 15 : 14,
     paddingHorizontal: T.spacing.lg,
     justifyContent: 'center',
     alignItems: 'center',
   },
   gradientCompact: {
-    minHeight: 38,
-    paddingVertical: 10,
+    width: '100%',
+    minHeight: Platform.OS === 'ios' ? 40 : 38,
+    paddingVertical: Platform.OS === 'ios' ? 11 : 10,
     paddingHorizontal: T.spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
@@ -318,6 +334,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    maxWidth: '100%',
   },
   loader: {
     marginRight: T.spacing.sm,
@@ -328,11 +345,14 @@ const styles = StyleSheet.create({
   text: {
     fontSize: T.typography.labelLg.fontSize,
     fontWeight: '700',
-    lineHeight: T.typography.labelLg.lineHeight,
+    lineHeight: Platform.OS === 'ios' ? 18 : T.typography.labelLg.lineHeight,
+    textAlign: 'center',
   },
   textCompact: {
     fontSize: T.typography.labelMd.fontSize,
     fontWeight: '800',
-    lineHeight: T.typography.labelMd.lineHeight,
+    lineHeight: Platform.OS === 'ios' ? 16 : T.typography.labelMd.lineHeight,
+    textAlign: 'center',
+    flexShrink: 1,
   },
 });

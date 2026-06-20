@@ -1655,9 +1655,11 @@ const styles = StyleSheet.create({
   },
   ctaHalf: {
     flex: 1,
+    flexBasis: 0,
     minWidth: 0,
     borderRadius: 12,
     overflow: 'hidden',
+    alignSelf: 'stretch',
     ...Platform.select({ ios: T.shadows.small, android: { elevation: 3 } }),
   },
   ctaHalfInner: {

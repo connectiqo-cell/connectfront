@@ -4,10 +4,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import CosmicBackground from '../../components/CosmicBackground';
@@ -16,6 +16,7 @@ import { UNIFIED_THEME } from '../../unifiedTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { authApi } from '../../api/authApi';
 import { profileApi } from '../../api/profileApi';
+import { AUTH_FORM_STYLES } from '../../utils/authFormStyles';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -95,7 +96,7 @@ export default function SignupScreen({ navigation }) {
 
   return (
     <CosmicBackground style={styles.background}>
-      <SafeAreaView style={styles.overlay}>
+      <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -252,26 +253,11 @@ const styles = StyleSheet.create({
   formContainer: {
     marginBottom: T.spacing.xxxl,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: S.chip,
-    borderColor: C.border.light,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: T.spacing.md,
-    marginBottom: T.spacing.lg,
-    height: 50,
-  },
-  inputIcon: { marginRight: T.spacing.md },
-  input: {
-    flex: 1,
-    color: C.text.primary,
-    ...T.typography.bodySm,
-    padding: 0,
-  },
-  eyeIcon: { padding: T.spacing.sm },
-  inputError: { borderColor: C.accent.error },
+  inputWrapper: AUTH_FORM_STYLES.inputWrapper,
+  inputIcon: AUTH_FORM_STYLES.inputIcon,
+  input: AUTH_FORM_STYLES.input,
+  eyeIcon: AUTH_FORM_STYLES.eyeIcon,
+  inputError: AUTH_FORM_STYLES.inputError,
   errorText: {
     ...T.typography.bodyXs,
     color: C.accent.error,
@@ -286,7 +272,10 @@ const styles = StyleSheet.create({
     marginBottom: T.spacing.md,
     marginLeft: T.spacing.sm,
   },
-  signupBtn: { marginTop: T.spacing.lg },
+  signupBtn: {
+    marginTop: T.spacing.lg,
+    ...AUTH_FORM_STYLES.fullWidthButton,
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',

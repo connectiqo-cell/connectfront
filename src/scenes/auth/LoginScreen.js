@@ -4,11 +4,11 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   StyleSheet,
   ScrollView,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import CosmicBackground from '../../components/CosmicBackground';
@@ -21,6 +21,8 @@ const T = UNIFIED_THEME;
 const C = T.colors;
 const B = C.buttons;
 const S = C.surface;
+
+import { AUTH_FORM_STYLES } from '../../utils/authFormStyles';
 
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
@@ -65,7 +67,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <CosmicBackground style={styles.background}>
-      <SafeAreaView style={styles.overlay}>
+      <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -192,29 +194,10 @@ const styles = StyleSheet.create({
   formContainer: {
     marginBottom: T.spacing.xxxl,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: S.chip,
-    borderColor: C.border.light,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: T.spacing.md,
-    marginBottom: T.spacing.lg,
-    height: 50,
-  },
-  inputIcon: {
-    marginRight: T.spacing.md,
-  },
-  input: {
-    flex: 1,
-    color: C.text.primary,
-    ...T.typography.bodySm,
-    padding: 0,
-  },
-  eyeIcon: {
-    padding: T.spacing.sm,
-  },
+  inputWrapper: AUTH_FORM_STYLES.inputWrapper,
+  inputIcon: AUTH_FORM_STYLES.inputIcon,
+  input: AUTH_FORM_STYLES.input,
+  eyeIcon: AUTH_FORM_STYLES.eyeIcon,
   forgotWrap: {
     alignSelf: 'flex-end',
     marginBottom: T.spacing.lg,
@@ -227,6 +210,7 @@ const styles = StyleSheet.create({
   },
   loginBtn: {
     marginTop: T.spacing.lg,
+    ...AUTH_FORM_STYLES.fullWidthButton,
   },
   footer: {
     flexDirection: 'row',

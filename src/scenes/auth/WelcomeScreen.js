@@ -4,14 +4,15 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Animated,
   Easing,
   Pressable,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import CosmicBackground from '../../components/CosmicBackground';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
@@ -168,7 +169,7 @@ export default function WelcomeScreen({ navigation }) {
 
   return (
     <CosmicBackground style={styles.background}>
-      <SafeAreaView style={styles.overlay}>
+      <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
         <View style={styles.content}>
           <Animated.View
             style={[
@@ -496,6 +497,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 12,
     overflow: 'hidden',
+    alignSelf: 'stretch',
     ...T.shadows.medium,
   },
 
@@ -504,7 +506,9 @@ const styles = StyleSheet.create({
   },
 
   buttonGradient: {
-    paddingVertical: T.spacing.lg,
+    width: '100%',
+    minHeight: Platform.OS === 'ios' ? 54 : 50,
+    paddingVertical: Platform.OS === 'ios' ? 16 : T.spacing.lg,
     paddingHorizontal: T.spacing.xl,
     flexDirection: 'row',
     justifyContent: 'center',
@@ -517,6 +521,7 @@ const styles = StyleSheet.create({
     color: B.nebulaText,
     fontWeight: '800',
     letterSpacing: 0.3,
+    lineHeight: Platform.OS === 'ios' ? 20 : 22,
   },
 
   signInRow: {

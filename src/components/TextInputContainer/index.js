@@ -1,6 +1,7 @@
 import React from "react";
-import { View, TextInput, StyleSheet } from "react-native";
+import { View, TextInput, StyleSheet, Platform } from "react-native";
 import { UNIFIED_THEME } from "../../unifiedTheme";
+import { PLATFORM_LAYOUT } from "../../utils/platformLayout";
 
 const TextInputContainer = ({ placeholder, value, setValue }) => {
   return (
@@ -23,7 +24,7 @@ const TextInputContainer = ({ placeholder, value, setValue }) => {
 
 const styles = StyleSheet.create({
   container: {
-    height: 50,
+    minHeight: PLATFORM_LAYOUT.formFieldMinHeight,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: UNIFIED_THEME.colors.component.input,
@@ -40,6 +41,7 @@ const styles = StyleSheet.create({
     fontSize: UNIFIED_THEME.typography.bodyLg.fontSize,
     fontWeight: UNIFIED_THEME.typography.bodyLg.fontWeight,
     color: UNIFIED_THEME.colors.text.primary,
+    paddingVertical: Platform.OS === 'ios' ? 4 : UNIFIED_THEME.spacing.sm,
   },
 });
 

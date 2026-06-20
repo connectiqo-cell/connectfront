@@ -1,6 +1,6 @@
 /**
  * Patches iOS native dependencies after npm install.
- * - react-native-webrtc: FrameCryptionState -> RTCFrameCryptorState (WebRTC-SDK / Xcode 26+)
+ * - react-native-webrtc: align frame cryptor enum with WebRTC-SDK Obj-C headers
  */
 const fs = require('fs');
 const path = require('path');
@@ -25,13 +25,15 @@ function patchWebRTCFrameCryptor(filePath) {
   let content = fs.readFileSync(filePath, 'utf8');
   const original = content;
 
-  // WebRTC-SDK m125+ uses RTCFrameCryptorState; older react-native-webrtc still references FrameCryptionState.
-  content = content.replace(/FrameEncryptionState/g, 'RTCFrameCryptorState');
-  content = content.replace(/FrameCryptionState/g, 'RTCFrameCryptorState');
+  // WebRTC-SDK Obj-C headers expose FrameEncryptionState* (not RTCFrameCryptorState*).
+  content = content.replace(/RTCFrameCryptorState/g, 'FrameEncryptionState');
+  content = content.replace(/FrameCryptionState/g, 'FrameEncryptionState');
+  // Keep JS event name stable (do not rename kEventFrameCryptionStateChanged).
+  content = content.replace(/kEventFrameEncryptionStateChanged/g, 'kEventFrameCryptionStateChanged');
 
   if (content !== original) {
     fs.writeFileSync(filePath, content, 'utf8');
-    console.log('[patch-ios-deps] Patched WebRTCModule+RTCFrameCryptor.m');
+    console.log('[patch-ios-deps] Patched WebRTCModule+RTCFrameCryptor.m (FrameEncryptionState)');
   }
 }
 

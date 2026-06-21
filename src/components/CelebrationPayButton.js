@@ -639,17 +639,33 @@ const styles = StyleSheet.create({
     borderColor: T.colors.border.light,
     opacity: 0.72,
   },
-  gradient: {
-    minHeight: 46,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: T.spacing.md,
-    overflow: 'hidden',
-  },
-  gradientCheckout: {
-    minHeight: 52,
-    paddingHorizontal: T.spacing.lg,
-  },
+  gradient: Platform.select({
+    ios: {
+      width: '100%',
+      minHeight: 48,
+      paddingHorizontal: T.spacing.md,
+      overflow: 'hidden',
+    },
+    default: {
+      minHeight: 46,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: T.spacing.md,
+      overflow: 'hidden',
+    },
+  }),
+  gradientCheckout: Platform.select({
+    ios: {
+      width: '100%',
+      minHeight: 54,
+      paddingHorizontal: T.spacing.lg,
+      overflow: 'hidden',
+    },
+    default: {
+      minHeight: 52,
+      paddingHorizontal: T.spacing.lg,
+    },
+  }),
   shimmerStrip: {
     position: 'absolute',
     top: 0,
@@ -671,8 +687,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   iosGradientRowWrap: {
+    width: '100%',
+    minHeight: 52,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
     overflow: 'hidden',
   },
   loader: { marginRight: 0 },
@@ -688,9 +707,12 @@ const styles = StyleSheet.create({
   },
   labelCheckoutIos: {
     flex: 1,
+    flexShrink: 1,
     minWidth: 0,
     textAlign: 'center',
-    lineHeight: 19,
+    lineHeight: 20,
     backgroundColor: 'transparent',
+    opacity: 1,
+    fontWeight: '800',
   },
 });

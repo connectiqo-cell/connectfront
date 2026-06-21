@@ -1768,25 +1768,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: T.spacing.sm,
     paddingVertical: 18,
-    zIndex: 1,
-    ...(Platform.OS === 'ios'
-      ? { width: '100%', alignSelf: 'stretch', backgroundColor: 'transparent' }
-      : {}),
+    paddingHorizontal: T.spacing.md,
+    width: '100%',
+    alignSelf: 'stretch',
+    minHeight: 56,
   },
   joinCallText: {
     fontSize: 18,
-    fontWeight: '900',
-    color: '#000',
-    letterSpacing: 0.4,
-    flex: 0,
+    fontWeight: '800',
+    color: '#060412',
+    letterSpacing: 0.3,
     ...Platform.select({
       ios: {
         flexShrink: 1,
-        minWidth: 0,
+        flexGrow: 0,
         backgroundColor: 'transparent',
-        zIndex: 1,
+        opacity: 1,
       },
-      default: {},
+      default: {
+        flex: 0,
+        color: '#000',
+        fontWeight: '900',
+        letterSpacing: 0.4,
+      },
     }),
   },
   joinCallTextWaiting: {

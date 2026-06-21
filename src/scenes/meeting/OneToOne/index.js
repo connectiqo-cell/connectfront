@@ -96,6 +96,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
   const backCameraIdRef = useRef(null);
   const activeCameraRef = useRef('front');
   const localWebcamOnRef = useRef(localWebcamOn);
+  const cameraInitializedRef = useRef(false);
 
   const participantIds = [...participants.keys()];
   const localParticipantId = meeting?.localParticipant?.id;
@@ -135,22 +136,28 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       try {
         const cams = await getWebcams?.();
         if (cancelled) return;
+        console.warn('[Camera][' + Platform.OS + '] getWebcams result:', JSON.stringify(cams));
         if (cams?.length) {
+          // Try label/facingMode first; many Android devices use generic labels
+          // so fall back to index-based assignment (cams[0]=front, cams[1]=back).
           const front = cams.find(c =>
-            c.label?.toLowerCase().includes('front') || c.facingMode === 'user'
-          ) || cams[0];
+            c.label?.toLowerCase().includes('front') ||
+            c.label?.toLowerCase().includes('face') ||
+            c.facingMode === 'user'
+          ) ?? cams[0];
+
           const back = cams.find(c =>
             c.label?.toLowerCase().includes('back') ||
             c.label?.toLowerCase().includes('rear') ||
             c.facingMode === 'environment'
-          ) || (cams.length > 1 ? cams.find(c => c.deviceId !== front?.deviceId) : null);
+          ) ?? (cams.length > 1 ? cams.find(c => c.deviceId !== front?.deviceId) : null);
+
           frontCameraIdRef.current = front?.deviceId ?? null;
           backCameraIdRef.current = back?.deviceId ?? null;
+          console.warn('[Camera] front:', front?.deviceId, front?.label, '| back:', back?.deviceId, back?.label);
 
-          // If webcam is already on when IDs arrive, switch to front immediately.
-          // This covers the common case where fetchCameras finishes after
-          // the webcam is already active (webcamEnabled:true in MeetingProvider).
-          if (localWebcamOnRef.current && front?.deviceId) {
+          if (localWebcamOnRef.current && front?.deviceId && !cameraInitializedRef.current) {
+            cameraInitializedRef.current = true;
             setTimeout(() => {
               if (!cancelled) changeWebcam(front.deviceId);
             }, 300);
@@ -158,13 +165,17 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         } else if (attempt < 4) {
           setTimeout(() => fetchCameras(attempt + 1), 1000);
         }
-      } catch (_) {
+      } catch (err) {
+        console.warn('[Camera] fetchCameras error:', err);
         if (!cancelled && attempt < 4) {
           setTimeout(() => fetchCameras(attempt + 1), 1000);
         }
       }
     };
-    const t = setTimeout(() => fetchCameras(), 800);
+    // iOS needs a longer delay — camera permission dialog can still be
+    // showing at 800ms and getWebcams() returns empty until dismissed.
+    const delay = Platform.OS === 'ios' ? 1500 : 800;
+    const t = setTimeout(() => fetchCameras(), delay);
     return () => { cancelled = true; clearTimeout(t); };
   }, []);
 
@@ -200,26 +211,23 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     return () => clearInterval(id);
   }, [slot.date, slot.start_time, slot.end_time]);
 
-  // Whenever the webcam turns on, switch to the correct camera.
-  // - If IDs are already loaded (fetchCameras ran first) → switch immediately.
-  // - If IDs aren't loaded yet → enumerate now (fetchCameras hasn't finished).
-  // activeCameraRef tracks user's last chosen camera so turning off/on
-  // preserves their choice (front by default, back if they flipped).
+  // On first webcam-on: switch to front camera once.
+  // cameraInitializedRef prevents re-entry — changeWebcam restarts the
+  // camera stream internally, which briefly flips localWebcamOn off→on
+  // and would trigger this effect again without the guard.
   useEffect(() => {
-    if (!localWebcamOn) return;
+    if (!localWebcamOn || cameraInitializedRef.current) return;
 
     if (frontCameraIdRef.current) {
-      // IDs already loaded — pick correct camera and switch
-      const targetId = activeCameraRef.current === 'back'
-        ? (backCameraIdRef.current ?? frontCameraIdRef.current)
-        : frontCameraIdRef.current;
-      setTimeout(() => changeWebcam(targetId), 400);
+      cameraInitializedRef.current = true;
+      setTimeout(() => changeWebcam(frontCameraIdRef.current), 400);
       return;
     }
 
-    // IDs not loaded yet — enumerate now as a fallback
+    // IDs not loaded yet — enumerate now (fetchCameras hasn't finished).
+    // Use ?.then() — getWebcams may be undefined on some SDK versions/platforms.
     getWebcams?.()
-      .then(cams => {
+      ?.then(cams => {
         if (!cams?.length) return;
         const front =
           cams.find(c =>
@@ -234,12 +242,12 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         ) || (cams.length > 1 ? cams.find(c => c.deviceId !== front?.deviceId) : null);
         frontCameraIdRef.current = front?.deviceId ?? null;
         backCameraIdRef.current = back?.deviceId ?? null;
-        const targetId = activeCameraRef.current === 'back'
-          ? (back?.deviceId ?? front?.deviceId)
-          : front?.deviceId;
-        if (targetId) setTimeout(() => changeWebcam(targetId), 400);
+        if (front?.deviceId) {
+          cameraInitializedRef.current = true;
+          setTimeout(() => changeWebcam(front.deviceId), 400);
+        }
       })
-      .catch(() => {});
+      ?.catch(() => {});
   }, [localWebcamOn]);
 
   const formatDuration = (seconds) => {
@@ -466,21 +474,30 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
 
   // Flip between front and back using cached IDs — no enumeration delay.
   const handleFlipCamera = () => {
-    if (activeCameraRef.current === 'front') {
-      const targetId = backCameraIdRef.current;
-      if (targetId) {
-        changeWebcam(targetId);
+    const current = activeCameraRef.current;
+    const frontId = frontCameraIdRef.current;
+    const backId = backCameraIdRef.current;
+    console.warn('[Camera] flip pressed — current:', current, '| frontId:', frontId, '| backId:', backId);
+
+    if (current === 'front') {
+      if (backId) {
+        console.warn('[Camera] switching to back:', backId);
+        changeWebcam(backId);
         activeCameraRef.current = 'back';
       } else {
+        console.warn('[Camera] no backId — calling changeWebcam() no-args');
         changeWebcam();
+        activeCameraRef.current = 'back';
       }
     } else {
-      const targetId = frontCameraIdRef.current;
-      if (targetId) {
-        changeWebcam(targetId);
+      if (frontId) {
+        console.warn('[Camera] switching to front:', frontId);
+        changeWebcam(frontId);
         activeCameraRef.current = 'front';
       } else {
+        console.warn('[Camera] no frontId — calling changeWebcam() no-args');
         changeWebcam();
+        activeCameraRef.current = 'front';
       }
     }
   };

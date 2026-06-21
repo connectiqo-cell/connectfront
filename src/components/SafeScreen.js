@@ -8,8 +8,8 @@ import CosmicBackground from './CosmicBackground';
  * SafeScreen - Uses react-native-safe-area-context for better safe area handling
  * Ensures all screens fit safely on any mobile device with notches, bottom bars, tabs, etc.
  *
- * Stack/modal screens pushed from tabs should set includeTopInset={false} and wrap
- * the app bar in StackScreenHeader instead.
+ * Stack/modal screens: set includeTopInset={false} — iOS modal presentation already
+ * clears the status bar. Optional StackScreenHeader wraps the app bar (layout only).
  */
 export const SafeScreen = ({
   children,
@@ -17,7 +17,7 @@ export const SafeScreen = ({
   backgroundColor = 'transparent',
   padding = UNIFIED_THEME.spacing.lg,
   hasBottomTabs = true,
-  /** When false, top inset is omitted (material top tabs or StackScreenHeader handles it). */
+  /** When false, top inset is omitted (material top tabs or iOS stack modal handles it). */
   includeTopInset = true,
   refreshControl,
 }) => {

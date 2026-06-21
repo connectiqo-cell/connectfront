@@ -19,6 +19,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeScreen } from '../../components/SafeScreen';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import CelebrationPayButton, { CelebrationScreenFx } from '../../components/CelebrationPayButton';
@@ -965,7 +966,8 @@ export default function BookingScreen({ navigation, route }) {
   if (initialLoading) {
     return (
       <View style={styles.screenRoot}>
-        <SafeScreen scrollable padding={T.spacing.md} hasBottomTabs={false}>
+        <SafeScreen scrollable padding={T.spacing.md} hasBottomTabs={false} includeTopInset={false}>
+          <StackScreenHeader>
           <View style={scheduleStyles.topBar}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
@@ -980,6 +982,7 @@ export default function BookingScreen({ navigation, route }) {
             </View>
             <View style={scheduleStyles.topBarSide} />
           </View>
+          </StackScreenHeader>
           <BookingSkeleton />
         </SafeScreen>
       </View>
@@ -990,7 +993,8 @@ export default function BookingScreen({ navigation, route }) {
     <View style={styles.screenRoot}>
       <CelebrationScreenFx active={readyToPay && !paying} origin={fxOrigin} />
 
-      <SafeScreen scrollable padding={T.spacing.md} hasBottomTabs={false}>
+      <SafeScreen scrollable padding={T.spacing.md} hasBottomTabs={false} includeTopInset={false}>
+        <StackScreenHeader>
         <View style={scheduleStyles.topBar}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -1006,6 +1010,7 @@ export default function BookingScreen({ navigation, route }) {
           </View>
           <View style={scheduleStyles.topBarSide} />
         </View>
+        </StackScreenHeader>
 
         <Animated.View style={{ opacity: headerFade, transform: [{ translateY: headerSlide }] }}>
           <ScheduleHeroBanner

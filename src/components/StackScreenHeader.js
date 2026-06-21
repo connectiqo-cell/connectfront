@@ -1,18 +1,12 @@
 import { View, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
- * Status-bar inset for stack/modal screens (Settings sub-screens, etc.).
- * Pair with SafeScreen includeTopInset={false} so iOS does not double-count safe area.
+ * Header shell for stack/modal screens (Settings sub-screens, Booking, etc.).
+ * Use with SafeScreen includeTopInset={false} — iOS modal presentation already
+ * clears the status bar, so do not add insets.top here (causes double spacing).
  */
 export default function StackScreenHeader({ children, style }) {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <View style={[styles.root, { paddingTop: insets.top }, style]}>
-      {children}
-    </View>
-  );
+  return <View style={[styles.root, style]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({

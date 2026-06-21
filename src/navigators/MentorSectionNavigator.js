@@ -1,4 +1,5 @@
 import React from 'react'; // eslint-disable-line
+import { Platform } from 'react-native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { SCREEN_NAMES } from './screenNames';
@@ -30,9 +31,15 @@ export const MentorSectionNavigator = () => {
         lazy: true,
         lazyPreloadDistance: 1,
         animationEnabled: false,
+        ...Platform.select({
+          ios: {
+            sceneStyle: { paddingTop: 0, marginTop: 0 },
+          },
+          default: {},
+        }),
       }}
       style={{ flex: 1, backgroundColor: 'transparent' }}
-      sceneContainerStyle={{ flex: 1, backgroundColor: 'transparent' }}
+      sceneContainerStyle={{ flex: 1, backgroundColor: 'transparent', paddingTop: 0 }}
     >
       <TopTab.Screen
         name={SCREEN_NAMES.MentorDashboard}

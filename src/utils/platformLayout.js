@@ -1,6 +1,19 @@
 import { Platform } from 'react-native';
 import { UNIFIED_THEME as T } from '../unifiedTheme';
 
+/**
+ * Content padding below the status bar. SafeScreen applies the status-bar inset once
+ * via SafeAreaView — screens should not also add insets.top unless includeTopInset={false}.
+ */
+export function getScreenContentTopPadding(padding = 0) {
+  return padding;
+}
+
+/** Full top offset when a screen manages its own status-bar inset (no SafeScreen top inset). */
+export function getManualTopPadding(insets, padding = 0) {
+  return padding + insets.top;
+}
+
 /** Shared iOS/Android layout tokens for forms, buttons, and flex rows. */
 export const PLATFORM_LAYOUT = {
   formFieldMinHeight: Platform.OS === 'ios' ? 52 : 50,

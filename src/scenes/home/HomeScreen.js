@@ -30,7 +30,7 @@ import { ThunderTransition } from '../../components/ThunderTransition';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
-import { iosFlexChild, iosGradientTextBlock } from '../../utils/platformLayout';
+import { iosFlexChild } from '../../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -165,6 +165,45 @@ function SectionHeaderRow({ title, onSeeAll, icon }) {
   );
 }
 
+function IntroPlayButton({ playGlowOpacity, playGlowScale }) {
+  const glowTransform =
+    Platform.OS === 'ios' ? [] : [{ scale: playGlowScale }];
+
+  return (
+    <View style={styles.howItWorksPlayWrap}>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.howItWorksPlayGlow,
+          { opacity: playGlowOpacity, transform: glowTransform },
+        ]}
+      >
+        <LinearGradient
+          colors={[PURPLE_LINK, GOLD, C.accent.secondary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.howItWorksPlayGlowGrad}
+        />
+      </Animated.View>
+      <View style={styles.howItWorksPlay}>
+        <LinearGradient
+          colors={B.nebulaGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+          pointerEvents="none"
+        />
+        <MaterialIcons
+          name="play-arrow"
+          size={Platform.OS === 'ios' ? 20 : 18}
+          color={B.nebulaText}
+          style={styles.howItWorksPlayIcon}
+        />
+      </View>
+    </View>
+  );
+}
+
 function HowItWorksCard({ video, onPress }) {
   const stepLine = HOW_IT_WORKS_STEPS.map(s => s.label).join(' · ');
   const cardScale = useRef(new Animated.Value(1)).current;
@@ -246,13 +285,16 @@ function HowItWorksCard({ video, onPress }) {
     });
   };
 
+  const haloScaleTransform =
+    Platform.OS === 'ios' ? [] : [{ scale: haloScale }];
+
   return (
     <View style={styles.howItWorksOuter}>
       <Animated.View
         pointerEvents="none"
         style={[
           styles.howItWorksHalo,
-          { opacity: haloOpacity, transform: [{ scale: haloScale }] },
+          { opacity: haloOpacity, transform: haloScaleTransform },
         ]}
       >
         <LinearGradient
@@ -282,43 +324,36 @@ function HowItWorksCard({ video, onPress }) {
               colors={['rgba(124,58,237,0.2)', 'rgba(12,12,40,0.72)', 'rgba(94,234,212,0.08)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.howItWorksGrad}
-            >
-              <View style={styles.howItWorksPlayWrap}>
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    styles.howItWorksPlayGlow,
-                    { opacity: playGlowOpacity, transform: [{ scale: playGlowScale }] },
-                  ]}
-                >
-                  <LinearGradient
-                    colors={[PURPLE_LINK, GOLD, C.accent.secondary]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.howItWorksPlayGlowGrad}
-                  />
-                </Animated.View>
-                <LinearGradient
-                  colors={B.nebulaGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.howItWorksPlay}
-                >
-                  <MaterialIcons name="play-arrow" size={18} color={B.nebulaText} style={{ marginLeft: 2 }} />
-                </LinearGradient>
-              </View>
-              <View style={[styles.howItWorksCopy, iosGradientTextBlock]}>
+              style={StyleSheet.absoluteFillObject}
+              pointerEvents="none"
+            />
+            <View style={styles.howItWorksRow}>
+              <IntroPlayButton
+                playGlowOpacity={playGlowOpacity}
+                playGlowScale={playGlowScale}
+              />
+              <View style={styles.howItWorksCopy}>
                 <Text style={styles.howItWorksEyebrowTxt}>Connectiqo intro</Text>
-                <Text style={styles.howItWorksTitle} numberOfLines={1}>
+                <Text
+                  style={styles.howItWorksTitle}
+                  numberOfLines={Platform.OS === 'ios' ? 2 : 1}
+                >
                   {video.title}
                 </Text>
-                <Text style={styles.howItWorksStepsLine} numberOfLines={1}>
+                <Text
+                  style={styles.howItWorksStepsLine}
+                  numberOfLines={Platform.OS === 'ios' ? 2 : 1}
+                >
                   {stepLine}
                 </Text>
               </View>
-              <MaterialIcons name="chevron-right" size={20} color={PURPLE_LINK} style={styles.howItWorksChevron} />
-            </LinearGradient>
+              <MaterialIcons
+                name="chevron-right"
+                size={20}
+                color={PURPLE_LINK}
+                style={styles.howItWorksChevron}
+              />
+            </View>
           </View>
         </Pressable>
       </Animated.View>
@@ -907,12 +942,11 @@ export default function HomeScreen() {
   }, []);
 
   return (
-    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false}>
+    <SafeScreen scrollable={false} padding={T.spacing.lg} hasBottomTabs={false}>
       <ScrollView
         contentContainerStyle={[
           styles.page,
           {
-            paddingTop: insets.top + T.spacing.lg,
             paddingBottom: insets.bottom + 52,
           },
         ]}
@@ -1055,11 +1089,11 @@ export default function HomeScreen() {
           setUrlPlayback(null);
         }}
       >
-        <View style={styles.playerScreen}>
+        <View style={[styles.playerScreen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
           {playerVisible && urlPlayback ? (
             <Video
               source={{ uri: urlPlayback }}
-              style={{ width, height }}
+              style={styles.playerVideo}
               controls
               resizeMode="contain"
               playInBackground={false}
@@ -1317,13 +1351,19 @@ const styles = StyleSheet.create({
   },
 
   introSection: {
-    marginBottom: T.spacing.sm,
+    marginBottom: T.spacing.md,
+    ...Platform.select({
+      ios: { marginTop: T.spacing.xs },
+      default: {},
+    }),
   },
   howItWorksOuter: {
     position: 'relative',
+    width: '100%',
   },
   howItWorksPressable: {
     position: 'relative',
+    width: '100%',
   },
   howItWorksHalo: {
     position: 'absolute',
@@ -1355,34 +1395,40 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.22)',
+    position: 'relative',
+    width: '100%',
+    ...Platform.select({
+      ios: { minHeight: 80 },
+      default: {},
+    }),
   },
-  howItWorksGrad: {
+  howItWorksRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-    paddingHorizontal: T.spacing.sm + 2,
-    minHeight: Platform.OS === 'ios' ? 68 : undefined,
+    width: '100%',
+    paddingVertical: Platform.OS === 'ios' ? 14 : 10,
+    paddingHorizontal: Platform.OS === 'ios' ? T.spacing.md : T.spacing.sm + 2,
     ...Platform.select({
-      ios: {},
+      ios: { minHeight: 80 },
       default: { gap: T.spacing.sm + 2 },
     }),
   },
   howItWorksPlayWrap: {
-    width: 36,
-    height: 36,
+    width: Platform.OS === 'ios' ? 40 : 36,
+    height: Platform.OS === 'ios' ? 40 : 36,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
     ...Platform.select({
-      ios: { marginRight: T.spacing.sm + 2 },
+      ios: { marginRight: T.spacing.md },
       default: {},
     }),
   },
   howItWorksPlayGlow: {
     position: 'absolute',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: Platform.OS === 'ios' ? 40 : 36,
+    height: Platform.OS === 'ios' ? 40 : 36,
+    borderRadius: Platform.OS === 'ios' ? 20 : 18,
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -1396,58 +1442,57 @@ const styles = StyleSheet.create({
   },
   howItWorksPlayGlowGrad: {
     flex: 1,
-    borderRadius: 18,
+    borderRadius: Platform.OS === 'ios' ? 20 : 18,
   },
   howItWorksPlay: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: Platform.OS === 'ios' ? 38 : 34,
+    height: Platform.OS === 'ios' ? 38 : 34,
+    borderRadius: Platform.OS === 'ios' ? 19 : 17,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1,
   },
+  howItWorksPlayIcon: {
+    zIndex: 2,
+    marginLeft: Platform.OS === 'ios' ? 3 : 2,
+  },
   howItWorksCopy: {
     ...iosFlexChild(),
-    gap: 1,
+    justifyContent: 'center',
     ...Platform.select({
-      ios: { marginRight: T.spacing.xs },
-      default: {},
+      ios: { marginRight: T.spacing.sm, paddingVertical: 2 },
+      default: { gap: 1 },
     }),
   },
   howItWorksChevron: {
     flexShrink: 0,
+    ...Platform.select({
+      ios: { marginLeft: T.spacing.xs },
+      default: {},
+    }),
   },
   howItWorksEyebrowTxt: {
-    fontSize: Platform.OS === 'ios' ? 10 : 9,
+    fontSize: Platform.OS === 'ios' ? 11 : 9,
     fontWeight: '700',
     color: GOLD,
     letterSpacing: 0.35,
     textTransform: 'uppercase',
-    ...Platform.select({
-      ios: { backgroundColor: 'transparent' },
-      default: {},
-    }),
+    marginBottom: Platform.OS === 'ios' ? 3 : 0,
   },
   howItWorksTitle: {
-    fontSize: Platform.OS === 'ios' ? 14 : 13,
+    fontSize: Platform.OS === 'ios' ? 15 : 13,
     fontWeight: '800',
     color: C.text.primary,
-    lineHeight: Platform.OS === 'ios' ? 19 : 17,
-    ...Platform.select({
-      ios: { backgroundColor: 'transparent' },
-      default: {},
-    }),
+    lineHeight: Platform.OS === 'ios' ? 20 : 17,
+    marginBottom: Platform.OS === 'ios' ? 2 : 0,
   },
   howItWorksStepsLine: {
-    fontSize: Platform.OS === 'ios' ? 11 : 10,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     fontWeight: '600',
     color: C.text.muted,
     marginTop: 1,
-    lineHeight: Platform.OS === 'ios' ? 15 : 14,
-    ...Platform.select({
-      ios: { backgroundColor: 'transparent' },
-      default: {},
-    }),
+    lineHeight: Platform.OS === 'ios' ? 16 : 14,
   },
 
   catSection: {
@@ -1541,6 +1586,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: C.primary.void,
     justifyContent: 'center',
+  },
+  playerVideo: {
+    flex: 1,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   playerCloseOverlay: {
     position: 'absolute',

@@ -7,7 +7,7 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { UNIFIED_THEME } from '../unifiedTheme';
 
@@ -24,7 +24,6 @@ const TEAL = C.accent.secondary;
  * Material top tabs — cosmic sector layout with glass bar and rounded icon tiles.
  */
 export const CosmicTopTabBar = ({ state, descriptors, navigation, compact = false }) => {
-  const insets = useSafeAreaInsets();
   const useScroll = state.routes.length > 4;
 
   const TabInner = ({ route, index }) => {
@@ -181,13 +180,8 @@ export const CosmicTopTabBar = ({ state, descriptors, navigation, compact = fals
         style={[StyleSheet.absoluteFill, styles.skyHaze]}
         pointerEvents="none"
       />
-      <View
-        style={[
-          styles.safeTop,
-          { paddingTop: insets.top },
-        ]}
-      >
-        <View style={styles.barShell}>
+      <SafeAreaView edges={['top']} style={styles.safeTop}>
+        <View style={[styles.barShell, Platform.OS === 'ios' && styles.barShellIos]}>
           <View style={styles.barTint} pointerEvents="none">
             <LinearGradient
               colors={TB.glassGradient}
@@ -216,7 +210,7 @@ export const CosmicTopTabBar = ({ state, descriptors, navigation, compact = fals
 
           <View style={styles.barInner}>{tabsRow}</View>
         </View>
-      </View>
+      </SafeAreaView>
     </View>
   );
 };
@@ -251,6 +245,9 @@ const styles = StyleSheet.create({
       },
       android: { elevation: UNIFIED_THEME.shadows.medium.elevation },
     }),
+  },
+  barShellIos: {
+    paddingTop: T.spacing.xs,
   },
   barTint: {
     ...StyleSheet.absoluteFillObject,

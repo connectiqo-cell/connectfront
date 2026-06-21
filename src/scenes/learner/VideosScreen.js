@@ -25,6 +25,7 @@ import {
   getFloatingTabBarContentInset,
 } from '../../components/CosmicBottomTabBar';
 import CosmicButton from '../../components/CosmicButton';
+import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { videoApi } from '../../api/videoApi';
 import { homeApi } from '../../api/homeApi';
 import { useAuth } from '../../hooks/useAuth';
@@ -84,17 +85,20 @@ function ReelProfileRail({ item, onViewProfile }) {
   const canPress = !!item.mentor_id && onViewProfile;
 
   const avatar = (
-    <LinearGradient colors={B.premiumGradient} style={s.railAvatarRing}>
-      <View style={s.railAvatarInner}>
-        {item.profiles?.avatar_url ? (
-          <Image source={{ uri: item.profiles.avatar_url }} style={s.railAvatar} />
-        ) : (
-          <View style={[s.railAvatar, s.railAvatarFallback]}>
-            <MaterialIcons name="person" size={22} color="#fff" />
-          </View>
-        )}
-      </View>
-    </LinearGradient>
+    <CircularProfileImage
+      size={56}
+      ringWidth={2}
+      colors={B.premiumGradient}
+      innerBg={C.primary.void}
+      borderColor="#fff"
+      style={s.railAvatarFrame}
+      uri={item.profiles?.avatar_url}
+      fallback={
+        <View style={s.railAvatarFallback}>
+          <MaterialIcons name="person" size={22} color="#fff" />
+        </View>
+      }
+    />
   );
 
   return (
@@ -170,17 +174,20 @@ function ReelInfoDock({
             activeOpacity={0.85}
             style={s.reelMentorTap}
           >
-            <LinearGradient colors={B.premiumGradient} style={s.reelInlineAvatarRing}>
-              <View style={s.reelInlineAvatarInner}>
-                {item.profiles?.avatar_url ? (
-                  <Image source={{ uri: item.profiles.avatar_url }} style={s.reelInlineAvatar} />
-                ) : (
-                  <View style={[s.reelInlineAvatar, s.railAvatarFallback]}>
-                    <MaterialIcons name="person" size={14} color="#fff" />
-                  </View>
-                )}
-              </View>
-            </LinearGradient>
+            <CircularProfileImage
+              size={26}
+              ringWidth={1}
+              colors={B.premiumGradient}
+              innerBg={C.primary.void}
+              borderColor="#fff"
+              style={s.reelInlineAvatarFrame}
+              uri={item.profiles?.avatar_url}
+              fallback={
+                <View style={s.reelInlineAvatarFallback}>
+                  <MaterialIcons name="person" size={14} color="#fff" />
+                </View>
+              }
+            />
             <Text style={s.reelMentorName} numberOfLines={1}>@{name}</Text>
           </TouchableOpacity>
         ) : (
@@ -280,17 +287,18 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
         <View style={u.handle} />
 
         <View style={u.mentorRow}>
-          <LinearGradient colors={B.premiumGradient} style={u.avatarRing}>
-            <View style={u.avatarInner}>
-              {video.profiles?.avatar_url ? (
-                <Image source={{ uri: video.profiles.avatar_url }} style={u.avatar} />
-              ) : (
-                <View style={[u.avatar, u.avatarFallback]}>
-                  <MaterialIcons name="person" size={20} color={PURPLE_LINK} />
-                </View>
-              )}
-            </View>
-          </LinearGradient>
+          <CircularProfileImage
+            size={52}
+            ringWidth={2}
+            colors={B.premiumGradient}
+            innerBg={C.primary.void}
+            uri={video.profiles?.avatar_url}
+            fallback={
+              <View style={u.avatarFallback}>
+                <MaterialIcons name="person" size={20} color={PURPLE_LINK} />
+              </View>
+            }
+          />
           <View style={{ flex: 1 }}>
             <Text style={u.mentorName}>{mentorName}</Text>
             <Text style={u.mentorSpec}>{video.mentor_profiles?.specialization || ''}</Text>
@@ -360,10 +368,13 @@ const u = StyleSheet.create({
     gap: T.spacing.md,
     marginBottom: T.spacing.lg,
   },
-  avatarRing: { padding: 2, borderRadius: 26, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
-  avatarInner: { borderRadius: 24, overflow: 'hidden' },
-  avatar: { width: 48, height: 48, borderRadius: 24 },
-  avatarFallback: { backgroundColor: C.primary.void, alignItems: 'center', justifyContent: 'center' },
+  avatarFallback: {
+    width: 48,
+    height: 48,
+    backgroundColor: C.primary.void,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   mentorName: { color: C.text.primary, fontSize: 15, fontWeight: '800' },
   mentorSpec: { color: GOLD, fontSize: 12, marginTop: 2, fontWeight: '600' },
   pricePill: { backgroundColor: S.accentTeal, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(94,234,212,0.25)' },
@@ -954,22 +965,12 @@ const s = StyleSheet.create({
   railBtn: {
     alignItems: 'center',
   },
-  railAvatarRing: {
-    padding: 2,
-    borderRadius: 30,
+  railAvatarFrame: {
     borderWidth: 2,
-    borderColor: '#fff',
-  },
-  railAvatarInner: {
-    borderRadius: 28,
-    overflow: 'hidden',
-  },
-  railAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
   },
   railAvatarFallback: {
+    width: 52,
+    height: 52,
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -999,20 +1000,15 @@ const s = StyleSheet.create({
     gap: 8,
     maxWidth: '85%',
   },
-  reelInlineAvatarRing: {
-    padding: 1,
-    borderRadius: 14,
+  reelInlineAvatarFrame: {
     borderWidth: 1.5,
-    borderColor: '#fff',
   },
-  reelInlineAvatarInner: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  reelInlineAvatar: {
+  reelInlineAvatarFallback: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   reelMentorName: {
     color: '#fff',

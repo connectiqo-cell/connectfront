@@ -51,6 +51,31 @@ import ParticipantStatsViewer from "../Components/ParticipantStatsViewer";
 import { startOneToOneRecording } from "../../../utils/recordingConfig";
 import { computeSessionTiming, formatCountdown } from "../../../utils/sessionSlotTimer";
 
+// VideoSDK Android reports facingMode as "front" / "environment" (not WebRTC
+// standard "user" / "environment"). Labels are often just "0" / "1".
+// Strategy: prefer facingMode match → label match → index fallback
+// (on Android cams[0] is typically back, cams[1] is front).
+function resolveCameras(cams) {
+  const isFront = c =>
+    c.facingMode === 'front' || c.facingMode === 'user' ||
+    c.label?.toLowerCase().includes('front') ||
+    c.label?.toLowerCase().includes('face');
+
+  const isBack = c =>
+    c.facingMode === 'environment' ||
+    c.label?.toLowerCase().includes('back') ||
+    c.label?.toLowerCase().includes('rear');
+
+  const front = cams.find(isFront)
+    ?? (cams.length > 1 ? cams[1] : cams[0]);
+
+  const back = cams.find(isBack)
+    ?? cams.find(c => c.deviceId !== front?.deviceId)
+    ?? null;
+
+  return { front, back };
+}
+
 export default function OneToOneMeetingViewer({ isHost, booking }) {
   const {
     join,
@@ -138,23 +163,10 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         if (cancelled) return;
         console.warn('[Camera][' + Platform.OS + '] getWebcams result:', JSON.stringify(cams));
         if (cams?.length) {
-          // Try label/facingMode first; many Android devices use generic labels
-          // so fall back to index-based assignment (cams[0]=front, cams[1]=back).
-          const front = cams.find(c =>
-            c.label?.toLowerCase().includes('front') ||
-            c.label?.toLowerCase().includes('face') ||
-            c.facingMode === 'user'
-          ) ?? cams[0];
-
-          const back = cams.find(c =>
-            c.label?.toLowerCase().includes('back') ||
-            c.label?.toLowerCase().includes('rear') ||
-            c.facingMode === 'environment'
-          ) ?? (cams.length > 1 ? cams.find(c => c.deviceId !== front?.deviceId) : null);
-
+          const { front, back } = resolveCameras(cams);
           frontCameraIdRef.current = front?.deviceId ?? null;
           backCameraIdRef.current = back?.deviceId ?? null;
-          console.warn('[Camera] front:', front?.deviceId, front?.label, '| back:', back?.deviceId, back?.label);
+          console.warn('[Camera] front:', front?.deviceId, front?.facingMode, '| back:', back?.deviceId, back?.facingMode);
 
           if (localWebcamOnRef.current && front?.deviceId && !cameraInitializedRef.current) {
             cameraInitializedRef.current = true;
@@ -229,17 +241,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     getWebcams?.()
       ?.then(cams => {
         if (!cams?.length) return;
-        const front =
-          cams.find(c =>
-            c.label?.toLowerCase().includes('front') ||
-            c.label?.toLowerCase().includes('face') ||
-            c.facingMode === 'user'
-          ) || (cams.length > 1 ? cams[1] : null) || cams[0];
-        const back = cams.find(c =>
-          c.label?.toLowerCase().includes('back') ||
-          c.label?.toLowerCase().includes('rear') ||
-          c.facingMode === 'environment'
-        ) || (cams.length > 1 ? cams.find(c => c.deviceId !== front?.deviceId) : null);
+        const { front, back } = resolveCameras(cams);
         frontCameraIdRef.current = front?.deviceId ?? null;
         backCameraIdRef.current = back?.deviceId ?? null;
         if (front?.deviceId) {

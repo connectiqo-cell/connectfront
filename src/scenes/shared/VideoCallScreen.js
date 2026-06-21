@@ -114,14 +114,6 @@ export default function VideoCallScreen({ navigation, route }) {
     requestPermissions();
   }, []);
 
-  useEffect(() => {
-    if (!loading) return undefined;
-    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      e.preventDefault();
-    });
-    return unsubscribe;
-  }, [navigation, loading]);
-
   const enrichBookingProfiles = async row => {
     if (!row) return row;
     const isMentorUser = profile?.id === row.mentor_id;

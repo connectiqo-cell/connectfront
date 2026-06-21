@@ -399,6 +399,7 @@ function GoldStarsRow({ rating, size = 11 }) {
 }
 
 function VideoPlayerModal({ video, onClose }) {
+  const insets = useSafeAreaInsets();
   const [paused, setPaused] = useState(false);
   const [buffering, setBuffering] = useState(true);
   const [error, setError] = useState(false);
@@ -428,7 +429,7 @@ function VideoPlayerModal({ video, onClose }) {
             <Text style={vStyles.errorText}>Could not play video</Text>
           </View>
         )}
-        <View style={vStyles.topBar}>
+        <View style={[vStyles.topBar, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={onClose} style={vStyles.closeBtn}>
             <MaterialIcons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
@@ -1218,7 +1219,9 @@ export default function MentorProfileScreen({ navigation, route }) {
             <View
               style={[
                 styles.heroTopBar,
-                { paddingTop: T.spacing.sm },
+                {
+                  paddingTop: (isOwnProfile ? 0 : insets.top) + T.spacing.sm,
+                },
               ]}
             >
               <View style={styles.heroBarActions}>

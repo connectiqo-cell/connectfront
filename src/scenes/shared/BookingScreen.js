@@ -704,14 +704,6 @@ export default function BookingScreen({ navigation, route }) {
   }, [headerFade, headerSlide]);
 
   useEffect(() => {
-    if (!paying) return undefined;
-    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      e.preventDefault();
-    });
-    return unsubscribe;
-  }, [navigation, paying]);
-
-  useEffect(() => {
     if (!mentorId) {
       Toast.show('Could not open booking. Please try again.');
       navigation.goBack();

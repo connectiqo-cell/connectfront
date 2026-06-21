@@ -3,10 +3,15 @@ import { UNIFIED_THEME as T } from '../unifiedTheme';
 
 /**
  * Content padding below the status bar when SafeScreen includeTopInset is true.
- * Stack screens should use StackScreenHeader instead of adding insets.top again.
+ * Stack overlays use StackScreenHeader for the top inset instead.
  */
 export function getScreenContentTopPadding(padding = 0, insets, includeTopInset = true) {
   return padding + (includeTopInset ? insets.top : 0);
+}
+
+/** Top padding for stack overlay app bars (card presentation — edge-to-edge on iOS). */
+export function getStackHeaderTopPadding(insets, extra = 0) {
+  return insets.top + extra;
 }
 
 /** Full top offset when a screen manages its own status-bar inset (no SafeScreen top inset). */

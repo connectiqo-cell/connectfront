@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import CosmicBackground from '../../components/CosmicBackground';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import CosmicButton from '../../components/CosmicButton';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { rescheduleApi } from '../../api/rescheduleApi';
@@ -151,15 +152,7 @@ export default function RescheduleResponseScreen({ navigation, route }) {
 
   return (
     <CosmicBackground style={{ flex: 1 }}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
+      <StackScreenHeader>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
@@ -170,7 +163,15 @@ export default function RescheduleResponseScreen({ navigation, route }) {
           </View>
           <View style={styles.headerSide} />
         </View>
-
+      </StackScreenHeader>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: insets.bottom + 32 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Mentor card */}
         <View style={styles.mentorCard}>
           <View style={styles.mentorAvatar}>

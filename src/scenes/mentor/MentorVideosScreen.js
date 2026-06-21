@@ -432,6 +432,7 @@ function UnlockPriceCard({
 
 function VideoPlayerModal({ video, onClose }) {
   const videoRef = useRef(null);
+  const insets = useSafeAreaInsets();
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -473,7 +474,7 @@ function VideoPlayerModal({ video, onClose }) {
         )}
 
         {/* Controls overlay */}
-        <View style={playerStyles.topBar}>
+        <View style={[playerStyles.topBar, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={onClose} style={playerStyles.closeBtn}>
             <MaterialIcons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>

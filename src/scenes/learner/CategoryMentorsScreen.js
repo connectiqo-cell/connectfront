@@ -421,7 +421,7 @@ export default function CategoryMentorsScreen({ route, navigation }) {
 
   return (
     <CosmicBackground>
-      <SafeAreaView style={styles.safe} edges={['bottom']}>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={[styles.topBar, { paddingTop: T.spacing.sm }]}>
           <PressScale
             onPress={() => navigation.goBack()}

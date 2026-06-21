@@ -15,6 +15,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CosmicButton from '../../../components/CosmicButton';
+import StackScreenHeader from '../../../components/StackScreenHeader';
 import CosmicBackground from '../../../components/CosmicBackground';
 import { scheduleStyles } from '../../../components/schedule/ScheduleUI';
 import { UNIFIED_THEME } from '../../../unifiedTheme';
@@ -200,6 +201,7 @@ function LobbyShell({ insets, children, scroll = false }) {
 
 function LobbyHeader({ title, subtitle, onBack }) {
   return (
+    <StackScreenHeader insetTop={false}>
     <FadeSlideIn delay={0} fromY={10}>
       <View style={styles.topBarWrap}>
         <View style={scheduleStyles.topBar}>
@@ -214,6 +216,7 @@ function LobbyHeader({ title, subtitle, onBack }) {
         </View>
       </View>
     </FadeSlideIn>
+    </StackScreenHeader>
   );
 }
 

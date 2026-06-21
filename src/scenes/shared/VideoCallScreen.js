@@ -7,7 +7,7 @@ import {
   PermissionsAndroid,
   Alert,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   MeetingProvider,
   MeetingConsumer,
@@ -63,7 +63,6 @@ class CallErrorBoundary extends React.Component {
 export default function VideoCallScreen({ navigation, route }) {
   const { bookingId, isHost } = route.params;
   const { profile } = useAuth();
-  const insets = useSafeAreaInsets();
   const [ready, setReady] = useState(false);
   const [callParams, setCallParams] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -114,6 +113,14 @@ export default function VideoCallScreen({ navigation, route }) {
 
     requestPermissions();
   }, []);
+
+  useEffect(() => {
+    if (!loading) return undefined;
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      e.preventDefault();
+    });
+    return unsubscribe;
+  }, [navigation, loading]);
 
   const enrichBookingProfiles = async row => {
     if (!row) return row;
@@ -292,17 +299,17 @@ export default function VideoCallScreen({ navigation, route }) {
     }
   };
 
+  const VOID_BG = UNIFIED_THEME.colors.primary.void;
+
+  const screenShell = (children, bg = VOID_BG) => (
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: bg }}>
+      {children}
+    </SafeAreaView>
+  );
+
   if (loading) {
-    return (
-      <View style={{
-        flex: 1,
-        position: 'relative',
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-        backgroundColor: UNIFIED_THEME.colors.primary.dark,
-      }}>
-        <LoadingOverlay visible message="Preparing your call..." />
-      </View>
+    return screenShell(
+      <LoadingOverlay visible message="Preparing your call..." />,
     );
   }
 
@@ -314,13 +321,8 @@ export default function VideoCallScreen({ navigation, route }) {
   });
 
   if (lobbyOnly && booking) {
-    return (
-      <View style={{
-        flex: 1,
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-      }}>
-        <SessionLobbyView
+    return screenShell(
+      <SessionLobbyView
           booking={booking}
           isMentor={isMentor}
           otherUser={resolvedOtherUser}
@@ -336,32 +338,18 @@ export default function VideoCallScreen({ navigation, route }) {
             navigation.goBack();
           }}
           onCancelRefund={() => navigation.goBack()}
-        />
-      </View>
+        />,
     );
   }
 
   if (!ready || !callParams) {
-    return (
-      <View style={{
-        flex: 1,
-        position: 'relative',
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-        backgroundColor: UNIFIED_THEME.colors.primary.dark,
-      }}>
-        <LoadingOverlay visible message="Connecting..." />
-      </View>
+    return screenShell(
+      <LoadingOverlay visible message="Connecting..." />,
     );
   }
 
-  return (
-    <View style={{
-      flex: 1,
-      paddingTop: insets.top,
-      paddingBottom: insets.bottom,
-    }}>
-      <MeetingProvider
+  return screenShell(
+    <MeetingProvider
         config={{
           meetingId: callParams.meetingId,
           micEnabled: false,
@@ -391,7 +379,6 @@ export default function VideoCallScreen({ navigation, route }) {
             )}
           </MeetingConsumer>
         </CallErrorBoundary>
-      </MeetingProvider>
-    </View>
+      </MeetingProvider>,
   );
 }

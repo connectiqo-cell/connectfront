@@ -162,10 +162,11 @@ export default function CosmicButton({
         style={[
           compact ? styles.textCompact : styles.text,
           { color: textColor },
-          Platform.OS === 'ios' && styles.textOnGradient,
+          Platform.OS === 'ios' && (gradientConfig ? styles.textOnGradient : styles.textOnFlat),
           textStyle,
         ]}
         numberOfLines={1}
+        ellipsizeMode="tail"
       >
         {label}
       </Text>
@@ -269,9 +270,21 @@ export default function CosmicButton({
       pressScale={pressScale}
       onPress={onPress}
       disabled={isDisabled}
-      style={[shell, flat, compact ? styles.flatCompact : styles.flat, pressScale && styles.shellPressScale]}
+      style={[
+        shell,
+        flat,
+        Platform.OS !== 'ios' && (compact ? styles.flatCompact : styles.flat),
+        Platform.OS === 'ios' && styles.iosFlatShell,
+        pressScale && styles.shellPressScale,
+      ]}
     >
-      {content}
+      {Platform.OS === 'ios' ? (
+        <View style={compact ? styles.iosFlatForegroundCompact : styles.iosFlatForeground}>
+          {content}
+        </View>
+      ) : (
+        content
+      )}
     </PressableShell>
   );
 }
@@ -311,6 +324,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     marginVertical: 0,
+    ...Platform.select({
+      ios: { minWidth: 0, flexShrink: 1 },
+      default: {},
+    }),
   },
   shellDisabled: {
     opacity: 0.55,
@@ -361,8 +378,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  rowIos: {
-    zIndex: 1,
+  iosFlatShell: {
+    justifyContent: 'center',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   flat: {
     flexGrow: 1,
@@ -382,6 +401,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     maxWidth: '100%',
+    width: '100%',
+  },
+  rowIos: {
+    zIndex: 1,
+    alignSelf: 'stretch',
   },
   loader: {
     marginRight: T.spacing.sm,
@@ -402,10 +426,33 @@ const styles = StyleSheet.create({
     lineHeight: Platform.OS === 'ios' ? 18 : T.typography.labelMd.lineHeight,
     textAlign: 'center',
     flexShrink: 1,
+    minWidth: 0,
     ...(Platform.OS === 'ios' ? { letterSpacing: 0.15 } : {}),
   },
   textOnGradient: {
     backgroundColor: 'transparent',
     ...(Platform.OS === 'ios' ? { opacity: 1 } : {}),
+  },
+  textOnFlat: {
+    backgroundColor: 'transparent',
+    zIndex: 1,
+  },
+  iosFlatForeground: {
+    width: '100%',
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
+    paddingVertical: 14,
+    paddingHorizontal: T.spacing.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  iosFlatForegroundCompact: {
+    width: '100%',
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
+    paddingVertical: 10,
+    paddingHorizontal: T.spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
   },
 });

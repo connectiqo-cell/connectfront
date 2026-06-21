@@ -651,7 +651,7 @@ export default function SessionLobbyView({
           </ActionsPanel>
         ) : null}
         <CosmicButton label="Go to Home" variant="primary" onPress={onLeave} style={styles.fullWidthCta} />
-        <View style={{ height: insets.bottom + 16 }} />
+        <View style={{ height: T.spacing.lg }} />
       </LobbyShell>
     );
   }
@@ -666,7 +666,7 @@ export default function SessionLobbyView({
       <CosmicBackground style={styles.root}>
         {/* Header */}
         <FadeSlideIn delay={0} fromY={-10}>
-          <View style={[styles.newHeader, { paddingTop: insets.top + 10 }]}>
+          <View style={[styles.newHeader, { paddingTop: T.spacing.sm }]}>
             <PressScale onPress={onLeave} style={styles.backBtn} hitSlop={12}>
               <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
             </PressScale>
@@ -760,7 +760,7 @@ export default function SessionLobbyView({
 
         {/* Mic / Camera controls + End Session */}
         <FadeSlideIn delay={ENTRANCE_STEP_MS * 4} fromY={24}>
-          <View style={[styles.mentorControlBar, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
+          <View style={[styles.mentorControlBar, { paddingBottom: T.spacing.md }]}>
             {/* Mic */}
             <PressScale
               onPress={onToggleMic}
@@ -803,7 +803,7 @@ export default function SessionLobbyView({
     <CosmicBackground style={styles.root}>
       {/* ── Header ─────────────────────────────────────── */}
       <FadeSlideIn delay={0} fromY={-10}>
-        <View style={[styles.newHeader, { paddingTop: insets.top + 10 }]}>
+        <View style={[styles.newHeader, { paddingTop: T.spacing.sm }]}>
           <PressScale onPress={onLeave} style={styles.backBtn} hitSlop={12}>
             <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
           </PressScale>
@@ -914,26 +914,30 @@ export default function SessionLobbyView({
 
       {/* ── Bottom CTA ─────────────────────────────────── */}
       <FadeSlideIn delay={ENTRANCE_STEP_MS * 4} fromY={24}>
-        <View style={[styles.bottomCta, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
+        <View style={[styles.bottomCta, { paddingBottom: T.spacing.md }]}>
           <PressScale onPress={onJoinCall} style={styles.joinCallBtn}>
-            <LinearGradient
-              colors={meetingReady ? B.successGradient : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.04)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.joinCallGradient}
-            >
-              <MaterialIcons name="video-call" size={24} color={meetingReady ? '#000' : C.text.muted} />
-              <Text style={[styles.joinCallText, !meetingReady && styles.joinCallTextMuted]}>
-                Join Call
-              </Text>
-              {meetingReady ? (
-                <PulseLoop style={styles.joinBtnDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
-                  <View style={styles.joinBtnDot} />
-                </PulseLoop>
-              ) : (
-                <ActivityIndicator size="small" color={C.text.muted} />
-              )}
-            </LinearGradient>
+            <View style={styles.joinCallStack}>
+              <LinearGradient
+                colors={meetingReady ? B.successGradient : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.04)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFillObject}
+                pointerEvents="none"
+              />
+              <View style={styles.joinCallGradient}>
+                <MaterialIcons name="video-call" size={24} color={meetingReady ? '#000' : C.text.muted} />
+                <Text style={[styles.joinCallText, !meetingReady && styles.joinCallTextMuted]}>
+                  Join Call
+                </Text>
+                {meetingReady ? (
+                  <PulseLoop style={styles.joinBtnDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
+                    <View style={styles.joinBtnDot} />
+                  </PulseLoop>
+                ) : (
+                  <ActivityIndicator size="small" color={C.text.muted} />
+                )}
+              </View>
+            </View>
           </PressScale>
           <PressScale onPress={onLeave} style={styles.leaveLink}>
             <Text style={styles.leaveLinkText}>Leave quietly</Text>
@@ -1656,12 +1660,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: GLASS_BORDER,
   },
+  joinCallStack: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: T.borderRadius.lg,
+  },
   joinCallGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: T.spacing.sm,
     paddingVertical: 18,
+    zIndex: 1,
+    ...(Platform.OS === 'ios'
+      ? { width: '100%', alignSelf: 'stretch', backgroundColor: 'transparent' }
+      : {}),
   },
   joinCallText: {
     fontSize: 17,

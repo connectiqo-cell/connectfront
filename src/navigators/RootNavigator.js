@@ -28,6 +28,20 @@ import RescheduleRequestScreen from '../scenes/shared/RescheduleRequestScreen';
 import RescheduleResponseScreen from '../scenes/shared/RescheduleResponseScreen';
 const RootStack = createStackNavigator();
 
+/** Full-screen push — no iOS swipe-down sheet dismiss or edge back gesture. */
+const LOCKED_SCREEN_OPTIONS = {
+  presentation: 'card',
+  animationEnabled: false,
+  gestureEnabled: false,
+};
+
+/** Settings / profile overlays — card (not sheet) so pull-down does not close the screen. */
+const OVERLAY_SCREEN_OPTIONS = {
+  presentation: 'card',
+  animationEnabled: false,
+  gestureEnabled: false,
+};
+
 export const RootNavigator = () => {
   const { session, loading, pendingPasswordReset } = useContext(AuthContext);
   const showAuth = !session || pendingPasswordReset;
@@ -56,12 +70,7 @@ export const RootNavigator = () => {
             component={UnifiedTabNavigator}
             options={{ animationEnabled: false }}
           />
-          <RootStack.Group
-            screenOptions={{
-              presentation: 'modal',
-              animationEnabled: false,
-            }}
-          >
+          <RootStack.Group screenOptions={OVERLAY_SCREEN_OPTIONS}>
             <RootStack.Screen
               name={SCREEN_NAMES.EditProfile}
               component={EditProfileScreen}
@@ -81,10 +90,6 @@ export const RootNavigator = () => {
             <RootStack.Screen
               name={SCREEN_NAMES.MentorProfile}
               component={SharedMentorProfileScreen}
-            />
-            <RootStack.Screen
-              name={SCREEN_NAMES.Booking}
-              component={BookingScreen}
             />
             <RootStack.Screen
               name={SCREEN_NAMES.MentorAvailability}
@@ -115,35 +120,39 @@ export const RootNavigator = () => {
               component={NotificationsScreen}
             />
           </RootStack.Group>
-          <RootStack.Screen
-            name={SCREEN_NAMES.VideoCall}
-            component={VideoCallScreen}
-            options={{ animationEnabled: false }}
-          />
-          <RootStack.Screen
-            name={SCREEN_NAMES.RecordingPlayer}
-            component={RecordingPlayerScreen}
-            options={{ animationEnabled: false }}
-          />
+          <RootStack.Group screenOptions={LOCKED_SCREEN_OPTIONS}>
+            <RootStack.Screen
+              name={SCREEN_NAMES.Booking}
+              component={BookingScreen}
+            />
+            <RootStack.Screen
+              name={SCREEN_NAMES.VideoCall}
+              component={VideoCallScreen}
+            />
+            <RootStack.Screen
+              name={SCREEN_NAMES.RecordingPlayer}
+              component={RecordingPlayerScreen}
+            />
+          </RootStack.Group>
           <RootStack.Screen
             name={SCREEN_NAMES.Review}
             component={ReviewScreen}
-            options={{ animationEnabled: false }}
+            options={OVERLAY_SCREEN_OPTIONS}
           />
           <RootStack.Screen
             name={SCREEN_NAMES.MentorReviews}
             component={MentorReviewsScreen}
-            options={{ animationEnabled: false }}
+            options={OVERLAY_SCREEN_OPTIONS}
           />
           <RootStack.Screen
             name={SCREEN_NAMES.RescheduleRequest}
             component={RescheduleRequestScreen}
-            options={{ animationEnabled: false }}
+            options={OVERLAY_SCREEN_OPTIONS}
           />
           <RootStack.Screen
             name={SCREEN_NAMES.RescheduleResponse}
             component={RescheduleResponseScreen}
-            options={{ animationEnabled: false }}
+            options={OVERLAY_SCREEN_OPTIONS}
           />
         </>
       )}

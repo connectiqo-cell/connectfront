@@ -15,6 +15,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-simple-toast';
 import { SafeScreen } from '../../components/SafeScreen';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { notificationApi } from '../../api/notificationApi';
@@ -400,7 +401,8 @@ export default function NotificationsScreen({ navigation }) {
   const unreadInView = filtered.filter((n) => !isRead(n.id)).length;
 
   return (
-    <SafeScreen scrollable={false} padding={T.spacing.lg} hasBottomTabs={false}>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={false}>
+      <StackScreenHeader style={styles.headerShell}>
       <Animated.View
         style={[styles.header, { opacity: headerOpacity, transform: [{ translateY: headerY }] }]}
       >
@@ -418,7 +420,9 @@ export default function NotificationsScreen({ navigation }) {
           </Text>
         </AnimatedPressable>
       </Animated.View>
+      </StackScreenHeader>
 
+      <View style={styles.body}>
       <Animated.View
         style={[
           styles.filterRow,
@@ -462,6 +466,7 @@ export default function NotificationsScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={TEAL} />
         }
       />
+      </View>
 
       <LoadingOverlay visible={loading && !refreshing && notifications.length === 0} />
     </SafeScreen>
@@ -469,6 +474,13 @@ export default function NotificationsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  headerShell: {
+    paddingHorizontal: T.spacing.lg,
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: T.spacing.lg,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

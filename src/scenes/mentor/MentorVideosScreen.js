@@ -24,6 +24,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import CosmicButton from '../../components/CosmicButton';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -1211,37 +1212,46 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
     </>
   );
 
-  return (
-    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false}>
-      <View style={styles.screenBody}>
-      <FadeSlideIn delay={0} replayToken={replayToken}>
-        <View style={styles.screenHeader}>
-          {!embeddedInTab ? (
-            <AnimatedPressable onPress={handleGoBack} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
-              <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
-            </AnimatedPressable>
-          ) : (
-            <View style={styles.backBtn} />
-          )}
-          <View style={styles.screenHeaderCenter}>
-            <Text style={styles.screenTitle}>Upload</Text>
-            <Text style={styles.screenSubtitle}>Manage and publish your content</Text>
-          </View>
-          <AnimatedPressable
-            onPress={handleRefresh}
-            style={styles.refreshBtn}
-            disabled={refreshing}
-            hoverScale={1.08}
-            pressScale={0.92}
-          >
-            {refreshing ? (
-              <ActivityIndicator size="small" color={TEAL} />
-            ) : (
-              <MaterialIcons name="refresh" size={20} color={TEAL} />
-            )}
+  const headerBlock = (
+    <FadeSlideIn delay={0} replayToken={replayToken}>
+      <View style={styles.screenHeader}>
+        {!embeddedInTab ? (
+          <AnimatedPressable onPress={handleGoBack} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
+            <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
           </AnimatedPressable>
+        ) : (
+          <View style={styles.backBtn} />
+        )}
+        <View style={styles.screenHeaderCenter}>
+          <Text style={styles.screenTitle}>Upload</Text>
+          <Text style={styles.screenSubtitle}>Manage and publish your content</Text>
         </View>
-      </FadeSlideIn>
+        <AnimatedPressable
+          onPress={handleRefresh}
+          style={styles.refreshBtn}
+          disabled={refreshing}
+          hoverScale={1.08}
+          pressScale={0.92}
+        >
+          {refreshing ? (
+            <ActivityIndicator size="small" color={TEAL} />
+          ) : (
+            <MaterialIcons name="refresh" size={20} color={TEAL} />
+          )}
+        </AnimatedPressable>
+      </View>
+    </FadeSlideIn>
+  );
+
+  return (
+    <SafeScreen
+      scrollable={false}
+      padding={0}
+      hasBottomTabs={false}
+      includeTopInset={embeddedInTab}
+    >
+      <View style={styles.screenBody}>
+      {embeddedInTab ? headerBlock : <StackScreenHeader>{headerBlock}</StackScreenHeader>}
 
       {loading ? (
         <View style={styles.loadingWrap}>

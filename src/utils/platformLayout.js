@@ -2,11 +2,11 @@ import { Platform } from 'react-native';
 import { UNIFIED_THEME as T } from '../unifiedTheme';
 
 /**
- * Content padding below the status bar. SafeScreen applies the status-bar inset once
- * via SafeAreaView — screens should not also add insets.top unless includeTopInset={false}.
+ * Content padding below the status bar when SafeScreen includeTopInset is true.
+ * Stack screens should use StackScreenHeader instead of adding insets.top again.
  */
-export function getScreenContentTopPadding(padding = 0) {
-  return padding;
+export function getScreenContentTopPadding(padding = 0, insets, includeTopInset = true) {
+  return padding + (includeTopInset ? insets.top : 0);
 }
 
 /** Full top offset when a screen manages its own status-bar inset (no SafeScreen top inset). */

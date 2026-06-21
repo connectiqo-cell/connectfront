@@ -22,6 +22,7 @@ import Toast from 'react-native-simple-toast';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { SafeScreen } from '../../components/SafeScreen';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useAuth } from '../../hooks/useAuth';
 import { profileApi } from '../../api/profileApi';
@@ -1091,7 +1092,8 @@ export default function EditProfileScreen({ navigation }) {
   };
 
   return (
-    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false}>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={false}>
+      <StackScreenHeader>
       <FadeSlideIn delay={0}>
         <View style={styles.header}>
           <AnimatedPressable onPress={handleGoBack} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
@@ -1104,6 +1106,7 @@ export default function EditProfileScreen({ navigation }) {
           <View style={styles.headerSpacer} />
         </View>
       </FadeSlideIn>
+      </StackScreenHeader>
 
       <View style={styles.pageBody}>
       <ScrollView

@@ -97,8 +97,11 @@ export const availabilityApi = {
 
   syncMentorAvailability: async (mentorId, slotEntries = []) => {
     try {
-      const [{ data: existing, error: fetchError }, { data: bookings, error: bookingsError }] =
-        await Promise.all([
+      const [
+        { data: existing, error: fetchError },
+        { data: bookings, error: bookingsError },
+        { data: txns, error: txnsError },
+      ] = await Promise.all([
           supabase
             .from('availability_slots')
             .select('id, date, start_time, end_time, is_booked')
@@ -108,12 +111,21 @@ export const availabilityApi = {
             .select('slot_id')
             .eq('mentor_id', mentorId)
             .not('slot_id', 'is', null),
+          // transactions also holds a slot_id FK — must protect those too
+          supabase
+            .from('transactions')
+            .select('slot_id')
+            .not('slot_id', 'is', null),
         ]);
 
       if (fetchError) throw fetchError;
       if (bookingsError) throw bookingsError;
+      if (txnsError) throw txnsError;
 
-      const protectedIds = new Set((bookings || []).map(row => row.slot_id));
+      const protectedIds = new Set([
+        ...(bookings || []).map(row => row.slot_id),
+        ...(txns || []).map(row => row.slot_id),
+      ]);
       const desiredKeys = new Set(
         slotEntries.map(entry =>
           slotIdentityKey(entry.date, entry.startTime, entry.endTime),

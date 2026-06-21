@@ -5,10 +5,10 @@
  */
 
 const BASE_RECORDING_OPTIONS = {
-  theme: 'DARK',
+  theme: 'LIGHT',
   mode: 'video-and-audio',
   quality: 'high',
-  orientation: 'landscape',
+  orientation: 'portrait',
 };
 
 export function buildOneToOneRecordingConfig(activeParticipantCount = 2) {

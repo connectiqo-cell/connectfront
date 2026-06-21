@@ -416,7 +416,7 @@ export default function MentorCallsScreen({ navigation }) {
     } catch {
       if (!opts.quietErrors && isActive()) Toast.show('Could not load sessions');
     } finally {
-      if (!silent && isActive()) setLoading(false);
+      if (!silent) setLoading(false);
     }
     if (isActive()) scheduleReminders(upcomingForReminders);
   }, [profile?.id, scheduleReminders]);
@@ -453,7 +453,7 @@ export default function MentorCallsScreen({ navigation }) {
         sessionsLoaderShownRef.current = false;
       }
       if (sessionsLoaderShownRef.current) {
-        refreshUpcoming();
+        loadInitial({ silent: true, isActive });
       } else {
         loadInitial({ silent: false, isActive });
         sessionsLoaderShownRef.current = true;

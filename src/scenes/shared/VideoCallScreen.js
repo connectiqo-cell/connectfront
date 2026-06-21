@@ -7,7 +7,7 @@ import {
   PermissionsAndroid,
   Alert,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   MeetingProvider,
   MeetingConsumer,
@@ -15,7 +15,7 @@ import {
 import Toast from 'react-native-simple-toast';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
-import { getToken, createMeeting, validateMeeting, fetchRecordingUrl } from '../../api/api';
+import { getToken, createMeeting, fetchRecordingUrl } from '../../api/api';
 import { supabase } from '../../lib/supabase';
 import { bookingApi } from '../../api/bookingApi';
 import { rescheduleApi } from '../../api/rescheduleApi';
@@ -63,7 +63,7 @@ class CallErrorBoundary extends React.Component {
 export default function VideoCallScreen({ navigation, route }) {
   const { bookingId, isHost } = route.params;
   const { profile } = useAuth();
-  const insets = useSafeAreaInsets();
+
   const [ready, setReady] = useState(false);
   const [callParams, setCallParams] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -72,6 +72,7 @@ export default function VideoCallScreen({ navigation, route }) {
   const [lobbyOnly, setLobbyOnly] = useState(false);
   const [meetingReady, setMeetingReady] = useState(false);
   const [pendingCallParams, setPendingCallParams] = useState(null);
+  const [startingSession, setStartingSession] = useState(false);
   const [participantCount, setParticipantCount] = useState(1);
   const joinTimeRef = useRef(null); // Track when both participants joined (use Ref to persist across re-renders)
   const recordingRef = useRef();
@@ -131,37 +132,22 @@ export default function VideoCallScreen({ navigation, route }) {
   const initializeCall = async () => {
     try {
       const token = await getToken();
-
-      let meetingId;
-      let bookingRow;
+      const bookingRow = await bookingApi.getBooking(bookingId);
+      await enrichBookingProfiles(bookingRow);
+      setBooking(bookingRow);
+      setLobbyOnly(true);
 
       if (isHost) {
-        meetingId = await createMeeting({ token });
-        bookingRow = await bookingApi.getBooking(bookingId);
-        await enrichBookingProfiles(bookingRow);
-        await bookingApi.setMeetingId({ bookingId, meetingId });
-        await recordingsApi.upsertSessionForBooking({
-          bookingId,
-          mentorId: bookingRow?.mentor_id || profile.id,
-          learnerId: bookingRow?.learner_id,
-          meetingId,
-        });
+        // Mentor controls when the session starts — button is always green.
+        setMeetingReady(true);
       } else {
-        bookingRow = await bookingApi.getBooking(bookingId);
-        await enrichBookingProfiles(bookingRow);
+        // Learner: ready only if mentor already created the room.
         const mid = bookingRow?.meeting_id || meetingIdFromBooking(bookingRow);
-        if (!mid) {
-          setBooking(bookingRow);
-          setLobbyOnly(true);
-          return;
+        if (mid) {
+          setPendingCallParams({ token, meetingId: mid });
+          setMeetingReady(true);
         }
-        meetingId = mid;
-        await validateMeeting({ meetingId, token });
       }
-
-      setBooking(bookingRow);
-      setCallParams({ token, meetingId });
-      setReady(true);
     } catch (error) {
       Toast.show(error.message || 'Failed to initialize call');
       navigation.goBack();
@@ -170,30 +156,86 @@ export default function VideoCallScreen({ navigation, route }) {
     }
   };
 
-  useEffect(() => {
-    if (!lobbyOnly || isHost || meetingReady) return undefined;
+  const handleStartSession = async () => {
+    try {
+      setStartingSession(true);
+      const token = await getToken();
 
-    const pollHost = async () => {
+      // Always fetch fresh booking to check for an existing room.
+      // Mentor may be rejoining after a network drop — reuse same meeting_id
+      // so the learner (still in the old room) doesn't end up in a different session.
+      const freshBooking = await bookingApi.getBooking(bookingId);
+      const existingMid = freshBooking?.meeting_id || meetingIdFromBooking(freshBooking);
+
+      let meetingId;
+      if (existingMid) {
+        // Rejoin the existing VideoSDK room — no new pipeline created
+        meetingId = existingMid;
+      } else {
+        meetingId = await createMeeting({ token });
+        await bookingApi.setMeetingId({ bookingId, meetingId });
+        await recordingsApi.upsertSessionForBooking({
+          bookingId,
+          mentorId: booking?.mentor_id || profile.id,
+          learnerId: booking?.learner_id,
+          meetingId,
+        });
+      }
+
+      setLobbyOnly(false);
+      setCallParams({ token, meetingId });
+      setReady(true);
+    } catch (error) {
+      Toast.show(error.message || 'Failed to start session');
+    } finally {
+      setStartingSession(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!lobbyOnly || isHost) return undefined;
+
+    const applyRow = async (row) => {
       try {
-        const row = await bookingApi.getBooking(bookingId);
-        await enrichBookingProfiles(row);
         const mid = row?.meeting_id || meetingIdFromBooking(row);
         if (mid) {
-          const token = await getToken();
-          await validateMeeting({ meetingId: mid, token });
+          const tok = await getToken();
           setBooking(row);
-          setPendingCallParams({ token, meetingId: mid });
+          setPendingCallParams({ token: tok, meetingId: mid });
           setMeetingReady(true);
-          // Learner taps "Join Call" manually — no auto-transition
+        } else {
+          // Mentor left / restarted — reset so learner waits again
+          setPendingCallParams(null);
+          setMeetingReady(false);
         }
-      } catch (_) {
-        /* keep polling */
-      }
+      } catch (_) {}
     };
 
-    const id = setInterval(pollHost, 5000);
-    return () => clearInterval(id);
-  }, [lobbyOnly, isHost, bookingId, meetingReady]);
+    // Realtime subscription — Supabase pushes the update the instant mentor
+    // writes a meeting_id, no more 5-second polling lag.
+    const channel = supabase
+      .channel(`booking-meeting-${bookingId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `id=eq.${bookingId}` },
+        (payload) => applyRow(payload.new)
+      )
+      .subscribe();
+
+    // Safety fallback poll every 30 s — catches the case where the Realtime
+    // connection wasn't established yet when the mentor started.
+    const fallbackId = setInterval(async () => {
+      try {
+        const row = await bookingApi.getBooking(bookingId);
+        await applyRow(row);
+      } catch (_) {}
+    }, 30_000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(fallbackId);
+    };
+  }, [lobbyOnly, isHost, bookingId]);
 
   const handleJoinCall = () => {
     if (!meetingReady || !pendingCallParams) {
@@ -266,22 +308,19 @@ export default function VideoCallScreen({ navigation, route }) {
         let reason = '';
         if (!joinTimeRef.current) {
           reason = 'both participants did not join';
-          try {
-            await bookingApi.clearMeetingId(bookingId);
-            Toast.show('Session ended - Meeting abandoned');
-          } catch (cleanupError) {
-            console.error('⚠️ Failed to clean up meeting_id:', cleanupError);
-            Toast.show('Session ended');
+          if (isHost) {
+            try {
+              await bookingApi.clearMeetingId(bookingId);
+            } catch (cleanupError) {
+              console.error('⚠️ Failed to clean up meeting_id:', cleanupError);
+            }
           }
+          Toast.show('Session ended - Meeting abandoned');
         } else if (callDuration < MIN_DURATION_SECONDS) {
-          reason = `call was too short (${callDuration}s, min: ${MIN_DURATION_SECONDS}s)`;
-          try {
-            await bookingApi.clearMeetingId(bookingId);
-            Toast.show('Session ended — minimum 5 minutes required for completion');
-          } catch (cleanupError) {
-            console.error('⚠️ Failed to clean up meeting_id:', cleanupError);
-            Toast.show('Session ended');
-          }
+          // Both were in the call but it was too short for "completed" status.
+          // Keep meeting_id intact — mentor/learner can rejoin the same room
+          // without spinning up a new session pipeline.
+          Toast.show('Session ended — minimum 5 minutes required for completion');
         }
       }
 
@@ -294,15 +333,9 @@ export default function VideoCallScreen({ navigation, route }) {
 
   if (loading) {
     return (
-      <View style={{
-        flex: 1,
-        position: 'relative',
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-        backgroundColor: UNIFIED_THEME.colors.primary.dark,
-      }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: UNIFIED_THEME.colors.primary.dark }}>
         <LoadingOverlay visible message="Preparing your call..." />
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -315,17 +348,14 @@ export default function VideoCallScreen({ navigation, route }) {
 
   if (lobbyOnly && booking) {
     return (
-      <View style={{
-        flex: 1,
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-      }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: UNIFIED_THEME.colors.primary.dark }}>
         <SessionLobbyView
           booking={booking}
           isMentor={isMentor}
           otherUser={resolvedOtherUser}
           meetingReady={meetingReady}
-          onJoinCall={handleJoinCall}
+          onJoinCall={isHost ? handleStartSession : handleJoinCall}
+          startingSession={startingSession}
           onLeave={() => navigation.goBack()}
           onReschedule={async () => {
             try {
@@ -337,35 +367,25 @@ export default function VideoCallScreen({ navigation, route }) {
           }}
           onCancelRefund={() => navigation.goBack()}
         />
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (!ready || !callParams) {
     return (
-      <View style={{
-        flex: 1,
-        position: 'relative',
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-        backgroundColor: UNIFIED_THEME.colors.primary.dark,
-      }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: UNIFIED_THEME.colors.primary.dark }}>
         <LoadingOverlay visible message="Connecting..." />
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={{
-      flex: 1,
-      paddingTop: insets.top,
-      paddingBottom: insets.bottom,
-    }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: UNIFIED_THEME.colors.primary.dark }}>
       <MeetingProvider
         config={{
           meetingId: callParams.meetingId,
           micEnabled: false,
-          webcamEnabled: false,
+          webcamEnabled: true,
           name: profile?.name || 'Guest',
           notification: {
             title: 'Session in Progress',
@@ -375,10 +395,11 @@ export default function VideoCallScreen({ navigation, route }) {
         }}
         token={callParams.token}
       >
-        <CallErrorBoundary onLeave={() => navigation.goBack()}>
-          <MeetingConsumer onMeetingLeft={handleMeetingLeft}>
-            {() => (
-              <MeetingContainer
+        <View style={{ flex: 1 }}>
+          <CallErrorBoundary onLeave={() => navigation.goBack()}>
+            <MeetingConsumer onMeetingLeft={handleMeetingLeft}>
+              {() => (
+                <MeetingContainer
                 meetingType="ONE_TO_ONE"
                 onParticipantCountChange={setParticipantCount}
                 isHost={isHost}
@@ -389,9 +410,10 @@ export default function VideoCallScreen({ navigation, route }) {
                 maxDurationMs={20 * 60 * 1000}
               />
             )}
-          </MeetingConsumer>
-        </CallErrorBoundary>
+            </MeetingConsumer>
+          </CallErrorBoundary>
+        </View>
       </MeetingProvider>
-    </View>
+    </SafeAreaView>
   );
 }

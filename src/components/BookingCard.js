@@ -230,6 +230,7 @@ export const BookingCard = ({
               icon="videocam"
               onPress={onPressJoin}
               pressScale
+              pill
               style={[styles.joinBtn, compact && styles.actionBtnCompact]}
             />
           ) : null}
@@ -415,6 +416,7 @@ const styles = StyleSheet.create({
   },
   joinBtn: {
     flex: 1,
+    borderRadius: UNIFIED_THEME.borderRadius.round,
   },
   cancelBtnOuter: {
     flex: 1,

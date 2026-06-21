@@ -4,7 +4,6 @@ import React from 'react';
 import Toast from 'react-native-simple-toast';
 import OneToOneMeetingViewer from './OneToOne';
 import ConferenceMeetingViewer from './Conference/ConferenceMeetingViewer';
-import ParticipantLimitViewer from './OneToOne/ParticipantLimitViewer';
 import SessionLobbyView from './Components/SessionLobbyView';
 
 export default function MeetingContainer({
@@ -18,7 +17,6 @@ export default function MeetingContainer({
   maxDurationMs,
 }) {
   const [isJoined, setJoined] = useState(false);
-  const [participantLimit, setParticipantLimit] = useState(false);
   const hasJoinedRef = useRef(false);
   const joinRequestedRef = useRef(false);
 
@@ -30,11 +28,6 @@ export default function MeetingContainer({
     onError: ({ message }) => {
       Toast.show(message || 'Failed to join session');
     },
-    onParticipantLeft: () => {
-      if (participants.size < 2) {
-        setParticipantLimit(false);
-      }
-    },
   });
 
   const remoteParticipantCount = participants.size;
@@ -42,12 +35,6 @@ export default function MeetingContainer({
   useEffect(() => {
     onParticipantCountChange?.(participants.size + 1);
   }, [participants.size, onParticipantCountChange]);
-
-  useEffect(() => {
-    if (isJoined && participants.size > 2) {
-      setParticipantLimit(true);
-    }
-  }, [isJoined, participants.size]);
 
   useEffect(() => {
     if (joinRequestedRef.current) return undefined;
@@ -87,7 +74,7 @@ export default function MeetingContainer({
   };
 
   const showActiveCall =
-    isJoined && remoteParticipantCount >= 1 && meetingType !== 'GROUP' && !participantLimit;
+    isJoined && remoteParticipantCount >= 1 && meetingType !== 'GROUP';
 
   if (showActiveCall) {
     return <OneToOneMeetingViewer isHost={isHost} booking={booking} />;
@@ -95,10 +82,6 @@ export default function MeetingContainer({
 
   if (isJoined && meetingType === 'GROUP') {
     return <ConferenceMeetingViewer />;
-  }
-
-  if (isJoined && participantLimit) {
-    return <ParticipantLimitViewer />;
   }
 
   return (

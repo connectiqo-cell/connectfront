@@ -145,6 +145,7 @@ const TEAL = C.accent.secondary;
 const GLASS_BORDER = 'rgba(167,139,250,0.22)';
 
 const PAGE_SIZE = 6;
+const SESSIONS_POLL_MS = 30_000;
 const ENTRANCE_STEP_MS = 45;
 
 function FadeSlideIn({ delay = 0, children, style }) {
@@ -316,9 +317,31 @@ export default function LearnerBookingsScreen({ navigation }) {
       console.error('Error loading bookings:', error);
       Toast.show('Failed to load bookings: ' + error.message);
     } finally {
-      if (isActive()) setLoading(false);
+      setLoading(false);
     }
   }, [profile?.id, loadReviewedIds]);
+
+  const refreshUpcoming = useCallback(async () => {
+    if (!profile?.id) return;
+    try {
+      const data = await bookingApi.getUpcomingBookingsByLearner(profile.id);
+      const normalizeBooking = b => ({
+        ...b,
+        recordingUrl: normalizeRecordingUrl(playbackUrlFromBooking(b)) || null,
+      });
+      const all = (data || []).map(normalizeBooking);
+      const stillUpcoming = all.filter(b => !isBookingSessionPast(b));
+      const nowExpired = all.filter(b => isBookingSessionPast(b));
+      setUpcomingAll(stillUpcoming);
+      if (nowExpired.length > 0) {
+        setHistory(prev => {
+          const ids = new Set(prev.map(b => b.id));
+          const fresh = nowExpired.filter(b => !ids.has(b.id));
+          return fresh.length ? [...fresh, ...prev] : prev;
+        });
+      }
+    } catch { /* poll — ignore errors */ }
+  }, [profile?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -330,10 +353,12 @@ export default function LearnerBookingsScreen({ navigation }) {
       const showSkeleton = !hasLoadedRef.current;
       hasLoadedRef.current = true;
       loadInitial({ showSkeleton, isActive: () => active });
+      const pollId = setInterval(refreshUpcoming, SESSIONS_POLL_MS);
       return () => {
         active = false;
+        clearInterval(pollId);
       };
-    }, [profile?.id, loadInitial]),
+    }, [profile?.id, loadInitial, refreshUpcoming]),
   );
 
   const loadMoreHistory = useCallback(async () => {

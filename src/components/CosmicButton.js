@@ -114,11 +114,13 @@ export default function CosmicButton({
   style,
   textStyle,
   pressScale = false,
+  pill = false,
 }) {
   const resolvedVariant = variant === 'ghost' ? 'outline' : variant;
   const isDisabled = disabled || loading;
   const compact = size === 'compact';
   const gradientConfig = GRADIENT_VARIANTS[resolvedVariant];
+  const pillRadius = pill ? T.borderRadius.round : undefined;
 
   const textColor = (() => {
     if (isDisabled) return B.disabledText;
@@ -172,7 +174,7 @@ export default function CosmicButton({
 
   if (isDisabled) {
     return (
-      <View style={[shell, styles.disabledBox, { borderColor: B.disabledBorder }]}>
+      <View style={[shell, styles.disabledBox, { borderColor: B.disabledBorder }, pillRadius && { borderRadius: pillRadius }]}>
         {content}
       </View>
     );
@@ -188,13 +190,14 @@ export default function CosmicButton({
           shell,
           { borderColor: gradientConfig.border },
           pressScale && styles.shellPressScale,
+          pillRadius && { borderRadius: pillRadius },
         ]}
       >
         <LinearGradient
           colors={gradientConfig.colors}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
-          style={compact ? styles.gradientCompact : styles.gradient}
+          style={[compact ? styles.gradientCompact : styles.gradient, pillRadius && { borderRadius: pillRadius }]}
         >
           {content}
         </LinearGradient>
@@ -242,7 +245,7 @@ export default function CosmicButton({
       pressScale={pressScale}
       onPress={onPress}
       disabled={isDisabled}
-      style={[shell, flat, compact ? styles.flatCompact : styles.flat, pressScale && styles.shellPressScale]}
+      style={[shell, flat, compact ? styles.flatCompact : styles.flat, pressScale && styles.shellPressScale, pillRadius && { borderRadius: pillRadius }]}
     >
       {content}
     </PressableShell>

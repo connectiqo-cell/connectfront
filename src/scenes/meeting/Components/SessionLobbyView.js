@@ -8,6 +8,7 @@ import {
   Pressable,
   Platform,
   ActivityIndicator,
+  Modal,
   Animated,
   Easing,
 } from 'react-native';
@@ -521,6 +522,7 @@ export default function SessionLobbyView({
   onCancelRefund,
   meetingReady = false,
   onJoinCall,
+  startingSession = false,
 }) {
   const insets = useSafeAreaInsets();
   const slot = booking?.availability_slots || {};
@@ -531,6 +533,7 @@ export default function SessionLobbyView({
 
   const [phase, setPhase] = useState('main');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [showNotReadyModal, setShowNotReadyModal] = useState(false);
   const [sessionTiming, setSessionTiming] = useState(() => computeSessionTiming(slot));
   const slotExpiredRef = useRef(false);
 
@@ -660,7 +663,7 @@ export default function SessionLobbyView({
     ? Math.min(1, sessionTiming.elapsedSec / sessionTiming.totalSec)
     : 0;
 
-  // ── Mentor lobby: already in meeting, waiting for learner ─────────────────
+  // ── Mentor pre-start lobby ────────────────────────────────────────────────
   if (isMentor) {
     return (
       <CosmicBackground style={styles.root}>
@@ -681,25 +684,40 @@ export default function SessionLobbyView({
         {/* Hero */}
         <View style={styles.heroArea}>
 
-          {/* Learner avatar + status */}
+          {/* Learner avatar + ready chip */}
           <FadeSlideIn delay={ENTRANCE_STEP_MS} style={styles.avatarSection}>
-            <PulseLoop style={styles.heroPulseWrap} color={TEAL} minOpacity={0.15} maxOpacity={0.45}>
-              <View style={styles.heroAvatarFrame}>
-                {partner?.avatar_url ? (
-                  <Image source={{ uri: partner.avatar_url }} style={styles.heroAvatar} />
-                ) : (
-                  <View style={styles.heroAvatarFallback}>
-                    <Text style={styles.heroAvatarInitial}>{otherName.charAt(0).toUpperCase()}</Text>
-                  </View>
-                )}
-              </View>
+            <PulseLoop
+              style={styles.heroPulseWrap}
+              color={SUCCESS}
+              minOpacity={0.12}
+              maxOpacity={0.5}
+            >
+              <LinearGradient
+                colors={B.successGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroAvatarRing}
+              >
+                <View style={styles.heroAvatarFrame}>
+                  {partner?.avatar_url ? (
+                    <Image source={{ uri: partner.avatar_url }} style={styles.heroAvatar} />
+                  ) : (
+                    <View style={styles.heroAvatarFallback}>
+                      <Text style={styles.heroAvatarInitial}>{otherName.charAt(0).toUpperCase()}</Text>
+                    </View>
+                  )}
+                </View>
+              </LinearGradient>
             </PulseLoop>
             <Text style={styles.heroName}>{otherName}</Text>
             <Text style={styles.heroRole}>LEARNER</Text>
-
-            <View style={styles.statusChip}>
-              <ActivityIndicator size="small" color={TEAL} style={{ marginRight: 2 }} />
-              <Text style={styles.statusChipText}>Waiting for learner to join…</Text>
+            <View style={[styles.statusChip, styles.statusChipReady]}>
+              <PulseLoop style={styles.chipDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
+                <View style={styles.chipDot} />
+              </PulseLoop>
+              <Text style={[styles.statusChipText, styles.statusChipTextReady]}>
+                Ready to start
+              </Text>
             </View>
           </FadeSlideIn>
 
@@ -730,7 +748,11 @@ export default function SessionLobbyView({
                     : '00:00'}
               </Text>
               <Text style={styles.countdownLabel}>
-                {sessionTiming.status === 'upcoming' ? 'until session starts' : sessionTiming.status === 'live' ? 'time remaining' : 'session ended'}
+                {sessionTiming.status === 'upcoming'
+                  ? 'until session starts'
+                  : sessionTiming.status === 'live'
+                    ? 'time remaining'
+                    : 'session window closed'}
               </Text>
               {sessionTiming.status === 'live' ? (
                 <View style={styles.progressTrack}>
@@ -758,40 +780,40 @@ export default function SessionLobbyView({
           </FadeSlideIn>
         </View>
 
-        {/* Mic / Camera controls + End Session */}
+        {/* Bottom CTA */}
         <FadeSlideIn delay={ENTRANCE_STEP_MS * 4} fromY={24}>
-          <View style={[styles.mentorControlBar, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
-            {/* Mic */}
+          <View style={[styles.bottomCta, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
             <PressScale
-              onPress={onToggleMic}
-              disabled={!onToggleMic}
-              style={[styles.mentorCtrlTile, !onToggleMic && styles.mentorCtrlTileDisabled]}
+              onPress={startingSession ? undefined : onJoinCall}
+              disabled={startingSession}
+              style={[styles.joinCallBtn, styles.joinCallBtnReady]}
             >
-              <View style={[styles.mentorCtrlIcon, micOn && styles.mentorCtrlIconActive]}>
-                <MaterialIcons name={micOn ? 'mic' : 'mic-off'} size={22} color={micOn ? TEAL : C.text.muted} />
-              </View>
-              <Text style={styles.mentorCtrlLabel}>Mic</Text>
+              <LinearGradient
+                colors={B.successGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.joinCallGradient}
+              >
+                {startingSession ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <MaterialIcons name="video-call" size={26} color="#000" />
+                )}
+                <Text style={styles.joinCallText}>
+                  {startingSession ? 'Starting…' : 'Start Session'}
+                </Text>
+                {!startingSession ? (
+                  <PulseLoop style={styles.joinBtnDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
+                    <View style={styles.joinBtnDot} />
+                  </PulseLoop>
+                ) : null}
+              </LinearGradient>
             </PressScale>
-
-            {/* Camera */}
-            <PressScale
-              onPress={onToggleCam}
-              disabled={!onToggleCam}
-              style={[styles.mentorCtrlTile, !onToggleCam && styles.mentorCtrlTileDisabled]}
-            >
-              <View style={[styles.mentorCtrlIcon, camOn && styles.mentorCtrlIconActive]}>
-                <MaterialIcons name={camOn ? 'videocam' : 'videocam-off'} size={22} color={camOn ? TEAL : C.text.muted} />
-              </View>
-              <Text style={styles.mentorCtrlLabel}>Camera</Text>
-            </PressScale>
-
-            {/* End Session */}
-            <PressScale onPress={onLeave} style={styles.mentorCtrlTile}>
-              <View style={styles.mentorCtrlIconEnd}>
-                <MaterialIcons name="call-end" size={22} color="#fff" />
-              </View>
-              <Text style={[styles.mentorCtrlLabel, { color: ERROR }]}>End</Text>
-            </PressScale>
+            <Text style={styles.joinCallHint}>
+              {startingSession
+                ? 'Creating your session room…'
+                : 'Tap to start · Learner will be notified'}
+            </Text>
           </View>
         </FadeSlideIn>
       </CosmicBackground>
@@ -823,34 +845,39 @@ export default function SessionLobbyView({
           <PulseLoop
             style={styles.heroPulseWrap}
             color={meetingReady ? SUCCESS : TEAL}
-            minOpacity={0.15}
-            maxOpacity={0.45}
+            minOpacity={0.12}
+            maxOpacity={0.5}
           >
-            <View style={styles.heroAvatarFrame}>
-              {partner?.avatar_url ? (
-                <Image source={{ uri: partner.avatar_url }} style={styles.heroAvatar} />
-              ) : (
-                <View style={styles.heroAvatarFallback}>
-                  <Text style={styles.heroAvatarInitial}>{otherName.charAt(0).toUpperCase()}</Text>
-                </View>
-              )}
-            </View>
+            <LinearGradient
+              colors={meetingReady ? B.successGradient : [PURPLE_LINK, TEAL]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroAvatarRing}
+            >
+              <View style={styles.heroAvatarFrame}>
+                {partner?.avatar_url ? (
+                  <Image source={{ uri: partner.avatar_url }} style={styles.heroAvatar} />
+                ) : (
+                  <View style={styles.heroAvatarFallback}>
+                    <Text style={styles.heroAvatarInitial}>{otherName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
+              </View>
+            </LinearGradient>
           </PulseLoop>
           <Text style={styles.heroName}>{otherName}</Text>
           <Text style={styles.heroRole}>{otherLabel.toUpperCase()}</Text>
 
-          <View style={[styles.statusChip, meetingReady && styles.statusChipReady]}>
-            {meetingReady ? (
+          {meetingReady ? (
+            <View style={[styles.statusChip, styles.statusChipReady]}>
               <PulseLoop style={styles.chipDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
                 <View style={styles.chipDot} />
               </PulseLoop>
-            ) : (
-              <ActivityIndicator size="small" color={TEAL} style={{ marginRight: 2 }} />
-            )}
-            <Text style={[styles.statusChipText, meetingReady && styles.statusChipTextReady]}>
-              {meetingReady ? 'Ready to join' : 'Waiting for mentor…'}
-            </Text>
-          </View>
+              <Text style={[styles.statusChipText, styles.statusChipTextReady]}>
+                Ready to join
+              </Text>
+            </View>
+          ) : null}
         </FadeSlideIn>
 
         {/* Countdown card */}
@@ -915,31 +942,83 @@ export default function SessionLobbyView({
       {/* ── Bottom CTA ─────────────────────────────────── */}
       <FadeSlideIn delay={ENTRANCE_STEP_MS * 4} fromY={24}>
         <View style={[styles.bottomCta, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
-          <PressScale onPress={onJoinCall} style={styles.joinCallBtn}>
+          <PressScale
+            onPress={meetingReady ? onJoinCall : () => setShowNotReadyModal(true)}
+            style={[styles.joinCallBtn, meetingReady && styles.joinCallBtnReady]}
+          >
             <LinearGradient
-              colors={meetingReady ? B.successGradient : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.04)']}
+              colors={meetingReady ? B.successGradient : [PURPLE_LINK, 'rgba(99,102,241,0.45)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.joinCallGradient}
             >
-              <MaterialIcons name="video-call" size={24} color={meetingReady ? '#000' : C.text.muted} />
-              <Text style={[styles.joinCallText, !meetingReady && styles.joinCallTextMuted]}>
+              <MaterialIcons name="video-call" size={26} color={meetingReady ? '#000' : '#fff'} />
+              <Text style={[styles.joinCallText, !meetingReady && styles.joinCallTextWaiting]}>
                 Join Call
               </Text>
               {meetingReady ? (
                 <PulseLoop style={styles.joinBtnDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
                   <View style={styles.joinBtnDot} />
                 </PulseLoop>
-              ) : (
-                <ActivityIndicator size="small" color={C.text.muted} />
-              )}
+              ) : null}
             </LinearGradient>
           </PressScale>
-          <PressScale onPress={onLeave} style={styles.leaveLink}>
-            <Text style={styles.leaveLinkText}>Leave quietly</Text>
-          </PressScale>
+          <Text style={styles.joinCallHint}>
+            {meetingReady
+              ? 'Mentor is ready · Tap to enter the session'
+              : 'Waiting for mentor to start the session…'}
+          </Text>
         </View>
       </FadeSlideIn>
+
+      {/* ── Not Ready Modal ────────────────────────────── */}
+      <Modal
+        visible={showNotReadyModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNotReadyModal(false)}
+        statusBarTranslucent
+      >
+        <View style={styles.notReadyOverlay}>
+          <View style={styles.notReadyCard}>
+            {/* Icon */}
+            <View style={styles.notReadyIconOuter}>
+              <View style={styles.notReadyIconInner}>
+                <MaterialIcons name="hourglass-top" size={38} color={GOLD} />
+              </View>
+            </View>
+
+            <Text style={styles.notReadyTitle}>Mentor Hasn't Joined Yet</Text>
+            <Text style={styles.notReadySub}>
+              Your session will begin as soon as the mentor starts. Hang tight — they're on their way!
+            </Text>
+
+            <View style={styles.notReadyDivider} />
+
+            <Pressable
+              onPress={() => setShowNotReadyModal(false)}
+              style={({ pressed }) => [{ width: '100%', borderRadius: T.borderRadius.lg, overflow: 'hidden', opacity: pressed ? 0.88 : 1 }]}
+            >
+              <LinearGradient
+                colors={[TEAL, PURPLE_LINK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.notReadyBtn}
+              >
+                <MaterialIcons name="check" size={18} color="#000" />
+                <Text style={styles.notReadyBtnText}>Got it, I'll wait</Text>
+              </LinearGradient>
+            </Pressable>
+
+            <Pressable
+              onPress={() => { setShowNotReadyModal(false); onLeave?.(); }}
+              style={styles.notReadyLeave}
+            >
+              <Text style={styles.notReadyLeaveText}>Leave session</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </CosmicBackground>
   );
 }
@@ -1649,29 +1728,45 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,10,26,0.6)',
   },
 
+  heroAvatarRing: {
+    padding: 3,
+    borderRadius: T.borderRadius.lg + 3,
+  },
   joinCallBtn: {
     width: '100%',
     borderRadius: T.borderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: GLASS_BORDER,
+    borderColor: 'rgba(167,139,250,0.45)',
+  },
+  joinCallBtnReady: {
+    borderColor: 'rgba(34,197,94,0.5)',
+    ...Platform.select({ ios: { shadowColor: '#22c55e', shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }, android: { elevation: 8 } }),
   },
   joinCallGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: T.spacing.sm,
-    paddingVertical: 18,
+    paddingVertical: 20,
   },
   joinCallText: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '900',
     color: '#000',
     letterSpacing: 0.4,
     flex: 0,
   },
-  joinCallTextMuted: {
+  joinCallTextWaiting: {
+    color: '#fff',
+  },
+  joinCallHint: {
+    fontSize: 12,
+    fontWeight: '600',
     color: C.text.muted,
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 2,
   },
   joinBtnDotWrap: {
     width: 12,
@@ -1687,8 +1782,10 @@ const styles = StyleSheet.create({
   },
 
   leaveLink: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 5,
     paddingVertical: T.spacing.sm,
   },
   leaveLinkText: {
@@ -1742,5 +1839,93 @@ const styles = StyleSheet.create({
     ...T.typography.bodyXs,
     fontWeight: '700',
     color: C.text.secondary,
+  },
+
+  /* ── Not Ready Modal ──────────────────────────── */
+  notReadyOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: T.spacing.xl,
+  },
+  notReadyCard: {
+    width: '100%',
+    backgroundColor: '#161432',
+    borderRadius: 24,
+    padding: T.spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.28)',
+    gap: T.spacing.sm,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.55, shadowRadius: 24, shadowOffset: { width: 0, height: 8 } },
+      android: { elevation: 20 },
+    }),
+  },
+  notReadyIconOuter: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: 'rgba(234,179,8,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(234,179,8,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: T.spacing.sm,
+  },
+  notReadyIconInner: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: 'rgba(234,179,8,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notReadyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: C.text.primary,
+    textAlign: 'center',
+    letterSpacing: -0.3,
+    marginTop: T.spacing.xs,
+  },
+  notReadySub: {
+    fontSize: 14,
+    color: C.text.muted,
+    textAlign: 'center',
+    lineHeight: 22,
+    maxWidth: 270,
+    marginTop: T.spacing.xs,
+  },
+  notReadyDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: 'rgba(167,139,250,0.15)',
+    marginVertical: T.spacing.md,
+  },
+  notReadyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: T.spacing.xs,
+    paddingVertical: 16,
+    borderRadius: T.borderRadius.lg,
+  },
+  notReadyBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#000',
+    letterSpacing: 0.2,
+  },
+  notReadyLeave: {
+    paddingVertical: T.spacing.sm,
+    marginTop: T.spacing.xs,
+  },
+  notReadyLeaveText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.text.muted,
+    textAlign: 'center',
   },
 });

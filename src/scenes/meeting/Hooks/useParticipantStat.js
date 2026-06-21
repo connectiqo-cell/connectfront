@@ -29,31 +29,36 @@ function useParticipantStat({ participantId }) {
   }
 
   const updateStats = async () => {
-    let stats = [];
-    let audioStats = [];
-    let videoStats = [];
-    if (isPresenting) {
-      stats = await getShareStats();
-    } else if (webcamStream) {
-      stats = await getVideoStats();
-    } else if (micStream) {
-      stats = await getAudioStats();
+    try {
+      let stats = [];
+      let audioStats = [];
+      let videoStats = [];
+      if (isPresenting) {
+        stats = await getShareStats();
+      } else if (webcamStream) {
+        stats = await getVideoStats();
+      } else if (micStream) {
+        stats = await getAudioStats();
+      }
+
+      if (webcamStream || micStream || isPresenting) {
+        videoStats = isPresenting ? await getShareStats() : await getVideoStats();
+        audioStats = isPresenting ? [] : await getAudioStats();
+      }
+
+      let score = stats
+        ? stats.length > 0
+          ? getQualityScore(stats[0])
+          : 100
+        : 100;
+
+      setScore(score);
+      setAudioStats(audioStats);
+      setVideoStats(videoStats);
+    } catch (_) {
+      // Peer connection can become null mid-interval when a stream drops;
+      // ignore and let the next tick retry.
     }
-
-    if (webcamStream || micStream || isPresenting) {
-      videoStats = isPresenting ? await getShareStats() : await getVideoStats();
-      audioStats = isPresenting ? [] : await getAudioStats();
-    }
-
-    let score = stats
-      ? stats.length > 0
-        ? getQualityScore(stats[0])
-        : 100
-      : 100;
-
-    setScore(score);
-    setAudioStats(audioStats);
-    setVideoStats(videoStats);
   };
 
   useEffect(() => {

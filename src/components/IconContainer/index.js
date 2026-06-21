@@ -15,6 +15,7 @@ const IconContainer = ({
   onPress,
   onDropDownPress,
   Icon,
+  children,
   style,
   isDropDown,
 }) => {
@@ -34,7 +35,7 @@ const IconContainer = ({
         hitSlop={HIT_SLOP}
         style={{ ...buttonStyle }}
       >
-        <Icon width={26} height={26} />
+        {children ?? (Icon ? <Icon width={26} height={26} /> : null)}
       </TouchableOpacity>
       <TouchableOpacity
         onPress={onDropDownPress}
@@ -60,7 +61,7 @@ const IconContainer = ({
         ...style,
       }}
     >
-      <Icon />
+      {children ?? (Icon ? <Icon /> : null)}
     </TouchableOpacity>
   );
 };

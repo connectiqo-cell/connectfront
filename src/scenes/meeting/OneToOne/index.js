@@ -21,6 +21,7 @@ import {
   CallEnd,
   CameraSwitch,
   Chat,
+  DownArrow,
   EndForAll,
   Leave,
   MicOff,
@@ -615,18 +616,6 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     };
   }, [toggleWebcam, changeWebcam, leave]);
 
-  // Pre-define icon elements so they are stable across renders.
-  // Passing `Icon={() => <X />}` creates a new component type each render,
-  // which unmounts/remounts the child during a touch gesture and cancels it.
-  const CallEndIcon = () => <CallEnd height={26} width={26} fill="#FFF" />;
-  const MicIcon = () => localMicOn
-    ? <MicOn height={24} width={24} fill="#FFF" />
-    : <MicOff height={28} width={28} fill="#1D2939" />;
-  const CamIcon = () => localWebcamOn
-    ? <VideoOn height={24} width={24} fill="#FFF" />
-    : <VideoOff height={36} width={36} fill="#1D2939" />;
-  const ChatIcon = () => <Chat height={22} width={22} fill="#FFF" />;
-  const MoreIcon = () => <More height={18} width={18} fill="#FFF" />;
 
   return (
     <View style={{ flex: 1 }}>
@@ -939,20 +928,39 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       >
         <IconContainer
           backgroundColor={"red"}
-          Icon={CallEndIcon}
           onPress={confirmLeaveMeeting}
-        />
-        <IconContainer
-          style={{ paddingLeft: 0, height: 52 }}
-          isDropDown={true}
-          onDropDownPress={async () => {
-            await updateAudioDeviceList();
-            audioDeviceMenuRef.current.show();
+        >
+          <CallEnd height={26} width={26} fill="#FFF" />
+        </IconContainer>
+        <View
+          style={{
+            flexDirection: "row",
+            borderRadius: 14,
+            borderWidth: 1.5,
+            borderColor: "#2B3034",
+            backgroundColor: !localMicOn ? colors.primary[100] : "transparent",
+            height: 50,
+            alignItems: "center",
           }}
-          backgroundColor={!localMicOn ? colors.primary[100] : "transparent"}
-          onPress={toggleMic}
-          Icon={MicIcon}
-        />
+        >
+          <TouchableOpacity
+            onPress={() => toggleMic()}
+            style={{ width: 50, height: 50, justifyContent: "center", alignItems: "center" }}
+          >
+            {localMicOn
+              ? <MicOn height={24} width={24} fill="#FFF" />
+              : <MicOff height={28} width={28} fill="#1D2939" />}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={async () => {
+              await updateAudioDeviceList();
+              audioDeviceMenuRef.current.show();
+            }}
+            style={{ width: 30, height: 50, justifyContent: "center", alignItems: "center", paddingRight: 4 }}
+          >
+            <DownArrow />
+          </TouchableOpacity>
+        </View>
         <IconContainer
           style={{ borderWidth: 1.5, borderColor: "#2B3034" }}
           backgroundColor={!localWebcamOn ? colors.primary[100] : "transparent"}
@@ -968,16 +976,22 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
               toggleWebcam();
             }
           }}
-          Icon={CamIcon}
-        />
+        >
+          {localWebcamOn
+            ? <VideoOn height={24} width={24} fill="#FFF" />
+            : <VideoOff height={36} width={36} fill="#1D2939" />}
+        </IconContainer>
         <IconContainer
           onPress={() => {
             setchatViewer(true);
+            setparticipantListViewer(false);
+            setparticipantStatsViewer(false);
             bottomSheetRef.current.show();
           }}
           style={{ borderWidth: 1.5, borderColor: "#2B3034" }}
-          Icon={ChatIcon}
-        />
+        >
+          <Chat height={22} width={22} fill="#FFF" />
+        </IconContainer>
         <IconContainer
           style={{
             borderWidth: 1.5,
@@ -985,8 +999,9 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
             transform: [{ rotate: "90deg" }],
           }}
           onPress={() => moreOptionsMenu.current.show()}
-          Icon={MoreIcon}
-        />
+        >
+          <More height={18} width={18} fill="#FFF" />
+        </IconContainer>
       </View>
       <BottomSheet
         sheetBackgroundColor={"#2B3034"}

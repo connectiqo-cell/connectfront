@@ -92,8 +92,8 @@ export default function MeetingContainer({
       connecting={!isJoined}
       micOn={localMicOn}
       camOn={localWebcamOn}
-      onToggleMic={isJoined ? toggleMic : undefined}
-      onToggleCam={isJoined ? toggleWebcam : undefined}
+      onToggleMic={isJoined ? () => toggleMic() : undefined}
+      onToggleCam={isJoined ? () => toggleWebcam() : undefined}
       onLeave={handleLeave}
       onReschedule={handleLeave}
       onCancelRefund={() => {}}

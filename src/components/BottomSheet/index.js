@@ -2,6 +2,7 @@ import React, { Component } from "react";
 import {
   View,
   Modal,
+  Platform,
   TouchableOpacity,
   Animated,
   PanResponder,
@@ -38,10 +39,8 @@ class BottomSheet extends Component {
         useNativeDriver: false,
       }).start(() => {
         pan.setValue({ x: 0, y: 0 });
-        this.setState({
-          modalVisible: visible,
-          animatedHeight: new Animated.Value(0),
-        });
+        animatedHeight.setValue(0);
+        this.setState({ modalVisible: visible });
         if (typeof closeFunction === "function") closeFunction();
       });
     }

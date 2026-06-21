@@ -13,6 +13,7 @@ function useParticipantStat({ participantId }) {
   } = useParticipant(participantId);
 
   const statsIntervalIdRef = useRef();
+  const mountedRef = useRef(true);
   const [score, setScore] = useState({});
   const [audioStats, setAudioStats] = useState({});
   const [videoStats, setVideoStats] = useState({});
@@ -29,6 +30,10 @@ function useParticipantStat({ participantId }) {
   }
 
   const updateStats = async () => {
+    if (!mountedRef.current) return;
+    // Skip if streams are already gone — peer connection may be closed
+    if (!webcamStream && !micStream && !isPresenting) return;
+
     try {
       let stats = [];
       let audioStats = [];
@@ -41,10 +46,14 @@ function useParticipantStat({ participantId }) {
         stats = await getAudioStats();
       }
 
+      if (!mountedRef.current) return;
+
       if (webcamStream || micStream || isPresenting) {
         videoStats = isPresenting ? await getShareStats() : await getVideoStats();
         audioStats = isPresenting ? [] : await getAudioStats();
       }
+
+      if (!mountedRef.current) return;
 
       let score = stats
         ? stats.length > 0
@@ -56,10 +65,16 @@ function useParticipantStat({ participantId }) {
       setAudioStats(audioStats);
       setVideoStats(videoStats);
     } catch (_) {
-      // Peer connection can become null mid-interval when a stream drops;
-      // ignore and let the next tick retry.
+      // Peer connection closed or stream ended mid-interval — safe to ignore.
     }
   };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (webcamStream || micStream) {
@@ -69,7 +84,7 @@ function useParticipantStat({ participantId }) {
         clearInterval(statsIntervalIdRef.current);
       }
 
-      statsIntervalIdRef.current = setInterval(updateStats, 500);
+      statsIntervalIdRef.current = setInterval(updateStats, 1000);
     } else {
       if (statsIntervalIdRef.current) {
         clearInterval(statsIntervalIdRef.current);
@@ -78,7 +93,10 @@ function useParticipantStat({ participantId }) {
     }
 
     return () => {
-      if (statsIntervalIdRef.current) clearInterval(statsIntervalIdRef.current);
+      if (statsIntervalIdRef.current) {
+        clearInterval(statsIntervalIdRef.current);
+        statsIntervalIdRef.current = null;
+      }
     };
   }, [webcamStream, micStream]);
 

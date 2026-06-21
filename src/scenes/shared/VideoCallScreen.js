@@ -7,7 +7,7 @@ import {
   PermissionsAndroid,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   MeetingProvider,
   MeetingConsumer,
@@ -63,6 +63,7 @@ class CallErrorBoundary extends React.Component {
 export default function VideoCallScreen({ navigation, route }) {
   const { bookingId, isHost } = route.params;
   const { profile } = useAuth();
+  const insets = useSafeAreaInsets();
   const [ready, setReady] = useState(false);
   const [callParams, setCallParams] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -332,11 +333,27 @@ export default function VideoCallScreen({ navigation, route }) {
 
   const VOID_BG = UNIFIED_THEME.colors.primary.void;
 
-  const screenShell = (children, bg = VOID_BG) => (
-    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: bg }}>
-      {children}
-    </SafeAreaView>
-  );
+  const screenShell = (children, bg = VOID_BG) => {
+    if (Platform.OS === 'ios') {
+      return (
+        <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: bg }}>
+          {children}
+        </SafeAreaView>
+      );
+    }
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: bg,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+        }}
+      >
+        {children}
+      </View>
+    );
+  };
 
   if (loading) {
     return screenShell(<LoadingOverlay visible message="Preparing your call..." />, UNIFIED_THEME.colors.primary.dark);

@@ -672,7 +672,7 @@ export default function SessionLobbyView({
       <CosmicBackground style={styles.root}>
         {/* Header */}
         <FadeSlideIn delay={0} fromY={-10}>
-          <View style={[styles.newHeader, { paddingTop: T.spacing.sm }]}>
+          <View style={[styles.newHeader, { paddingTop: Platform.OS === 'ios' ? T.spacing.sm : insets.top + 10 }]}>
             <PressScale onPress={onLeave} style={styles.backBtn} hitSlop={12}>
               <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
             </PressScale>
@@ -828,7 +828,7 @@ export default function SessionLobbyView({
     <CosmicBackground style={styles.root}>
       {/* ── Header ─────────────────────────────────────── */}
       <FadeSlideIn delay={0} fromY={-10}>
-        <View style={[styles.newHeader, { paddingTop: T.spacing.sm }]}>
+        <View style={[styles.newHeader, { paddingTop: Platform.OS === 'ios' ? T.spacing.sm : insets.top + 10 }]}>
           <PressScale onPress={onLeave} style={styles.backBtn} hitSlop={12}>
             <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
           </PressScale>

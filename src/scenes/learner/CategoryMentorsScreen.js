@@ -14,7 +14,7 @@ import {
   Platform,
   InteractionManager,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import CosmicBackground from '../../components/CosmicBackground';
@@ -227,6 +227,7 @@ function applySortFn(arr, sortBy) {
 export default function CategoryMentorsScreen({ route, navigation }) {
   const { category } = route.params;
   const { profile } = useAuth();
+  const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -421,8 +422,19 @@ export default function CategoryMentorsScreen({ route, navigation }) {
 
   return (
     <CosmicBackground>
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={[styles.topBar, { paddingTop: T.spacing.sm }]}>
+      <SafeAreaView
+        style={styles.safe}
+        edges={Platform.OS === 'ios' ? ['top', 'bottom'] : ['bottom']}
+      >
+        <View
+          style={[
+            styles.topBar,
+            {
+              paddingTop:
+                Platform.OS === 'ios' ? T.spacing.sm : insets.top + T.spacing.sm,
+            },
+          ]}
+        >
           <PressScale
             onPress={() => navigation.goBack()}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

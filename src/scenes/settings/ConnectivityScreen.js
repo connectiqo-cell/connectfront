@@ -4,6 +4,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
+import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import Button from '../../components/Button';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { SUPABASE_URL } from '../../lib/supabase';
@@ -55,8 +56,8 @@ export default function ConnectivityScreen({ navigation }) {
   );
 
   return (
-    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={false}>
-      <StackScreenHeader style={styles.headerShell}>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={STACK_OVERLAY_LAYOUT.safeScreenIncludeTopInset}>
+      <StackScreenHeader insetTop={STACK_OVERLAY_LAYOUT.headerInsetTop} style={styles.headerShell}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={12}>
           <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />

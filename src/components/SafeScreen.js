@@ -8,7 +8,8 @@ import CosmicBackground from './CosmicBackground';
  * SafeScreen - Uses react-native-safe-area-context for better safe area handling
  * Ensures all screens fit safely on any mobile device with notches, bottom bars, tabs, etc.
  *
- * Stack overlay screens: SafeScreen includeTopInset={false} + StackScreenHeader (applies status-bar inset once).
+ * iOS stack overlays: SafeScreen includeTopInset={false} + StackScreenHeader (single status-bar inset).
+ * Android stack overlays: SafeScreen includeTopInset={true} (default); use STACK_OVERLAY_LAYOUT.
  */
 export const SafeScreen = ({
   children,

@@ -4,7 +4,7 @@ import { UNIFIED_THEME as T } from '../unifiedTheme';
 
 /**
  * App bar wrapper for stack overlay screens (Settings, Booking, etc.).
- * Use with SafeScreen includeTopInset={false} so the status-bar inset is applied once here.
+ * On iOS, use with SafeScreen includeTopInset={false} and insetTop={true} (see STACK_OVERLAY_LAYOUT).
  * Set insetTop={false} when SafeScreen already applies includeTopInset (e.g. bottom-tab screens).
  */
 export default function StackScreenHeader({ children, style, insetTop = true }) {

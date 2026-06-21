@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { AuthContext } from '../contexts/AuthContext';
 import { SplashScreen } from '../components/SplashScreen';
@@ -28,19 +28,31 @@ import RescheduleRequestScreen from '../scenes/shared/RescheduleRequestScreen';
 import RescheduleResponseScreen from '../scenes/shared/RescheduleResponseScreen';
 const RootStack = createStackNavigator();
 
-/** Full-screen push — no iOS swipe-down sheet dismiss or edge back gesture. */
-const LOCKED_SCREEN_OPTIONS = {
-  presentation: 'card',
-  animationEnabled: false,
-  gestureEnabled: false,
-};
+/** Full-screen push — iOS: card + no swipe dismiss; Android: modal (unchanged). */
+const LOCKED_SCREEN_OPTIONS = Platform.select({
+  ios: {
+    presentation: 'card',
+    animationEnabled: false,
+    gestureEnabled: false,
+  },
+  default: {
+    presentation: 'modal',
+    animationEnabled: false,
+  },
+});
 
-/** Settings / profile overlays — card (not sheet) so pull-down does not close the screen. */
-const OVERLAY_SCREEN_OPTIONS = {
-  presentation: 'card',
-  animationEnabled: false,
-  gestureEnabled: false,
-};
+/** Settings / profile overlays — iOS only: card so pull-down does not close the screen. */
+const OVERLAY_SCREEN_OPTIONS = Platform.select({
+  ios: {
+    presentation: 'card',
+    animationEnabled: false,
+    gestureEnabled: false,
+  },
+  default: {
+    presentation: 'modal',
+    animationEnabled: false,
+  },
+});
 
 export const RootNavigator = () => {
   const { session, loading, pendingPasswordReset } = useContext(AuthContext);

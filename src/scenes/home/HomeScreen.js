@@ -30,7 +30,7 @@ import { ThunderTransition } from '../../components/ThunderTransition';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
-import { iosFlexChild } from '../../utils/platformLayout';
+import { iosFlexChild, HOME_TAB_LAYOUT } from '../../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -942,11 +942,12 @@ export default function HomeScreen() {
   }, []);
 
   return (
-    <SafeScreen scrollable={false} padding={T.spacing.lg} hasBottomTabs={false}>
+    <SafeScreen scrollable={false} padding={HOME_TAB_LAYOUT.safeScreenPadding} hasBottomTabs={false}>
       <ScrollView
         contentContainerStyle={[
           styles.page,
           {
+            paddingTop: HOME_TAB_LAYOUT.scrollPaddingTop(insets),
             paddingBottom: insets.bottom + 52,
           },
         ]}

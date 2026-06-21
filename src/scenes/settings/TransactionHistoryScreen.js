@@ -16,6 +16,7 @@ import moment from 'moment';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
+import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useAuth } from '../../hooks/useAuth';
@@ -821,8 +822,8 @@ export default function TransactionHistoryScreen({ navigation }) {
   const netFlow = totalReceived - totalSpent;
 
   return (
-    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={false}>
-      <StackScreenHeader>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={STACK_OVERLAY_LAYOUT.safeScreenIncludeTopInset}>
+      <StackScreenHeader insetTop={STACK_OVERLAY_LAYOUT.headerInsetTop}>
       <FadeSlideIn delay={0} replayToken={replayToken}>
         <View style={styles.header}>
           <AnimatedPressable onPress={() => navigation.goBack()} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>

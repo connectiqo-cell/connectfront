@@ -954,7 +954,7 @@ export default function MentorProfileScreen({ navigation, route }) {
   const safeScreenProps = {
     padding: 0,
     hasBottomTabs: false,
-    includeTopInset: false,
+    includeTopInset: isOwnProfile ? false : Platform.OS !== 'ios',
   };
 
   const compactHero = useMemo(
@@ -1220,7 +1220,7 @@ export default function MentorProfileScreen({ navigation, route }) {
               style={[
                 styles.heroTopBar,
                 {
-                  paddingTop: (isOwnProfile ? 0 : insets.top) + T.spacing.sm,
+                  paddingTop: (Platform.OS === 'ios' && !isOwnProfile ? insets.top : 0) + T.spacing.sm,
                 },
               ]}
             >

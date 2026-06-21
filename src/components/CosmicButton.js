@@ -296,7 +296,7 @@ export default function CosmicButton({
 const styles = StyleSheet.create({
   touchableShell: {
     alignSelf: 'stretch',
-    width: '100%',
+    ...Platform.select({ ios: { width: '100%' }, default: {} }),
   },
   pressScaleWrap: {
     alignSelf: 'stretch',
@@ -304,13 +304,21 @@ const styles = StyleSheet.create({
   shellPressScale: {
     overflow: 'visible',
   },
-  pressableFill: {
-    width: '100%',
-    flex: 1,
-    minHeight: PLATFORM_LAYOUT.buttonMinHeight,
-    justifyContent: 'center',
-    alignItems: 'stretch',
-  },
+  pressableFill: Platform.select({
+    ios: {
+      width: '100%',
+      flex: 1,
+      minHeight: PLATFORM_LAYOUT.buttonMinHeight,
+      justifyContent: 'center',
+      alignItems: 'stretch',
+    },
+    default: {
+      width: '100%',
+      flexGrow: 1,
+      justifyContent: 'center',
+      alignItems: 'stretch',
+    },
+  }),
   shell: {
     width: '100%',
     alignSelf: 'stretch',
@@ -342,24 +350,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: T.spacing.lg,
   },
-  gradient: {
-    width: '100%',
-    flex: 1,
-    minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
-    paddingVertical: Platform.OS === 'ios' ? 15 : 14,
-    paddingHorizontal: T.spacing.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  gradientCompact: {
-    width: '100%',
-    flex: 1,
-    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
-    paddingVertical: Platform.OS === 'ios' ? 11 : 10,
-    paddingHorizontal: T.spacing.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  gradient: Platform.select({
+    ios: {
+      width: '100%',
+      flex: 1,
+      minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
+      paddingVertical: 15,
+      paddingHorizontal: T.spacing.lg,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    default: {
+      width: '100%',
+      flexGrow: 1,
+      minHeight: 48,
+      paddingVertical: 14,
+      paddingHorizontal: T.spacing.lg,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+  }),
+  gradientCompact: Platform.select({
+    ios: {
+      width: '100%',
+      flex: 1,
+      minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
+      paddingVertical: 11,
+      paddingHorizontal: T.spacing.md,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    default: {
+      width: '100%',
+      minHeight: 38,
+      paddingVertical: 10,
+      paddingHorizontal: T.spacing.md,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+  }),
   iosGradientStack: {
     position: 'relative',
     overflow: 'hidden',
@@ -405,7 +434,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     maxWidth: '100%',
-    width: '100%',
+    ...Platform.select({ ios: { width: '100%' }, default: {} }),
   },
   rowIos: {
     zIndex: 1,
@@ -426,12 +455,11 @@ const styles = StyleSheet.create({
   },
   textCompact: {
     fontSize: T.typography.labelMd.fontSize,
-    fontWeight: '700',
+    fontWeight: Platform.OS === 'ios' ? '700' : '800',
     lineHeight: Platform.OS === 'ios' ? 18 : T.typography.labelMd.lineHeight,
     textAlign: 'center',
     flexShrink: 1,
-    minWidth: 0,
-    ...(Platform.OS === 'ios' ? { letterSpacing: 0.15 } : {}),
+    ...(Platform.OS === 'ios' ? { minWidth: 0, letterSpacing: 0.15 } : {}),
   },
   textOnGradient: {
     backgroundColor: 'transparent',

@@ -19,6 +19,25 @@ export function getManualTopPadding(insets, padding = 0) {
   return padding + insets.top;
 }
 
+/**
+ * Stack overlay screens (Settings, Booking, etc.) — iOS uses SafeScreen without top inset
+ * and StackScreenHeader for a single status-bar offset; Android keeps SafeScreen top inset.
+ */
+export const STACK_OVERLAY_LAYOUT = {
+  safeScreenIncludeTopInset: Platform.OS !== 'ios',
+  headerInsetTop: Platform.OS === 'ios',
+};
+
+/**
+ * Bottom-tab Home screen — iOS applies one top inset via SafeScreen padding;
+ * Android keeps the legacy ScrollView top offset so its UI is unchanged.
+ */
+export const HOME_TAB_LAYOUT = {
+  safeScreenPadding: Platform.OS === 'ios' ? T.spacing.lg : 0,
+  scrollPaddingTop: (insets) =>
+    Platform.OS === 'android' ? insets.top + T.spacing.lg : 0,
+};
+
 /** Shared iOS/Android layout tokens for forms, buttons, and flex rows. */
 export const PLATFORM_LAYOUT = {
   formFieldMinHeight: Platform.OS === 'ios' ? 52 : 50,

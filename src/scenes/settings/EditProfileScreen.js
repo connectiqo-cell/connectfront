@@ -23,6 +23,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
+import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useAuth } from '../../hooks/useAuth';
 import { profileApi } from '../../api/profileApi';
@@ -1092,8 +1093,8 @@ export default function EditProfileScreen({ navigation }) {
   };
 
   return (
-    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={false}>
-      <StackScreenHeader>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={STACK_OVERLAY_LAYOUT.safeScreenIncludeTopInset}>
+      <StackScreenHeader insetTop={STACK_OVERLAY_LAYOUT.headerInsetTop}>
       <FadeSlideIn delay={0}>
         <View style={styles.header}>
           <AnimatedPressable onPress={handleGoBack} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>

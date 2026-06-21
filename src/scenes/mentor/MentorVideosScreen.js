@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
+import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import CosmicButton from '../../components/CosmicButton';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -1249,10 +1250,12 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
       scrollable={false}
       padding={0}
       hasBottomTabs={false}
-      includeTopInset={embeddedInTab}
+      includeTopInset={embeddedInTab ? false : STACK_OVERLAY_LAYOUT.safeScreenIncludeTopInset}
     >
       <View style={styles.screenBody}>
-      {embeddedInTab ? headerBlock : <StackScreenHeader>{headerBlock}</StackScreenHeader>}
+      {embeddedInTab ? headerBlock : (
+        <StackScreenHeader insetTop={STACK_OVERLAY_LAYOUT.headerInsetTop}>{headerBlock}</StackScreenHeader>
+      )}
 
       {loading ? (
         <View style={styles.loadingWrap}>

@@ -16,6 +16,7 @@ import moment from 'moment';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
+import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import CosmicButton from '../../components/CosmicButton';
@@ -646,8 +647,8 @@ export default function RecordedLecturesScreen({ navigation }) {
     : 'Your session recordings will show up here';
 
   return (
-    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={false}>
-      <StackScreenHeader>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={STACK_OVERLAY_LAYOUT.safeScreenIncludeTopInset}>
+      <StackScreenHeader insetTop={STACK_OVERLAY_LAYOUT.headerInsetTop}>
       <FadeSlideIn delay={0} replayToken={replayToken}>
         <View style={styles.header}>
           <AnimatedPressable

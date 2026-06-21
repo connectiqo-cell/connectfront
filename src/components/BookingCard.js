@@ -411,42 +411,38 @@ const styles = StyleSheet.create({
   actionsCompact: {
     marginTop: UNIFIED_THEME.spacing.sm,
   },
-  actionBtnCompact: {
-    flexGrow: 1,
-    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
-    flex: Platform.OS === 'ios' ? undefined : 1,
-    minWidth: Platform.OS === 'ios' ? 108 : 0,
-    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
-    justifyContent: 'center',
-  },
-  joinBtn: {
-    flex: Platform.OS === 'ios' ? undefined : 1,
-    flexGrow: 1,
-    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
-    minWidth: Platform.OS === 'ios' ? 108 : 0,
-  },
-  cancelBtnOuter: {
-    flex: Platform.OS === 'ios' ? undefined : 1,
-    flexGrow: 1,
-    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
-    minWidth: Platform.OS === 'ios' ? 108 : 0,
-  },
-  recordingBtnOuter: {
-    flex: Platform.OS === 'ios' ? undefined : 1,
-    flexGrow: 1,
-    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
-    minWidth: Platform.OS === 'ios' ? 108 : 0,
-  },
-  downloadBtnOuter: {
-    flex: Platform.OS === 'ios' ? undefined : 1,
-    flexGrow: 1,
-    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
-    minWidth: Platform.OS === 'ios' ? 108 : 0,
-  },
-  rateBtnOuter: {
-    flex: Platform.OS === 'ios' ? undefined : 1,
-    flexGrow: 1,
-    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
-    minWidth: Platform.OS === 'ios' ? 108 : 0,
-  },
+  actionBtnCompact: Platform.select({
+    ios: {
+      flexGrow: 1,
+      flexBasis: '47%',
+      minWidth: 108,
+      minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
+      justifyContent: 'center',
+    },
+    default: {
+      flex: 1,
+      minHeight: 40,
+      justifyContent: 'center',
+    },
+  }),
+  joinBtn: Platform.select({
+    ios: { flexGrow: 1, flexBasis: '47%', minWidth: 108 },
+    default: { flex: 1 },
+  }),
+  cancelBtnOuter: Platform.select({
+    ios: { flexGrow: 1, flexBasis: '47%', minWidth: 108 },
+    default: { flex: 1 },
+  }),
+  recordingBtnOuter: Platform.select({
+    ios: { flexGrow: 1, flexBasis: '47%', minWidth: 108 },
+    default: { flex: 1 },
+  }),
+  downloadBtnOuter: Platform.select({
+    ios: { flexGrow: 1, flexBasis: '47%', minWidth: 108 },
+    default: { flex: 1 },
+  }),
+  rateBtnOuter: Platform.select({
+    ios: { flexGrow: 1, flexBasis: '47%', minWidth: 108 },
+    default: { flex: 1 },
+  }),
 });

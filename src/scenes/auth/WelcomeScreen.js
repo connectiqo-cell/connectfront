@@ -6,14 +6,13 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  Platform,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CosmicBackground from '../../components/CosmicBackground';
 import CosmicButton from '../../components/CosmicButton';
+import { CircularGradientFrame } from '../../components/CircularGradientFrame';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
@@ -25,6 +24,9 @@ const S = C.surface;
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
+
+const LOGO_FRAME_SIZE = 96;
+const LOGO_IMAGE_SIZE = 58;
 
 const ENTRANCE = {
   duration: 520,
@@ -177,20 +179,19 @@ export default function WelcomeScreen({ navigation }) {
             <Animated.View
               style={[styles.logoContainer, { transform: [{ scale: logoPulse }] }]}
             >
-              <LinearGradient
+              <CircularGradientFrame
+                size={LOGO_FRAME_SIZE}
+                ringWidth={3}
                 colors={B.premiumGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.logoRingGrad, Platform.OS === 'ios' && styles.logoRingGradIos]}
+                innerBg={C.primary.void}
+                style={T.shadows.medium}
               >
-                <View style={[styles.logoInner, Platform.OS === 'ios' && styles.logoInnerIos]}>
-                  <Image
-                    source={require('../../assets/images/logo.png')}
-                    style={[styles.logoImage, Platform.OS === 'ios' && styles.logoImageIos]}
-                    resizeMode="contain"
-                  />
-                </View>
-              </LinearGradient>
+                <Image
+                  source={require('../../assets/images/logo.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+              </CircularGradientFrame>
             </Animated.View>
           </Animated.View>
 
@@ -355,52 +356,15 @@ const styles = StyleSheet.create({
   },
 
   logoContainer: {
+    width: LOGO_FRAME_SIZE,
+    height: LOGO_FRAME_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-
-  logoRingGrad: {
-    padding: 3,
-    borderRadius: 48,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    ...T.shadows.medium,
-  },
-
-  logoRingGradIos: {
-    width: 94,
-    height: 94,
-    borderRadius: 47,
-    padding: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  logoInner: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: C.primary.void,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-
-  logoInnerIos: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
   },
 
   logoImage: {
-    width: 56,
-    height: 56,
-  },
-
-  logoImageIos: {
-    width: 50,
-    height: 50,
-    alignSelf: 'center',
+    width: LOGO_IMAGE_SIZE,
+    height: LOGO_IMAGE_SIZE,
   },
 
   eyebrow: {

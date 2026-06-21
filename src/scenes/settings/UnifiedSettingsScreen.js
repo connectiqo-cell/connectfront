@@ -31,7 +31,7 @@ import { videoApi } from '../../api/videoApi';
 import { paymentApi } from '../../api/paymentApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { formatDate } from '../../utils/dateHelpers';
-import { iosAvatarClip, iosAvatarImageStyle } from '../../utils/platformLayout';
+import { CircularProfileImage } from '../../components/CircularGradientFrame';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -831,25 +831,19 @@ export default function UnifiedSettingsScreen({ navigation }) {
             <View style={styles.avatarRow}>
               <View style={styles.avatarWrapper}>
                 <AvatarGlowRing />
-                <LinearGradient
+                <CircularProfileImage
+                  size={76}
+                  ringWidth={2}
                   colors={B.premiumGradient}
-                  style={[styles.avatarRing, Platform.OS === 'ios' && styles.avatarRingIos]}
-                >
-                  <View style={[styles.avatarInner, iosAvatarClip(72)]}>
-                    {avatarUrl ? (
-                      <Image
-                        key={avatarUrl}
-                        source={{ uri: avatarUrl, cache: 'reload' }}
-                        style={[styles.avatar, iosAvatarImageStyle(72)]}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                        <MaterialIcons name="person" size={36} color={PURPLE_LINK} />
-                      </View>
-                    )}
-                  </View>
-                </LinearGradient>
+                  innerBg={C.primary.void}
+                  uri={avatarUrl}
+                  imageProps={{ key: avatarUrl, cache: 'reload' }}
+                  fallback={
+                    <View style={[styles.avatarPlaceholder, styles.avatarFallback]}>
+                      <MaterialIcons name="person" size={36} color={PURPLE_LINK} />
+                    </View>
+                  }
+                />
                 <AnimatedPressable
                   style={styles.cameraBtn}
                   onPress={handlePickImage}
@@ -1226,12 +1220,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
-  avatarRingIos: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    alignItems: 'center',
+  avatarFallback: {
+    width: 72,
+    height: 72,
     justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: C.primary.void,
   },
   avatarInner: {
     width: 72,

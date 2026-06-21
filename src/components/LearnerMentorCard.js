@@ -2,16 +2,15 @@ import React from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   Platform,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicButton from './CosmicButton';
+import { CircularProfileImage } from './CircularGradientFrame';
 import { UNIFIED_THEME } from '../unifiedTheme';
-import { iosAvatarClip, iosAvatarImageStyle, iosFlexChild } from '../utils/platformLayout';
+import { iosFlexChild } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -46,26 +45,18 @@ export function LearnerMentorCard({
     <>
       <View style={styles.topRow}>
         <View style={styles.avatarRingWrap}>
-          <LinearGradient
+          <CircularProfileImage
+            size={48}
+            ringWidth={2}
             colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.avatarRingGrad, Platform.OS === 'ios' && styles.avatarRingGradIos]}
-          >
-            {mentor.profiles?.avatar_url ? (
-              <View style={iosAvatarClip(44, styles.avatarImg)}>
-                <Image
-                  source={{ uri: mentor.profiles.avatar_url }}
-                  style={[styles.avatarImgFill, iosAvatarImageStyle(44)]}
-                  resizeMode="cover"
-                />
-              </View>
-            ) : (
-              <View style={[styles.avatarImg, styles.avatarPh]}>
+            innerBg={C.primary.void}
+            uri={mentor.profiles?.avatar_url}
+            fallback={
+              <View style={[styles.avatarPh, styles.avatarFallbackSmall]}>
                 <Text style={styles.avatarLetter}>{initial}</Text>
               </View>
-            )}
-          </LinearGradient>
+            }
+          />
         </View>
         <View style={styles.headMain}>
           <Text style={styles.name} numberOfLines={2}>
@@ -189,26 +180,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
-  avatarRingGradIos: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
+  avatarFallbackSmall: {
+    width: 44,
+    height: 44,
     justifyContent: 'center',
-  },
-  avatarImg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: C.primary.void,
-  },
-  avatarImgFill: {
-    width: 44,
-    height: 44,
+    alignItems: 'center',
   },
   avatarPh: {
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: S.accentViolet,
   },
   avatarLetter: {

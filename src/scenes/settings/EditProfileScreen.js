@@ -29,6 +29,7 @@ import { supabase } from '../../lib/supabase';
 import { MENTOR_CATEGORIES } from '../../constants/mentorCategories';
 import { fetchActiveCategoryNames } from '../../api/contentApi';
 import { CelebrationScreenFx } from '../../components/CelebrationPayButton';
+import { CircularProfileImage } from '../../components/CircularGradientFrame';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -1147,17 +1148,19 @@ export default function EditProfileScreen({ navigation }) {
                 pressScale={0.94}
               >
                 <AvatarGlowRing />
-                <LinearGradient colors={B.premiumGradient} style={styles.avatarRing}>
-                  <View style={styles.avatarInner}>
-                    {avatarUrl ? (
-                      <Image key={avatarUrl} source={{ uri: avatarUrl, cache: 'reload' }} style={styles.avatar} />
-                    ) : (
-                      <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                        <MaterialIcons name="person" size={40} color={PURPLE_LINK} />
-                      </View>
-                    )}
-                  </View>
-                </LinearGradient>
+                <CircularProfileImage
+                  size={94}
+                  ringWidth={3}
+                  colors={B.premiumGradient}
+                  innerBg={C.primary.void}
+                  uri={avatarUrl}
+                  imageProps={{ key: avatarUrl, cache: 'reload' }}
+                  fallback={
+                    <View style={[styles.avatarPlaceholder, styles.avatarFallbackEdit]}>
+                      <MaterialIcons name="person" size={40} color={PURPLE_LINK} />
+                    </View>
+                  }
+                />
                 <View style={styles.avatarCamera}>
                   <MaterialIcons name="camera-alt" size={14} color={C.text.primary} />
                 </View>
@@ -1448,16 +1451,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
-  avatarInner: {
+  avatarFallbackEdit: {
     width: 88,
     height: 88,
-    borderRadius: 44,
-    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: C.primary.void,
-  },
-  avatar: {
-    width: '100%',
-    height: '100%',
   },
   avatarPlaceholder: {
     justifyContent: 'center',

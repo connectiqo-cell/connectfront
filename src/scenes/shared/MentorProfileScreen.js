@@ -27,8 +27,9 @@ import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
 import { getFloatingTabBarContentInset } from '../../components/CosmicBottomTabBar';
 import CosmicButton from '../../components/CosmicButton';
+import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { UNIFIED_THEME } from '../../unifiedTheme';
-import { iosAvatarClip, iosAvatarImageStyle } from '../../utils/platformLayout';
+import { iosFlexChild } from '../../utils/platformLayout';
 import { profileApi } from '../../api/profileApi';
 import { videoApi } from '../../api/videoApi';
 import { bookingApi } from '../../api/bookingApi';
@@ -1240,26 +1241,19 @@ export default function MentorProfileScreen({ navigation, route }) {
           <ProfileFadeIn delayIndex={1} style={styles.identityBlock}>
             <View style={styles.avatarRingWrap}>
               <AvatarPulseRing>
-                <LinearGradient
+                <CircularProfileImage
+                  size={94}
+                  ringWidth={3}
                   colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[styles.avatarRingGrad, Platform.OS === 'ios' && styles.avatarRingGradIos]}
-                >
-                  {avatarUrl ? (
-                    <View style={iosAvatarClip(88, styles.avatar)}>
-                      <Image
-                        source={{ uri: avatarUrl }}
-                        style={iosAvatarImageStyle(88)}
-                        resizeMode="cover"
-                      />
-                    </View>
-                  ) : (
-                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  innerBg={SCREEN_BG}
+                  uri={avatarUrl}
+                  style={Platform.select({ ios: T.shadows.medium, android: { elevation: 8 } })}
+                  fallback={
+                    <View style={[styles.avatarPlaceholder, styles.avatarFallbackLarge]}>
                       <MaterialIcons name="person" size={48} color={PURPLE_LINK} />
                     </View>
-                  )}
-                </LinearGradient>
+                  }
+                />
               </AvatarPulseRing>
               <PulseOnlineDot />
             </View>
@@ -1586,12 +1580,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.35)',
     ...Platform.select({ ios: T.shadows.medium, android: { elevation: 8 } }),
   },
-  avatarRingGradIos: {
-    width: 94,
-    height: 94,
-    borderRadius: 47,
-    alignItems: 'center',
+  avatarFallbackLarge: {
+    width: 88,
+    height: 88,
     justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: SCREEN_BG,
   },
   avatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: SCREEN_BG },
   avatarPlaceholder: { justifyContent: 'center', alignItems: 'center' },

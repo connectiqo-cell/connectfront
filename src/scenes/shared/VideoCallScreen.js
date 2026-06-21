@@ -302,11 +302,15 @@ export default function VideoCallScreen({ navigation, route }) {
 
 
       if (shouldMarkComplete) {
-        // Update booking status to completed
-        await bookingApi.updateBookingStatus({
-          bookingId,
-          status: 'completed',
-        });
+        // Only the mentor triggers the completion — the Supabase wallet-credit
+        // function checks auth.uid() === mentor_id, so calling it from the
+        // learner's session throws an Unauthorized error.
+        if (isHost) {
+          await bookingApi.updateBookingStatus({
+            bookingId,
+            status: 'completed',
+          });
+        }
 
         // Persist recording URL to booking (host-side best effort with retries).
         if (isHost && callParams?.meetingId && callParams?.token) {

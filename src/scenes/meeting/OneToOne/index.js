@@ -36,6 +36,7 @@ import colors from "../../../styles/colors";
 import IconContainer from "../../../components/IconContainer";
 import LocalViewContainer from "./LocalViewContainer";
 import LargeView from "./LargeView";
+import MiniView from "./MiniView";
 import LocalParticipantPresenter from "../Components/LocalParticipantPresenter";
 import Menu from "../../../components/Menu";
 import MenuItem from "../Components/MenuItem";
@@ -92,6 +93,10 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
   const meetingStartedAtRef = useRef(null);
   const bothJoinedAtRef = useRef(null);
   const frontCameraIdRef = useRef(null);
+  const backCameraIdRef = useRef(null);
+  const activeCameraRef = useRef('front');
+  const localWebcamOnRef = useRef(localWebcamOn);
+  const cameraInitializedRef = useRef(false);
 
   const participantIds = [...participants.keys()];
   const localParticipantId = meeting?.localParticipant?.id;
@@ -122,26 +127,55 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
   }, [localParticipantId]);
 
   useEffect(() => {
+    localWebcamOnRef.current = localWebcamOn;
+  }, [localWebcamOn]);
+
+  useEffect(() => {
     let cancelled = false;
-    const fetchFrontCamera = async (attempt = 0) => {
+    const fetchCameras = async (attempt = 0) => {
       try {
         const cams = await getWebcams?.();
         if (cancelled) return;
+        console.warn('[Camera][' + Platform.OS + '] getWebcams result:', JSON.stringify(cams));
         if (cams?.length) {
+          // Try label/facingMode first; many Android devices use generic labels
+          // so fall back to index-based assignment (cams[0]=front, cams[1]=back).
           const front = cams.find(c =>
-            c.label?.toLowerCase().includes('front') || c.facingMode === 'user'
-          ) || cams[0];
+            c.label?.toLowerCase().includes('front') ||
+            c.label?.toLowerCase().includes('face') ||
+            c.facingMode === 'user'
+          ) ?? cams[0];
+
+          const back = cams.find(c =>
+            c.label?.toLowerCase().includes('back') ||
+            c.label?.toLowerCase().includes('rear') ||
+            c.facingMode === 'environment'
+          ) ?? (cams.length > 1 ? cams.find(c => c.deviceId !== front?.deviceId) : null);
+
           frontCameraIdRef.current = front?.deviceId ?? null;
+          backCameraIdRef.current = back?.deviceId ?? null;
+          console.warn('[Camera] front:', front?.deviceId, front?.label, '| back:', back?.deviceId, back?.label);
+
+          if (localWebcamOnRef.current && front?.deviceId && !cameraInitializedRef.current) {
+            cameraInitializedRef.current = true;
+            setTimeout(() => {
+              if (!cancelled) changeWebcam(front.deviceId);
+            }, 300);
+          }
         } else if (attempt < 4) {
-          setTimeout(() => fetchFrontCamera(attempt + 1), 1000);
+          setTimeout(() => fetchCameras(attempt + 1), 1000);
         }
-      } catch (_) {
+      } catch (err) {
+        console.warn('[Camera] fetchCameras error:', err);
         if (!cancelled && attempt < 4) {
-          setTimeout(() => fetchFrontCamera(attempt + 1), 1000);
+          setTimeout(() => fetchCameras(attempt + 1), 1000);
         }
       }
     };
-    const t = setTimeout(() => fetchFrontCamera(), 800);
+    // iOS needs a longer delay — camera permission dialog can still be
+    // showing at 800ms and getWebcams() returns empty until dismissed.
+    const delay = Platform.OS === 'ios' ? 1500 : 800;
+    const t = setTimeout(() => fetchCameras(), delay);
     return () => { cancelled = true; clearTimeout(t); };
   }, []);
 
@@ -177,30 +211,43 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     return () => clearInterval(id);
   }, [slot.date, slot.start_time, slot.end_time]);
 
-  // On first webcam-on, detect the front camera and actively switch to it.
-  // This is a fallback for devices where defaultCamera:'front' in MeetingProvider
-  // is ignored or camera labels differ from standard naming.
+  // On first webcam-on: switch to front camera once.
+  // cameraInitializedRef prevents re-entry — changeWebcam restarts the
+  // camera stream internally, which briefly flips localWebcamOn off→on
+  // and would trigger this effect again without the guard.
   useEffect(() => {
-    if (frontCameraIdRef.current || !localWebcamOn) return;
+    if (!localWebcamOn || cameraInitializedRef.current) return;
+
+    if (frontCameraIdRef.current) {
+      cameraInitializedRef.current = true;
+      setTimeout(() => changeWebcam(frontCameraIdRef.current), 400);
+      return;
+    }
+
+    // IDs not loaded yet — enumerate now (fetchCameras hasn't finished).
+    // Use ?.then() — getWebcams may be undefined on some SDK versions/platforms.
     getWebcams?.()
-      .then(cams => {
+      ?.then(cams => {
         if (!cams?.length) return;
         const front =
-          cams.find(
-            c =>
-              c.label?.toLowerCase().includes("front") ||
-              c.label?.toLowerCase().includes("face") ||
-              c.facingMode === "user"
-          ) ||
-          (cams.length > 1 ? cams[1] : null) ||
-          cams[0];
-        const frontId = front?.deviceId ?? null;
-        frontCameraIdRef.current = frontId;
-        if (frontId) {
-          setTimeout(() => changeWebcam(frontId), 500);
+          cams.find(c =>
+            c.label?.toLowerCase().includes('front') ||
+            c.label?.toLowerCase().includes('face') ||
+            c.facingMode === 'user'
+          ) || (cams.length > 1 ? cams[1] : null) || cams[0];
+        const back = cams.find(c =>
+          c.label?.toLowerCase().includes('back') ||
+          c.label?.toLowerCase().includes('rear') ||
+          c.facingMode === 'environment'
+        ) || (cams.length > 1 ? cams.find(c => c.deviceId !== front?.deviceId) : null);
+        frontCameraIdRef.current = front?.deviceId ?? null;
+        backCameraIdRef.current = back?.deviceId ?? null;
+        if (front?.deviceId) {
+          cameraInitializedRef.current = true;
+          setTimeout(() => changeWebcam(front.deviceId), 400);
         }
       })
-      .catch(() => {});
+      ?.catch(() => {});
   }, [localWebcamOn]);
 
   const formatDuration = (seconds) => {
@@ -425,6 +472,36 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     bottomSheetRef.current.show();
   };
 
+  // Flip between front and back using cached IDs — no enumeration delay.
+  const handleFlipCamera = () => {
+    const current = activeCameraRef.current;
+    const frontId = frontCameraIdRef.current;
+    const backId = backCameraIdRef.current;
+    console.warn('[Camera] flip pressed — current:', current, '| frontId:', frontId, '| backId:', backId);
+
+    if (current === 'front') {
+      if (backId) {
+        console.warn('[Camera] switching to back:', backId);
+        changeWebcam(backId);
+        activeCameraRef.current = 'back';
+      } else {
+        console.warn('[Camera] no backId — calling changeWebcam() no-args');
+        changeWebcam();
+        activeCameraRef.current = 'back';
+      }
+    } else {
+      if (frontId) {
+        console.warn('[Camera] switching to front:', frontId);
+        changeWebcam(frontId);
+        activeCameraRef.current = 'front';
+      } else {
+        console.warn('[Camera] no frontId — calling changeWebcam() no-args');
+        changeWebcam();
+        activeCameraRef.current = 'front';
+      }
+    }
+  };
+
   const MIN_SESSION_SECONDS = 300; // 5 minutes
 
   const tryLeave = (endForAll = false) => {
@@ -488,6 +565,8 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
   // AppState — camera off in background, restore on foreground.
   // Auto-leave after 3 minutes in background so the meeting doesn't
   // silently run forever if the user switches apps and forgets.
+  // Uses refs for webcam state so the subscription is stable and
+  // never re-created mid-session (avoids stale-closure restore bug).
   useEffect(() => {
     const BG_LEAVE_MS = 3 * 60 * 1000; // 3 minutes
     const appStateRef = { current: AppState.currentState };
@@ -506,9 +585,8 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       appStateRef.current = nextState;
 
       if (prev === 'active' && nextState.match(/inactive|background/)) {
-        // Going to background
-        webcamWasOnRef.current = localWebcamOn;
-        if (localWebcamOn) toggleWebcam();
+        webcamWasOnRef.current = localWebcamOnRef.current;
+        if (localWebcamOnRef.current) toggleWebcam();
 
         bgTimer = setTimeout(() => {
           Toast.show('Session ended — app was in background too long');
@@ -517,7 +595,6 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       }
 
       if (nextState === 'active' && prev.match(/inactive|background/)) {
-        // Returning to foreground
         clearBgTimer();
         if (webcamWasOnRef.current) {
           setTimeout(() => {
@@ -534,7 +611,20 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       clearBgTimer();
       subscription.remove();
     };
-  }, [localWebcamOn, toggleWebcam, changeWebcam, leave]);
+  }, [toggleWebcam, changeWebcam, leave]);
+
+  // Pre-define icon elements so they are stable across renders.
+  // Passing `Icon={() => <X />}` creates a new component type each render,
+  // which unmounts/remounts the child during a touch gesture and cancels it.
+  const CallEndIcon = () => <CallEnd height={26} width={26} fill="#FFF" />;
+  const MicIcon = () => localMicOn
+    ? <MicOn height={24} width={24} fill="#FFF" />
+    : <MicOff height={28} width={28} fill="#1D2939" />;
+  const CamIcon = () => localWebcamOn
+    ? <VideoOn height={24} width={24} fill="#FFF" />
+    : <VideoOff height={36} width={36} fill="#1D2939" />;
+  const ChatIcon = () => <Chat height={22} width={22} fill="#FFF" />;
+  const MoreIcon = () => <More height={18} width={18} fill="#FFF" />;
 
   return (
     <View style={{ flex: 1 }}>
@@ -542,7 +632,8 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          width: "90%",
+          width: "100%",
+          paddingHorizontal: 8,
         }}
       >
         {isRecordingVisible ? (
@@ -637,9 +728,26 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <TouchableOpacity
-            onPress={() => {
-              changeWebcam();
-            }}
+            onPress={() => setSplitMode(v => !v)}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <View style={{ width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}>
+              {splitMode ? (
+                <View style={{ width: 24, height: 24, position: 'relative' }}>
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderWidth: 1.5, borderColor: colors.primary[100], borderRadius: 3 }} />
+                  <View style={{ position: 'absolute', bottom: 2, right: 2, width: 10, height: 8, backgroundColor: colors.primary[100], borderRadius: 2 }} />
+                </View>
+              ) : (
+                <View style={{ width: 24, height: 24, flexDirection: 'column', gap: 2 }}>
+                  <View style={{ flex: 1, borderWidth: 1.5, borderColor: colors.primary[100], borderRadius: 3 }} />
+                  <View style={{ flex: 1, borderWidth: 1.5, borderColor: colors.primary[100], borderRadius: 3 }} />
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleFlipCamera}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <CameraSwitch height={26} width={26} fill={colors.primary[100]} />
           </TouchableOpacity>
@@ -824,77 +932,49 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         style={{
           flexDirection: "row",
           justifyContent: "space-evenly",
+          paddingBottom: Platform.OS === 'android' ? 8 : 4,
         }}
       >
         <IconContainer
           backgroundColor={"red"}
-          Icon={() => {
-            return <CallEnd height={26} width={26} fill="#FFF" />;
-          }}
+          Icon={CallEndIcon}
           onPress={confirmLeaveMeeting}
         />
         <IconContainer
-          style={{
-            paddingLeft: 0,
-            height: 52,
-          }}
+          style={{ paddingLeft: 0, height: 52 }}
           isDropDown={true}
           onDropDownPress={async () => {
             await updateAudioDeviceList();
             audioDeviceMenuRef.current.show();
           }}
           backgroundColor={!localMicOn ? colors.primary[100] : "transparent"}
-          onPress={() => {
-            toggleMic();
-          }}
-          Icon={() => {
-            return localMicOn ? (
-              <MicOn height={24} width={24} fill="#FFF" />
-            ) : (
-              <MicOff height={28} width={28} fill="#1D2939" />
-            );
-          }}
+          onPress={toggleMic}
+          Icon={MicIcon}
         />
         <IconContainer
-          style={{
-            borderWidth: 1.5,
-            borderColor: "#2B3034",
-          }}
+          style={{ borderWidth: 1.5, borderColor: "#2B3034" }}
           backgroundColor={!localWebcamOn ? colors.primary[100] : "transparent"}
           onPress={() => {
             if (!localWebcamOn) {
               toggleWebcam();
               setTimeout(() => {
-                if (frontCameraIdRef.current) {
-                  changeWebcam(frontCameraIdRef.current);
-                } else {
-                  changeWebcam();
-                }
-              }, 600);
+                const id = frontCameraIdRef.current;
+                if (id) changeWebcam(id);
+                else changeWebcam();
+              }, 400);
             } else {
               toggleWebcam();
             }
           }}
-          Icon={() => {
-            return localWebcamOn ? (
-              <VideoOn height={24} width={24} fill="#FFF" />
-            ) : (
-              <VideoOff height={36} width={36} fill="#1D2939" />
-            );
-          }}
+          Icon={CamIcon}
         />
         <IconContainer
           onPress={() => {
             setchatViewer(true);
             bottomSheetRef.current.show();
           }}
-          style={{
-            borderWidth: 1.5,
-            borderColor: "#2B3034",
-          }}
-          Icon={() => {
-            return <Chat height={22} width={22} fill="#FFF" />;
-          }}
+          style={{ borderWidth: 1.5, borderColor: "#2B3034" }}
+          Icon={ChatIcon}
         />
         <IconContainer
           style={{
@@ -902,12 +982,8 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
             borderColor: "#2B3034",
             transform: [{ rotate: "90deg" }],
           }}
-          onPress={() => {
-            moreOptionsMenu.current.show();
-          }}
-          Icon={() => {
-            return <More height={18} width={18} fill="#FFF" />;
-          }}
+          onPress={() => moreOptionsMenu.current.show()}
+          Icon={MoreIcon}
         />
       </View>
       <BottomSheet

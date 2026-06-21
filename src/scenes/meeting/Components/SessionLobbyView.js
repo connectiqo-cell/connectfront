@@ -16,6 +16,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CosmicButton from '../../../components/CosmicButton';
+import IosGradientShell from '../../../components/IosGradientShell';
 import StackScreenHeader from '../../../components/StackScreenHeader';
 import CosmicBackground from '../../../components/CosmicBackground';
 import { scheduleStyles } from '../../../components/schedule/ScheduleUI';
@@ -607,8 +608,14 @@ export default function SessionLobbyView({
           onPress={handleRescheduleRequest}
           disabled={rescheduleLoading}
           style={styles.fullWidthCta}
+          numberOfLines={Platform.OS === 'ios' ? 2 : 1}
         />
-        <CosmicButton label="Back to waiting room" variant="ghost" onPress={() => setPhase('main')} />
+        <CosmicButton
+          label="Back to waiting room"
+          variant="ghost"
+          onPress={() => setPhase('main')}
+          numberOfLines={Platform.OS === 'ios' ? 2 : 1}
+        />
       </LobbyShell>
     );
   }
@@ -791,7 +798,7 @@ export default function SessionLobbyView({
               disabled={startingSession}
               style={[styles.joinCallBtn, styles.joinCallBtnReady]}
             >
-              <LinearGradient
+              <IosGradientShell
                 colors={B.successGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -810,7 +817,7 @@ export default function SessionLobbyView({
                     <View style={styles.joinBtnDot} />
                   </PulseLoop>
                 ) : null}
-              </LinearGradient>
+              </IosGradientShell>
             </PressScale>
             <Text style={styles.joinCallHint}>
               {startingSession
@@ -949,7 +956,7 @@ export default function SessionLobbyView({
             onPress={meetingReady ? onJoinCall : () => setShowNotReadyModal(true)}
             style={[styles.joinCallBtn, meetingReady && styles.joinCallBtnReady]}
           >
-            <LinearGradient
+            <IosGradientShell
               colors={meetingReady ? B.successGradient : [PURPLE_LINK, 'rgba(99,102,241,0.45)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -964,7 +971,7 @@ export default function SessionLobbyView({
                   <View style={styles.joinBtnDot} />
                 </PulseLoop>
               ) : null}
-            </LinearGradient>
+            </IosGradientShell>
           </PressScale>
           <Text style={styles.joinCallHint}>
             {meetingReady
@@ -1002,7 +1009,7 @@ export default function SessionLobbyView({
               onPress={() => setShowNotReadyModal(false)}
               style={({ pressed }) => [{ width: '100%', borderRadius: T.borderRadius.lg, overflow: 'hidden', opacity: pressed ? 0.88 : 1 }]}
             >
-              <LinearGradient
+              <IosGradientShell
                 colors={[TEAL, PURPLE_LINK]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -1010,7 +1017,7 @@ export default function SessionLobbyView({
               >
                 <MaterialIcons name="check" size={18} color="#000" />
                 <Text style={styles.notReadyBtnText}>Got it, I'll wait</Text>
-              </LinearGradient>
+              </IosGradientShell>
             </Pressable>
 
             <Pressable
@@ -1486,6 +1493,10 @@ const styles = StyleSheet.create({
   fullWidthCta: {
     width: '100%',
     marginTop: T.spacing.md,
+    ...Platform.select({
+      ios: { marginVertical: 0, minHeight: 52 },
+      default: {},
+    }),
   },
 
   rescheduleCard: {
@@ -1768,6 +1779,15 @@ const styles = StyleSheet.create({
     color: '#000',
     letterSpacing: 0.4,
     flex: 0,
+    ...Platform.select({
+      ios: {
+        flexShrink: 1,
+        minWidth: 0,
+        backgroundColor: 'transparent',
+        zIndex: 1,
+      },
+      default: {},
+    }),
   },
   joinCallTextWaiting: {
     color: '#fff',
@@ -1929,6 +1949,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#000',
     letterSpacing: 0.2,
+    ...Platform.select({
+      ios: {
+        backgroundColor: 'transparent',
+        zIndex: 1,
+        flexShrink: 1,
+      },
+      default: {},
+    }),
   },
   notReadyLeave: {
     paddingVertical: T.spacing.sm,

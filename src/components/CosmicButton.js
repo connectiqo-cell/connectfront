@@ -122,6 +122,7 @@ export default function CosmicButton({
   textStyle,
   pressScale = false,
   pill = false,
+  numberOfLines = 1,
 }) {
   const resolvedVariant = variant === 'ghost' ? 'outline' : variant;
   const isDisabled = disabled || loading;
@@ -167,7 +168,7 @@ export default function CosmicButton({
           Platform.OS === 'ios' && (gradientConfig ? styles.textOnGradient : styles.textOnFlat),
           textStyle,
         ]}
-        numberOfLines={1}
+        numberOfLines={numberOfLines}
         ellipsizeMode="tail"
       >
         {label}
@@ -451,7 +452,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: Platform.OS === 'ios' ? 20 : T.typography.labelLg.lineHeight,
     textAlign: 'center',
-    ...(Platform.OS === 'ios' ? { letterSpacing: 0.2 } : {}),
+    ...(Platform.OS === 'ios' ? { letterSpacing: 0.2, flexShrink: 1, minWidth: 0 } : {}),
   },
   textCompact: {
     fontSize: T.typography.labelMd.fontSize,

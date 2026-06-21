@@ -1689,5 +1689,9 @@ const styles = StyleSheet.create({
   checkoutPayBtn: {
     width: '100%',
     marginVertical: 0,
+    ...Platform.select({
+      ios: { minHeight: 54 },
+      default: {},
+    }),
   },
 });

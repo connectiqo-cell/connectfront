@@ -36,11 +36,11 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Camera permission description</string>
+	<string>Camera access is required for live video mentoring sessions.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Microphone permission description</string>
+	<string>Microphone access is required for live video mentoring sessions.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Save session recordings to your photo gallery</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -52,6 +52,10 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>MaterialIcons.ttf</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>

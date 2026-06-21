@@ -85,15 +85,17 @@ export default function VideoCallScreen({ navigation, route }) {
     }
   }, [participantCount]);
 
-  // Request permissions on Android
+  // Android: permission flow unchanged. iOS: separate AVAudioSession setup (see iosCallAudioSession.js).
   useEffect(() => {
+    let cancelled = false;
+
     const requestPermissions = async () => {
       if (Platform.OS === 'android') {
         try {
           const permissions = [
             PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
             PermissionsAndroid.PERMISSIONS.CAMERA,
-          ]; 
+          ];
 
           const granted = await PermissionsAndroid.requestMultiple(permissions);
           const allGranted = permissions.every(
@@ -110,10 +112,31 @@ export default function VideoCallScreen({ navigation, route }) {
         }
       }
 
-      await initializeCall();
+      if (Platform.OS === 'ios') {
+        const { ensureIosCallAudioSession } = require('../../utils/iosCallAudioSession');
+        const audioReady = await ensureIosCallAudioSession();
+        if (cancelled) return;
+        if (!audioReady) {
+          Toast.show('Microphone permission required for video calls');
+          navigation.goBack();
+          return;
+        }
+      }
+
+      if (!cancelled) {
+        await initializeCall();
+      }
     };
 
     requestPermissions();
+
+    return () => {
+      cancelled = true;
+      if (Platform.OS === 'ios') {
+        const { releaseIosCallAudioSession } = require('../../utils/iosCallAudioSession');
+        releaseIosCallAudioSession();
+      }
+    };
   }, []);
 
   const enrichBookingProfiles = async row => {
@@ -159,6 +182,14 @@ export default function VideoCallScreen({ navigation, route }) {
   const handleStartSession = async () => {
     try {
       setStartingSession(true);
+      if (Platform.OS === 'ios') {
+        const { ensureIosCallAudioSession } = require('../../utils/iosCallAudioSession');
+        const audioReady = await ensureIosCallAudioSession();
+        if (!audioReady) {
+          Toast.show('Microphone permission required');
+          return;
+        }
+      }
       const token = await getToken();
 
       // Always fetch fresh booking to check for an existing room.
@@ -237,7 +268,7 @@ export default function VideoCallScreen({ navigation, route }) {
     };
   }, [lobbyOnly, isHost, bookingId]);
 
-  const handleJoinCall = () => {
+  const handleJoinCall = async () => {
     if (!meetingReady || !pendingCallParams) {
       Alert.alert(
         'Session Not Started',
@@ -245,6 +276,14 @@ export default function VideoCallScreen({ navigation, route }) {
         [{ text: 'OK' }]
       );
       return;
+    }
+    if (Platform.OS === 'ios') {
+      const { ensureIosCallAudioSession } = require('../../utils/iosCallAudioSession');
+      const audioReady = await ensureIosCallAudioSession();
+      if (!audioReady) {
+        Toast.show('Microphone permission required');
+        return;
+      }
     }
     setLobbyOnly(false);
     setCallParams(pendingCallParams);

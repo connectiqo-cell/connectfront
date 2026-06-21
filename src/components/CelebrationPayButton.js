@@ -8,10 +8,12 @@ import {
   ActivityIndicator,
   Easing,
   Dimensions,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import IosGradientShell from './IosGradientShell';
 
 const T = UNIFIED_THEME;
 const B = T.colors.buttons;
@@ -485,7 +487,7 @@ export default function CelebrationPayButton({
               (disabled || loading) && !isActive && styles.shellDisabled,
             ]}
           >
-            <LinearGradient
+            <IosGradientShell
               colors={
                 isActive
                   ? B.successGradient
@@ -496,6 +498,7 @@ export default function CelebrationPayButton({
               start={{ x: 0, y: 0.5 }}
               end={{ x: 1, y: 0.5 }}
               style={[styles.gradient, isCheckout && styles.gradientCheckout]}
+              innerStyle={Platform.OS === 'ios' ? styles.iosGradientRowWrap : undefined}
             >
               {isActive ? (
                 <Animated.View
@@ -504,7 +507,7 @@ export default function CelebrationPayButton({
                 />
               ) : null}
 
-              <View style={styles.row}>
+              <View style={[styles.row, Platform.OS === 'ios' && styles.rowIos]}>
                 {loading ? (
                   <ActivityIndicator
                     size="small"
@@ -530,6 +533,7 @@ export default function CelebrationPayButton({
                   style={[
                     styles.label,
                     isCheckout && styles.labelCheckout,
+                    Platform.OS === 'ios' && isCheckout && styles.labelCheckoutIos,
                     {
                       color: isActive
                         ? B.successText
@@ -538,12 +542,13 @@ export default function CelebrationPayButton({
                           : T.colors.text.primary,
                     },
                   ]}
-                  numberOfLines={1}
+                  numberOfLines={Platform.OS === 'ios' ? 2 : 1}
+                  ellipsizeMode="tail"
                 >
                   {label}
                 </Text>
               </View>
-            </LinearGradient>
+            </IosGradientShell>
           </Pressable>
         </Animated.View>
       </View>
@@ -660,6 +665,16 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 2,
   },
+  rowIos: {
+    width: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 4,
+  },
+  iosGradientRowWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
   loader: { marginRight: 0 },
   label: {
     fontSize: 14,
@@ -670,5 +685,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     flexShrink: 1,
+  },
+  labelCheckoutIos: {
+    flex: 1,
+    minWidth: 0,
+    textAlign: 'center',
+    lineHeight: 19,
+    backgroundColor: 'transparent',
   },
 });

@@ -1,7 +1,8 @@
 /**
  * VideoSDK cloud recording layout for 1-on-1 mentoring calls.
+ * Portrait + GRID gridSize 2 → equal top/bottom stack (not side-by-side).
  * Grid size follows active participants so a drop does not leave an empty tile.
- * @see https://docs.videosdk.live/react/guide/video-and-audio-calling-api-sdk/recording-and-live-streaming/record-meeting
+ * @see https://docs.videosdk.live/react-native/guide/video-and-audio-calling-api-sdk/recording-and-live-streaming/record-meeting
  */
 
 const BASE_RECORDING_OPTIONS = {

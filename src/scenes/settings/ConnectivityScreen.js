@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import { SafeScreen } from '../../components/SafeScreen';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import Button from '../../components/Button';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { SUPABASE_URL } from '../../lib/supabase';
@@ -54,7 +55,8 @@ export default function ConnectivityScreen({ navigation }) {
   );
 
   return (
-    <SafeScreen scrollable={false} padding={T.spacing.lg} hasBottomTabs={false}>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={false}>
+      <StackScreenHeader style={styles.headerShell}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={12}>
           <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
@@ -62,6 +64,7 @@ export default function ConnectivityScreen({ navigation }) {
         <Text style={styles.headerTitle}>Connectivity</Text>
         <View style={styles.headerSpacer} />
       </View>
+      </StackScreenHeader>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <Text style={styles.intro}>
@@ -111,6 +114,9 @@ export default function ConnectivityScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  headerShell: {
+    paddingHorizontal: T.spacing.lg,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -133,7 +139,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   headerSpacer: { width: 40 },
-  scroll: { paddingBottom: T.spacing.xxxl },
+  scroll: {
+    paddingHorizontal: T.spacing.lg,
+    paddingBottom: T.spacing.xxxl,
+  },
   intro: {
     fontSize: 13,
     color: C.text.secondary,

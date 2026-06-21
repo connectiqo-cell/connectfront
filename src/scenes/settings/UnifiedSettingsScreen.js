@@ -31,6 +31,7 @@ import { videoApi } from '../../api/videoApi';
 import { paymentApi } from '../../api/paymentApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { formatDate } from '../../utils/dateHelpers';
+import { CircularProfileImage } from '../../components/CircularGradientFrame';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -830,17 +831,19 @@ export default function UnifiedSettingsScreen({ navigation }) {
             <View style={styles.avatarRow}>
               <View style={styles.avatarWrapper}>
                 <AvatarGlowRing />
-                <LinearGradient colors={B.premiumGradient} style={styles.avatarRing}>
-                  <View style={styles.avatarInner}>
-                    {avatarUrl ? (
-                      <Image key={avatarUrl} source={{ uri: avatarUrl, cache: 'reload' }} style={styles.avatar} />
-                    ) : (
-                      <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                        <MaterialIcons name="person" size={36} color={PURPLE_LINK} />
-                      </View>
-                    )}
-                  </View>
-                </LinearGradient>
+                <CircularProfileImage
+                  size={76}
+                  ringWidth={2}
+                  colors={B.premiumGradient}
+                  innerBg={C.primary.void}
+                  uri={avatarUrl}
+                  imageProps={{ key: avatarUrl, cache: 'reload' }}
+                  fallback={
+                    <View style={[styles.avatarPlaceholder, styles.avatarFallback]}>
+                      <MaterialIcons name="person" size={36} color={PURPLE_LINK} />
+                    </View>
+                  }
+                />
                 <AnimatedPressable
                   style={styles.cameraBtn}
                   onPress={handlePickImage}
@@ -1216,6 +1219,13 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
+  },
+  avatarFallback: {
+    width: 72,
+    height: 72,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: C.primary.void,
   },
   avatarInner: {
     width: 72,

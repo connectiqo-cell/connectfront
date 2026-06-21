@@ -8,7 +8,7 @@ const BASE = {
   theme: 'DARK',
   mode: 'video-and-audio',
   quality: 'high',
-  orientation: 'landscape',
+  orientation: 'portrait',
 };
 
 describe('recordingConfig', () => {

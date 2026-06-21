@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { PLATFORM_LAYOUT } from '../utils/platformLayout';
 import { formatDate, formatTime, formatDateForDisplay } from '../utils/dateHelpers';
 import CosmicButton from './CosmicButton';
 
@@ -403,6 +404,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
+    flexWrap: Platform.OS === 'ios' ? 'wrap' : 'nowrap',
     marginTop: UNIFIED_THEME.spacing.md,
     gap: UNIFIED_THEME.spacing.sm,
   },
@@ -410,24 +412,41 @@ const styles = StyleSheet.create({
     marginTop: UNIFIED_THEME.spacing.sm,
   },
   actionBtnCompact: {
-    flex: 1,
-    minHeight: 40,
+    flexGrow: 1,
+    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
+    flex: Platform.OS === 'ios' ? undefined : 1,
+    minWidth: Platform.OS === 'ios' ? 108 : 0,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
     justifyContent: 'center',
   },
   joinBtn: {
-    flex: 1,
-    borderRadius: UNIFIED_THEME.borderRadius.round,
+    flex: Platform.OS === 'ios' ? undefined : 1,
+    flexGrow: 1,
+    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
+    minWidth: Platform.OS === 'ios' ? 108 : 0,
   },
   cancelBtnOuter: {
-    flex: 1,
+    flex: Platform.OS === 'ios' ? undefined : 1,
+    flexGrow: 1,
+    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
+    minWidth: Platform.OS === 'ios' ? 108 : 0,
   },
   recordingBtnOuter: {
-    flex: 1,
+    flex: Platform.OS === 'ios' ? undefined : 1,
+    flexGrow: 1,
+    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
+    minWidth: Platform.OS === 'ios' ? 108 : 0,
   },
   downloadBtnOuter: {
-    flex: 1,
+    flex: Platform.OS === 'ios' ? undefined : 1,
+    flexGrow: 1,
+    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
+    minWidth: Platform.OS === 'ios' ? 108 : 0,
   },
   rateBtnOuter: {
-    flex: 1,
+    flex: Platform.OS === 'ios' ? undefined : 1,
+    flexGrow: 1,
+    flexBasis: Platform.OS === 'ios' ? '47%' : 0,
+    minWidth: Platform.OS === 'ios' ? 108 : 0,
   },
 });

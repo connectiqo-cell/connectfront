@@ -7,10 +7,12 @@ import {
   View,
   ActivityIndicator,
   Animated,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { PLATFORM_LAYOUT } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const B = T.colors.buttons;
@@ -79,7 +81,12 @@ function PressableShell({ pressScale, onPress, style, children, disabled }) {
 
   if (!pressScale || disabled) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.88} style={style} disabled={disabled}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.88}
+        style={[style, styles.touchableShell]}
+        disabled={disabled}
+      >
         {children}
       </TouchableOpacity>
     );
@@ -142,7 +149,7 @@ export default function CosmicButton({
   })();
 
   const content = (
-    <View style={styles.row}>
+    <View style={[styles.row, Platform.OS === 'ios' && styles.rowIos]}>
       {loading ? (
         <ActivityIndicator size="small" color={textColor} style={styles.loader} />
       ) : icon ? (
@@ -157,9 +164,11 @@ export default function CosmicButton({
         style={[
           compact ? styles.textCompact : styles.text,
           { color: textColor },
+          Platform.OS === 'ios' && (gradientConfig ? styles.textOnGradient : styles.textOnFlat),
           textStyle,
         ]}
         numberOfLines={1}
+        ellipsizeMode="tail"
       >
         {label}
       </Text>
@@ -181,6 +190,32 @@ export default function CosmicButton({
   }
 
   if (gradientConfig) {
+    const gradientFill = compact ? styles.gradientCompact : styles.gradient;
+    const gradientNode =
+      Platform.OS === 'ios' ? (
+        <View style={[gradientFill, styles.iosGradientStack]}>
+          <LinearGradient
+            colors={gradientConfig.colors}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={StyleSheet.absoluteFillObject}
+            pointerEvents="none"
+          />
+          <View style={compact ? styles.iosGradientForegroundCompact : styles.iosGradientForeground}>
+            {content}
+          </View>
+        </View>
+      ) : (
+        <LinearGradient
+          colors={gradientConfig.colors}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={gradientFill}
+        >
+          {content}
+        </LinearGradient>
+      );
+
     return (
       <PressableShell
         pressScale={pressScale}
@@ -193,14 +228,7 @@ export default function CosmicButton({
           pillRadius && { borderRadius: pillRadius },
         ]}
       >
-        <LinearGradient
-          colors={gradientConfig.colors}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={[compact ? styles.gradientCompact : styles.gradient, pillRadius && { borderRadius: pillRadius }]}
-        >
-          {content}
-        </LinearGradient>
+        {gradientNode}
       </PressableShell>
     );
   }
@@ -245,14 +273,31 @@ export default function CosmicButton({
       pressScale={pressScale}
       onPress={onPress}
       disabled={isDisabled}
-      style={[shell, flat, compact ? styles.flatCompact : styles.flat, pressScale && styles.shellPressScale, pillRadius && { borderRadius: pillRadius }]}
+      style={[
+        shell,
+        flat,
+        Platform.OS !== 'ios' && (compact ? styles.flatCompact : styles.flat),
+        Platform.OS === 'ios' && styles.iosFlatShell,
+        pressScale && styles.shellPressScale,
+        pillRadius && { borderRadius: pillRadius },
+      ]}
     >
-      {content}
+      {Platform.OS === 'ios' ? (
+        <View style={compact ? styles.iosFlatForegroundCompact : styles.iosFlatForeground}>
+          {content}
+        </View>
+      ) : (
+        content
+      )}
     </PressableShell>
   );
 }
 
 const styles = StyleSheet.create({
+  touchableShell: {
+    alignSelf: 'stretch',
+    width: '100%',
+  },
   pressScaleWrap: {
     alignSelf: 'stretch',
   },
@@ -261,12 +306,15 @@ const styles = StyleSheet.create({
   },
   pressableFill: {
     width: '100%',
-    flexGrow: 1,
+    flex: 1,
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight,
     justifyContent: 'center',
+    alignItems: 'stretch',
   },
   shell: {
     width: '100%',
-    minHeight: 50,
+    alignSelf: 'stretch',
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight,
     borderRadius: T.borderRadius.md,
     borderWidth: 1,
     overflow: 'hidden',
@@ -274,11 +322,16 @@ const styles = StyleSheet.create({
   },
   shellCompact: {
     width: '100%',
-    minHeight: 40,
+    alignSelf: 'stretch',
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
     borderRadius: T.borderRadius.sm,
     borderWidth: 1,
     overflow: 'hidden',
     marginVertical: 0,
+    ...Platform.select({
+      ios: { minWidth: 0, flexShrink: 1 },
+      default: {},
+    }),
   },
   shellDisabled: {
     opacity: 0.55,
@@ -290,19 +343,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: T.spacing.lg,
   },
   gradient: {
-    flexGrow: 1,
-    minHeight: 48,
-    paddingVertical: 14,
+    width: '100%',
+    flex: 1,
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
+    paddingVertical: Platform.OS === 'ios' ? 15 : 14,
     paddingHorizontal: T.spacing.lg,
     justifyContent: 'center',
     alignItems: 'center',
   },
   gradientCompact: {
-    minHeight: 38,
-    paddingVertical: 10,
+    width: '100%',
+    flex: 1,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
+    paddingVertical: Platform.OS === 'ios' ? 11 : 10,
     paddingHorizontal: T.spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  iosGradientStack: {
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  iosGradientForeground: {
+    zIndex: 2,
+    width: '100%',
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
+    paddingVertical: 15,
+    paddingHorizontal: T.spacing.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iosGradientForegroundCompact: {
+    zIndex: 2,
+    width: '100%',
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
+    paddingVertical: 11,
+    paddingHorizontal: T.spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iosFlatShell: {
+    justifyContent: 'center',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   flat: {
     flexGrow: 1,
@@ -321,6 +404,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    maxWidth: '100%',
+    width: '100%',
+  },
+  rowIos: {
+    zIndex: 1,
+    alignSelf: 'stretch',
   },
   loader: {
     marginRight: T.spacing.sm,
@@ -331,11 +420,43 @@ const styles = StyleSheet.create({
   text: {
     fontSize: T.typography.labelLg.fontSize,
     fontWeight: '700',
-    lineHeight: T.typography.labelLg.lineHeight,
+    lineHeight: Platform.OS === 'ios' ? 20 : T.typography.labelLg.lineHeight,
+    textAlign: 'center',
+    ...(Platform.OS === 'ios' ? { letterSpacing: 0.2 } : {}),
   },
   textCompact: {
     fontSize: T.typography.labelMd.fontSize,
-    fontWeight: '800',
-    lineHeight: T.typography.labelMd.lineHeight,
+    fontWeight: '700',
+    lineHeight: Platform.OS === 'ios' ? 18 : T.typography.labelMd.lineHeight,
+    textAlign: 'center',
+    flexShrink: 1,
+    minWidth: 0,
+    ...(Platform.OS === 'ios' ? { letterSpacing: 0.15 } : {}),
+  },
+  textOnGradient: {
+    backgroundColor: 'transparent',
+    ...(Platform.OS === 'ios' ? { opacity: 1 } : {}),
+  },
+  textOnFlat: {
+    backgroundColor: 'transparent',
+    zIndex: 1,
+  },
+  iosFlatForeground: {
+    width: '100%',
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
+    paddingVertical: 14,
+    paddingHorizontal: T.spacing.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  iosFlatForegroundCompact: {
+    width: '100%',
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
+    paddingVertical: 10,
+    paddingHorizontal: T.spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
   },
 });

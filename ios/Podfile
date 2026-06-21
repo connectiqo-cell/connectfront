@@ -77,7 +77,7 @@ target 'MyApp' do
       end
     end
 
-    # WebRTC-SDK Obj-C headers use FrameEncryptionState (not RTCFrameCryptorState).
+    # WebRTC-SDK 125.x uses FrameCryptionState — revert any incorrect enum renames.
     webrtc_cryptor = File.expand_path(
       '../node_modules/@videosdk.live/react-native-webrtc/ios/RCTWebRTC/WebRTCModule+RTCFrameCryptor.m',
       __dir__
@@ -85,13 +85,12 @@ target 'MyApp' do
     if File.exist?(webrtc_cryptor)
       content = File.read(webrtc_cryptor)
       patched = content
-        .gsub('RTCFrameCryptorState', 'FrameEncryptionState')
-        .gsub('FrameCryptionState', 'FrameEncryptionState')
-        .gsub('kEventFrameEncryptionStateChanged', 'kEventFrameCryptionStateChanged')
+        .gsub('RTCFrameCryptorState', 'FrameCryptionState')
+        .gsub('FrameEncryptionState', 'FrameCryptionState')
       if patched != content
         File.chmod(0o644, webrtc_cryptor)
         File.write(webrtc_cryptor, patched)
-        Pod::UI.puts 'Patched WebRTCModule+RTCFrameCryptor.m (FrameEncryptionState)'.green
+        Pod::UI.puts 'Restored WebRTCModule+RTCFrameCryptor.m (FrameCryptionState)'.green
       end
     end
   end

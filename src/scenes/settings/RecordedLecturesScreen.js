@@ -15,6 +15,7 @@ import Toast from 'react-native-simple-toast';
 import moment from 'moment';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeScreen } from '../../components/SafeScreen';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import CosmicButton from '../../components/CosmicButton';
@@ -645,7 +646,8 @@ export default function RecordedLecturesScreen({ navigation }) {
     : 'Your session recordings will show up here';
 
   return (
-    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false}>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={false}>
+      <StackScreenHeader>
       <FadeSlideIn delay={0} replayToken={replayToken}>
         <View style={styles.header}>
           <AnimatedPressable
@@ -675,6 +677,7 @@ export default function RecordedLecturesScreen({ navigation }) {
           </AnimatedPressable>
         </View>
       </FadeSlideIn>
+      </StackScreenHeader>
 
       <ScrollView
         style={styles.scroll}

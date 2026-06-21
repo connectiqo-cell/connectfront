@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
 import { formatPrice } from '../utils/formatCurrency';
 import { StarRating } from './StarRating';
 import CosmicButton from './CosmicButton';
+import { iosFlexChild } from '../utils/platformLayout';
 
 export const MentorCard = ({ mentor, onPress }) => {
   const avatarUrl = mentor.profiles?.avatar_url;
@@ -92,7 +93,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   info: {
-    flex: 1,
+    ...iosFlexChild(),
     justifyContent: 'center',
   },
   name: {
@@ -149,8 +150,9 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   bookButton: {
+    ...iosFlexChild(),
     flexShrink: 0,
     minWidth: 108,
-    maxWidth: 140,
+    maxWidth: Platform.OS === 'ios' ? 150 : 140,
   },
 });

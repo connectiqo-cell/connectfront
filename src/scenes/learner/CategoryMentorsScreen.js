@@ -11,11 +11,12 @@ import {
   Animated,
   Easing,
   useWindowDimensions,
+  Platform,
+  InteractionManager,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import CosmicBackground from '../../components/CosmicBackground';
 import { SearchBar } from '../../components/SearchBar';
 import { MentorImageCard } from '../../components/MentorImageCard';
@@ -226,7 +227,6 @@ function applySortFn(arr, sortBy) {
 export default function CategoryMentorsScreen({ route, navigation }) {
   const { category } = route.params;
   const { profile } = useAuth();
-  const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -289,12 +289,24 @@ export default function CategoryMentorsScreen({ route, navigation }) {
     setRefreshing(false);
   };
 
-  const handleBookMentor = mentor => {
-    navigation.navigate(SCREEN_NAMES.Booking, {
-      mentorId: mentor.id,
-      mentorName: mentor.profiles?.name || 'Mentor',
-    });
-  };
+  const handleBookMentor = useCallback(
+    mentor => {
+      const go = () => {
+        navigation.navigate(SCREEN_NAMES.Booking, {
+          mentorId: mentor.id,
+          mentorName: mentor.profiles?.name || 'Mentor',
+        });
+      };
+      if (Platform.OS === 'ios') {
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(go, 320);
+        });
+      } else {
+        go();
+      }
+    },
+    [navigation],
+  );
 
   const handleViewProfile = mentor => {
     navigation.navigate(SCREEN_NAMES.MentorProfile, { mentorId: mentor.id });
@@ -409,8 +421,8 @@ export default function CategoryMentorsScreen({ route, navigation }) {
 
   return (
     <CosmicBackground>
-      <SafeAreaView style={styles.safe} edges={['bottom']}>
-        <View style={[styles.topBar, { paddingTop: insets.top + T.spacing.sm }]}>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <View style={[styles.topBar, { paddingTop: T.spacing.sm }]}>
           <PressScale
             onPress={() => navigation.goBack()}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

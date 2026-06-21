@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  Image,
   Modal,
   Pressable,
   TouchableWithoutFeedback,
@@ -13,10 +12,11 @@ import {
   Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicButton from './CosmicButton';
+import { CircularProfileImage } from './CircularGradientFrame';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { iosFlexChild } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -270,15 +270,18 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
                 }}
                 accessibilityLabel={`View ${name} full profile`}
               >
-                <LinearGradient colors={B.premiumGradient} style={styles.avatarRing}>
-                  <View style={styles.avatarInner}>
-                    {avatarUrl ? (
-                      <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-                    ) : (
+                <CircularProfileImage
+                  size={76}
+                  ringWidth={2}
+                  colors={B.premiumGradient}
+                  innerBg={C.primary.void}
+                  uri={avatarUrl}
+                  fallback={
+                    <View style={styles.avatarFallback}>
                       <Text style={styles.avatarInitial}>{initial}</Text>
-                    )}
-                  </View>
-                </LinearGradient>
+                    </View>
+                  }
+                />
               </PressScale>
             </AvatarReveal>
             <SheetReveal visible={visible} mentorKey={mentor.id} delay={130} offsetY={14} style={styles.headerInfo} key={`info-${mentor.id}`}>
@@ -344,10 +347,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             icon="event-available"
             variant="nebula"
             pressScale
-            onPress={() => {
-              onClose();
-              onBook(mentor);
-            }}
+            onPress={() => onBook(mentor)}
             style={styles.actionBtn}
           />
         </Animated.View>
@@ -428,19 +428,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
-  avatarInner: {
+  avatarFallback: {
     width: 72,
     height: 72,
-    borderRadius: 36,
-    backgroundColor: C.primary.void,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    backgroundColor: C.primary.void,
   },
   avatarInitial: {
     fontSize: 28,
@@ -448,7 +441,7 @@ const styles = StyleSheet.create({
     color: PURPLE_LINK,
   },
   headerInfo: {
-    flex: 1,
+    ...iosFlexChild(),
     paddingTop: 4,
   },
   name: {

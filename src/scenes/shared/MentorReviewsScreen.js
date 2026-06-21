@@ -15,6 +15,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import Toast from 'react-native-simple-toast';
 import { SafeScreen } from '../../components/SafeScreen';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { profileApi } from '../../api/profileApi';
@@ -298,8 +299,9 @@ export default function MentorReviewsScreen({ navigation, route }) {
   );
 
   return (
-    <SafeScreen scrollable={false} hasBottomTabs={false} padding={0}>
+    <SafeScreen scrollable={false} hasBottomTabs={false} padding={0} includeTopInset={false}>
       <View style={styles.root}>
+        <StackScreenHeader>
         <View style={styles.header}>
           <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
             <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
@@ -307,6 +309,7 @@ export default function MentorReviewsScreen({ navigation, route }) {
           <Text style={styles.headerTitle}>Reviews</Text>
           <View style={styles.headerSpacer} />
         </View>
+        </StackScreenHeader>
 
         <Text style={styles.intro}>
           {isOwnReviews

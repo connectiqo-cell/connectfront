@@ -17,6 +17,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import Toast from 'react-native-simple-toast';
 import { SafeScreen } from '../../components/SafeScreen';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import CosmicButton from '../../components/CosmicButton';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { UNIFIED_THEME } from '../../unifiedTheme';
@@ -219,6 +220,7 @@ const pressFx = StyleSheet.create({
 
 function ScreenHeader({ title, subtitle, onBack }) {
   return (
+    <StackScreenHeader>
     <View style={styles.screenHeader}>
       <TouchableOpacity onPress={onBack} style={styles.headerBtn} activeOpacity={0.8}>
         <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
@@ -229,6 +231,7 @@ function ScreenHeader({ title, subtitle, onBack }) {
       </View>
       <View style={styles.headerBtnSpacer} />
     </View>
+    </StackScreenHeader>
   );
 }
 
@@ -629,7 +632,7 @@ export default function ReviewScreen({ navigation, route }) {
 
   if (!bookingId) {
     return (
-      <SafeScreen scrollable={false} hasBottomTabs={false} padding={0}>
+      <SafeScreen scrollable={false} hasBottomTabs={false} padding={0} includeTopInset={false}>
         <View style={styles.root}>
           <ScreenHeader title="Rate session" onBack={() => navigation.goBack()} />
           <View style={styles.centerFill}>
@@ -644,7 +647,7 @@ export default function ReviewScreen({ navigation, route }) {
   }
 
   return (
-    <SafeScreen scrollable={false} hasBottomTabs={false} padding={0}>
+    <SafeScreen scrollable={false} hasBottomTabs={false} padding={0} includeTopInset={false}>
       <KeyboardAvoidingView
         style={styles.root}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

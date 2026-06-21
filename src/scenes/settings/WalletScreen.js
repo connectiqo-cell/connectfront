@@ -18,6 +18,7 @@ import Toast from 'react-native-simple-toast';
 import { useFocusEffect } from '@react-navigation/native';
 import moment from 'moment';
 import { SafeScreen } from '../../components/SafeScreen';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { paymentApi } from '../../api/paymentApi';
@@ -910,7 +911,8 @@ export default function WalletScreen({ navigation }) {
           : null;
 
   return (
-    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false}>
+    <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={false}>
+      <StackScreenHeader>
       <FadeSlideIn delay={0} replayToken={replayToken}>
         <View style={styles.header}>
           <AnimatedPressable onPress={() => navigation.goBack()} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
@@ -935,6 +937,7 @@ export default function WalletScreen({ navigation }) {
           </AnimatedPressable>
         </View>
       </FadeSlideIn>
+      </StackScreenHeader>
 
       <ScrollView
         style={styles.scroll}

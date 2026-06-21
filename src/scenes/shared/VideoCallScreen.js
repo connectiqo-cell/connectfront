@@ -63,7 +63,6 @@ class CallErrorBoundary extends React.Component {
 export default function VideoCallScreen({ navigation, route }) {
   const { bookingId, isHost } = route.params;
   const { profile } = useAuth();
-
   const [ready, setReady] = useState(false);
   const [callParams, setCallParams] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -331,12 +330,16 @@ export default function VideoCallScreen({ navigation, route }) {
     }
   };
 
+  const VOID_BG = UNIFIED_THEME.colors.primary.void;
+
+  const screenShell = (children, bg = VOID_BG) => (
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: bg }}>
+      {children}
+    </SafeAreaView>
+  );
+
   if (loading) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: UNIFIED_THEME.colors.primary.dark }}>
-        <LoadingOverlay visible message="Preparing your call..." />
-      </SafeAreaView>
-    );
+    return screenShell(<LoadingOverlay visible message="Preparing your call..." />, UNIFIED_THEME.colors.primary.dark);
   }
 
   const isMentor = Boolean(isHost || profile?.id === booking?.mentor_id);
@@ -347,59 +350,53 @@ export default function VideoCallScreen({ navigation, route }) {
   });
 
   if (lobbyOnly && booking) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: UNIFIED_THEME.colors.primary.dark }}>
-        <SessionLobbyView
-          booking={booking}
-          isMentor={isMentor}
-          otherUser={resolvedOtherUser}
-          meetingReady={meetingReady}
-          onJoinCall={isHost ? handleStartSession : handleJoinCall}
-          startingSession={startingSession}
-          onLeave={() => navigation.goBack()}
-          onReschedule={async () => {
-            try {
-              await rescheduleApi.markForReschedule(bookingId, 'mentor_noshow');
-            } catch (e) {
-              console.warn('⚠️ markForReschedule failed:', e.message);
-            }
-            navigation.goBack();
-          }}
-          onCancelRefund={() => navigation.goBack()}
-        />
-      </SafeAreaView>
+    return screenShell(
+      <SessionLobbyView
+        booking={booking}
+        isMentor={isMentor}
+        otherUser={resolvedOtherUser}
+        meetingReady={meetingReady}
+        onJoinCall={isHost ? handleStartSession : handleJoinCall}
+        startingSession={startingSession}
+        onLeave={() => navigation.goBack()}
+        onReschedule={async () => {
+          try {
+            await rescheduleApi.markForReschedule(bookingId, 'mentor_noshow');
+          } catch (e) {
+            console.warn('⚠️ markForReschedule failed:', e.message);
+          }
+          navigation.goBack();
+        }}
+        onCancelRefund={() => navigation.goBack()}
+      />,
+      UNIFIED_THEME.colors.primary.dark,
     );
   }
 
   if (!ready || !callParams) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: UNIFIED_THEME.colors.primary.dark }}>
-        <LoadingOverlay visible message="Connecting..." />
-      </SafeAreaView>
-    );
+    return screenShell(<LoadingOverlay visible message="Connecting..." />, UNIFIED_THEME.colors.primary.dark);
   }
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: UNIFIED_THEME.colors.primary.dark }}>
-      <MeetingProvider
-        config={{
-          meetingId: callParams.meetingId,
-          micEnabled: false,
-          webcamEnabled: true,
-          name: profile?.name || 'Guest',
-          notification: {
-            title: 'Session in Progress',
-            message: 'Your mentoring session is active',
-          },
-          defaultCamera: 'front',
-        }}
-        token={callParams.token}
-      >
-        <View style={{ flex: 1 }}>
-          <CallErrorBoundary onLeave={() => navigation.goBack()}>
-            <MeetingConsumer onMeetingLeft={handleMeetingLeft}>
-              {() => (
-                <MeetingContainer
+  return screenShell(
+    <MeetingProvider
+      config={{
+        meetingId: callParams.meetingId,
+        micEnabled: false,
+        webcamEnabled: true,
+        name: profile?.name || 'Guest',
+        notification: {
+          title: 'Session in Progress',
+          message: 'Your mentoring session is active',
+        },
+        defaultCamera: 'front',
+      }}
+      token={callParams.token}
+    >
+      <View style={{ flex: 1 }}>
+        <CallErrorBoundary onLeave={() => navigation.goBack()}>
+          <MeetingConsumer onMeetingLeft={handleMeetingLeft}>
+            {() => (
+              <MeetingContainer
                 meetingType="ONE_TO_ONE"
                 onParticipantCountChange={setParticipantCount}
                 isHost={isHost}
@@ -410,10 +407,9 @@ export default function VideoCallScreen({ navigation, route }) {
                 maxDurationMs={20 * 60 * 1000}
               />
             )}
-            </MeetingConsumer>
-          </CallErrorBoundary>
-        </View>
-      </MeetingProvider>
-    </SafeAreaView>
+          </MeetingConsumer>
+        </CallErrorBoundary>
+      </View>
+    </MeetingProvider>,
   );
 }

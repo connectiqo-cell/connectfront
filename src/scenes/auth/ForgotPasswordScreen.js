@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   StyleSheet,
   Alert,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicBackground from '../../components/CosmicBackground';
 import { UNIFIED_THEME } from '../../unifiedTheme';
@@ -15,9 +18,14 @@ import Button from '../../components/Button';
 import { authApi } from '../../api/authApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { AuthContext } from '../../contexts/AuthContext';
-import { useContext } from 'react';
+import { createFormFieldStyles } from '../../utils/platformLayout';
 
 const T = UNIFIED_THEME;
+const FORM = createFormFieldStyles({
+  chipBg: T.colors.component.input,
+  borderColor: T.colors.border.light,
+  textColor: T.colors.text.primary,
+});
 
 // ── Step indicators ────────────────────────────────────────────────────────────
 function StepDots({ current }) {
@@ -153,11 +161,22 @@ export default function ForgotPasswordScreen({ navigation }) {
 
   return (
     <CosmicBackground style={styles.background}>
-      <SafeAreaView style={styles.overlay}>
-        <View style={styles.container}>
-
+      <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.container}>
           {/* Back button */}
-          <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={handleBack}
+            style={[styles.backBtn, { top: T.spacing.sm }]}
+          >
             <MaterialIcons name="arrow-back" size={22} color={T.colors.text.primary} />
           </TouchableOpacity>
 
@@ -310,6 +329,8 @@ export default function ForgotPasswordScreen({ navigation }) {
           )}
 
         </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </CosmicBackground>
   );
@@ -318,17 +339,22 @@ export default function ForgotPasswordScreen({ navigation }) {
 const styles = StyleSheet.create({
   background: { flex: 1 },
   overlay: { flex: 1 },
-  container: {
-    flex: 1,
+  flex: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: T.spacing.lg,
-    paddingTop: T.spacing.lg,
+    paddingBottom: T.spacing.xl,
+  },
+  container: {
+    flexGrow: 1,
     justifyContent: 'center',
+    paddingTop: T.spacing.xxxl,
   },
   backBtn: {
     position: 'absolute',
-    top: T.spacing.lg,
-    left: T.spacing.lg,
+    left: 0,
     padding: T.spacing.sm,
+    zIndex: 2,
   },
   dots: {
     flexDirection: 'row',
@@ -367,36 +393,21 @@ const styles = StyleSheet.create({
     marginBottom: T.spacing.xxxl,
     lineHeight: 20,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: T.colors.component.input,
-    borderColor: T.colors.border.light,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: T.spacing.md,
-    marginBottom: T.spacing.lg,
-    height: 50,
-  },
+  inputWrapper: FORM.inputWrapper,
   otpWrapper: {
     justifyContent: 'center',
     borderColor: T.colors.accent.primary,
     borderWidth: 1.5,
   },
-  inputIcon: { marginRight: T.spacing.md },
-  input: {
-    flex: 1,
-    color: T.colors.text.primary,
-    ...T.typography.bodySm,
-    padding: 0,
-  },
+  inputIcon: FORM.inputIcon,
+  input: FORM.input,
   otpInput: {
     textAlign: 'center',
     fontSize: 24,
     fontWeight: '700',
     letterSpacing: 10,
   },
-  eyeIcon: { padding: T.spacing.sm },
+  eyeIcon: FORM.eyeIcon,
   inputMatch: { borderColor: T.colors.accent.success, borderWidth: 1.5 },
   inputMismatch: { borderColor: '#ef4444', borderWidth: 1.5 },
   matchHint: {
@@ -407,7 +418,7 @@ const styles = StyleSheet.create({
     marginLeft: T.spacing.xs,
   },
   matchHintOk: { color: T.colors.accent.success },
-  btn: { marginTop: T.spacing.sm },
+  btn: { marginTop: T.spacing.sm, ...FORM.fullWidthButton },
   resendWrap: {
     flexDirection: 'row',
     justifyContent: 'center',

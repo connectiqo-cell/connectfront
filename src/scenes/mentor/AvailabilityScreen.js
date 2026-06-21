@@ -46,6 +46,8 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 const layoutSpring = () => {
+  // LayoutAnimation + transform on iOS can crash RN (vector index out of bounds in interpolateViewProps).
+  if (Platform.OS !== 'android') return;
   LayoutAnimation.configureNext(
     LayoutAnimation.create(280, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity),
   );

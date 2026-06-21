@@ -16,6 +16,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CosmicButton from '../../../components/CosmicButton';
+import StackScreenHeader from '../../../components/StackScreenHeader';
 import CosmicBackground from '../../../components/CosmicBackground';
 import { scheduleStyles } from '../../../components/schedule/ScheduleUI';
 import { UNIFIED_THEME } from '../../../unifiedTheme';
@@ -201,6 +202,7 @@ function LobbyShell({ insets, children, scroll = false }) {
 
 function LobbyHeader({ title, subtitle, onBack }) {
   return (
+    <StackScreenHeader insetTop={false}>
     <FadeSlideIn delay={0} fromY={10}>
       <View style={styles.topBarWrap}>
         <View style={scheduleStyles.topBar}>
@@ -215,6 +217,7 @@ function LobbyHeader({ title, subtitle, onBack }) {
         </View>
       </View>
     </FadeSlideIn>
+    </StackScreenHeader>
   );
 }
 
@@ -654,7 +657,7 @@ export default function SessionLobbyView({
           </ActionsPanel>
         ) : null}
         <CosmicButton label="Go to Home" variant="primary" onPress={onLeave} style={styles.fullWidthCta} />
-        <View style={{ height: insets.bottom + 16 }} />
+        <View style={{ height: T.spacing.lg }} />
       </LobbyShell>
     );
   }
@@ -669,7 +672,7 @@ export default function SessionLobbyView({
       <CosmicBackground style={styles.root}>
         {/* Header */}
         <FadeSlideIn delay={0} fromY={-10}>
-          <View style={[styles.newHeader, { paddingTop: insets.top + 10 }]}>
+          <View style={[styles.newHeader, { paddingTop: T.spacing.sm }]}>
             <PressScale onPress={onLeave} style={styles.backBtn} hitSlop={12}>
               <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
             </PressScale>
@@ -825,7 +828,7 @@ export default function SessionLobbyView({
     <CosmicBackground style={styles.root}>
       {/* ── Header ─────────────────────────────────────── */}
       <FadeSlideIn delay={0} fromY={-10}>
-        <View style={[styles.newHeader, { paddingTop: insets.top + 10 }]}>
+        <View style={[styles.newHeader, { paddingTop: T.spacing.sm }]}>
           <PressScale onPress={onLeave} style={styles.backBtn} hitSlop={12}>
             <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
           </PressScale>
@@ -1743,12 +1746,21 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(34,197,94,0.5)',
     ...Platform.select({ ios: { shadowColor: '#22c55e', shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }, android: { elevation: 8 } }),
   },
+  joinCallStack: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: T.borderRadius.lg,
+  },
   joinCallGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: T.spacing.sm,
-    paddingVertical: 20,
+    paddingVertical: 18,
+    zIndex: 1,
+    ...(Platform.OS === 'ios'
+      ? { width: '100%', alignSelf: 'stretch', backgroundColor: 'transparent' }
+      : {}),
   },
   joinCallText: {
     fontSize: 18,

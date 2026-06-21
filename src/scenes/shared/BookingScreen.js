@@ -19,6 +19,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeScreen } from '../../components/SafeScreen';
+import StackScreenHeader from '../../components/StackScreenHeader';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import CelebrationPayButton, { CelebrationScreenFx } from '../../components/CelebrationPayButton';
@@ -58,10 +59,16 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 const layoutSpring = () => {
+  // LayoutAnimation + transform on iOS can crash RN (vector index out of bounds in interpolateViewProps).
+  if (Platform.OS !== 'android') return;
   LayoutAnimation.configureNext(
     LayoutAnimation.create(280, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity),
   );
 };
+
+/** iOS: avoid translateY + scale together — same RN crash as LayoutAnimation + transform. */
+const iosEntranceTransform = (translateY, scale) =>
+  Platform.OS === 'ios' ? [{ translateY }] : [{ translateY }, { scale }];
 
 const ENTRANCE_STEP_MS = 45;
 const SLOT_BUFFER_MINS = 30;
@@ -153,7 +160,7 @@ function FadeSlideIn({ delay = 0, children, style }) {
   useEffect(() => {
     if (played.current) return;
     played.current = true;
-    Animated.parallel([
+    const anims = [
       Animated.timing(opacity, {
         toValue: 1,
         duration: 340,
@@ -168,18 +175,25 @@ function FadeSlideIn({ delay = 0, children, style }) {
         delay,
         useNativeDriver: true,
       }),
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 7,
-        tension: 80,
-        delay,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    ];
+    if (Platform.OS !== 'ios') {
+      anims.push(
+        Animated.spring(scale, {
+          toValue: 1,
+          friction: 7,
+          tension: 80,
+          delay,
+          useNativeDriver: true,
+        }),
+      );
+    } else {
+      scale.setValue(1);
+    }
+    Animated.parallel(anims).start();
   }, [delay, opacity, scale, translateY]);
 
   return (
-    <Animated.View style={[style, { opacity, transform: [{ translateY }, { scale }] }]}>
+    <Animated.View style={[style, { opacity, transform: iosEntranceTransform(translateY, scale) }]}>
       {children}
     </Animated.View>
   );
@@ -197,7 +211,7 @@ function FadeInSection({ show, children, delay = 0, style }) {
       scale.setValue(0.94);
       return;
     }
-    Animated.parallel([
+    const anims = [
       Animated.timing(opacity, {
         toValue: 1,
         duration: 480,
@@ -212,21 +226,28 @@ function FadeInSection({ show, children, delay = 0, style }) {
         delay,
         useNativeDriver: true,
       }),
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 7,
-        tension: 80,
-        delay,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    ];
+    if (Platform.OS !== 'ios') {
+      anims.push(
+        Animated.spring(scale, {
+          toValue: 1,
+          friction: 7,
+          tension: 80,
+          delay,
+          useNativeDriver: true,
+        }),
+      );
+    } else {
+      scale.setValue(1);
+    }
+    Animated.parallel(anims).start();
   }, [show, delay, opacity, translateY, scale]);
 
   if (!show) return null;
 
   return (
     <Animated.View
-      style={[style, { opacity, transform: [{ translateY }, { scale }] }]}
+      style={[style, { opacity, transform: iosEntranceTransform(translateY, scale) }]}
     >
       {children}
     </Animated.View>
@@ -544,11 +565,16 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
     </View>
   );
 
+  const chipTransform =
+    Platform.OS === 'ios'
+      ? [{ translateY: chipY }]
+      : [{ translateY: chipY }, { scale }];
+
   return (
     <Animated.View
       style={[
         styles.slotCellWrap,
-        { opacity: chipOpacity, transform: [{ translateY: chipY }, { scale }] },
+        { opacity: chipOpacity, transform: chipTransform },
       ]}
     >
       <Pressable
@@ -642,7 +668,8 @@ const feeStyles = StyleSheet.create({
 });
 
 export default function BookingScreen({ navigation, route }) {
-  const { mentorId, mentorName } = route.params;
+  const mentorId = route.params?.mentorId;
+  const mentorName = route.params?.mentorName ?? 'Mentor';
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
   const navBarInset = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 8);
@@ -677,6 +704,12 @@ export default function BookingScreen({ navigation, route }) {
   }, [headerFade, headerSlide]);
 
   useEffect(() => {
+    if (!mentorId) {
+      Toast.show('Could not open booking. Please try again.');
+      navigation.goBack();
+      return undefined;
+    }
+
     let active = true;
 
     const run = async () => {
@@ -734,7 +767,7 @@ export default function BookingScreen({ navigation, route }) {
 
     run();
     return () => { active = false; };
-  }, [mentorId, profile?.id]);
+  }, [mentorId, profile?.id, navigation]);
 
   useEffect(() => {
     layoutSpring();
@@ -933,7 +966,8 @@ export default function BookingScreen({ navigation, route }) {
   if (initialLoading) {
     return (
       <View style={styles.screenRoot}>
-        <SafeScreen scrollable padding={T.spacing.md} hasBottomTabs={false}>
+        <SafeScreen scrollable padding={T.spacing.md} hasBottomTabs={false} includeTopInset={false}>
+          <StackScreenHeader>
           <View style={scheduleStyles.topBar}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
@@ -948,6 +982,7 @@ export default function BookingScreen({ navigation, route }) {
             </View>
             <View style={scheduleStyles.topBarSide} />
           </View>
+          </StackScreenHeader>
           <BookingSkeleton />
         </SafeScreen>
       </View>
@@ -958,7 +993,8 @@ export default function BookingScreen({ navigation, route }) {
     <View style={styles.screenRoot}>
       <CelebrationScreenFx active={readyToPay && !paying} origin={fxOrigin} />
 
-      <SafeScreen scrollable padding={T.spacing.md} hasBottomTabs={false}>
+      <SafeScreen scrollable padding={T.spacing.md} hasBottomTabs={false} includeTopInset={false}>
+        <StackScreenHeader>
         <View style={scheduleStyles.topBar}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -974,6 +1010,7 @@ export default function BookingScreen({ navigation, route }) {
           </View>
           <View style={scheduleStyles.topBarSide} />
         </View>
+        </StackScreenHeader>
 
         <Animated.View style={{ opacity: headerFade, transform: [{ translateY: headerSlide }] }}>
           <ScheduleHeroBanner

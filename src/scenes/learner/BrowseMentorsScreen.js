@@ -192,6 +192,7 @@ const styles = StyleSheet.create({
   },
   statSeg: {
     flex: 1,
+    flexBasis: 0,
     minWidth: 0,
     alignItems: 'center',
     paddingHorizontal: 2,

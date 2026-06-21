@@ -27,7 +27,9 @@ import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
 import { getFloatingTabBarContentInset } from '../../components/CosmicBottomTabBar';
 import CosmicButton from '../../components/CosmicButton';
+import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { iosFlexChild } from '../../utils/platformLayout';
 import { profileApi } from '../../api/profileApi';
 import { videoApi } from '../../api/videoApi';
 import { bookingApi } from '../../api/bookingApi';
@@ -397,6 +399,7 @@ function GoldStarsRow({ rating, size = 11 }) {
 }
 
 function VideoPlayerModal({ video, onClose }) {
+  const insets = useSafeAreaInsets();
   const [paused, setPaused] = useState(false);
   const [buffering, setBuffering] = useState(true);
   const [error, setError] = useState(false);
@@ -426,7 +429,7 @@ function VideoPlayerModal({ video, onClose }) {
             <Text style={vStyles.errorText}>Could not play video</Text>
           </View>
         )}
-        <View style={vStyles.topBar}>
+        <View style={[vStyles.topBar, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={onClose} style={vStyles.closeBtn}>
             <MaterialIcons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
@@ -1136,7 +1139,7 @@ export default function MentorProfileScreen({ navigation, route }) {
   if (!mentorId) {
     return (
       <SafeScreen scrollable={false} {...safeScreenProps}>
-        <View style={[styles.root, styles.centerFill, !isOwnProfile && { paddingTop: insets.top }]}>
+        <View style={[styles.root, styles.centerFill]}>
           <Text style={styles.errTxt}>Missing mentor.</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => navigation.goBack()}>
             <Text style={styles.retryTxt}>Go back</Text>
@@ -1149,7 +1152,7 @@ export default function MentorProfileScreen({ navigation, route }) {
   if (loading && !mentor) {
     return (
       <SafeScreen scrollable={false} {...safeScreenProps}>
-        <View style={[styles.root, styles.centerFill, !isOwnProfile && { paddingTop: insets.top }]}>
+        <View style={[styles.root, styles.centerFill]}>
           <ActivityIndicator size="large" color={PURPLE_LINK} />
         </View>
       </SafeScreen>
@@ -1159,7 +1162,7 @@ export default function MentorProfileScreen({ navigation, route }) {
   if (error && !mentor) {
     return (
       <SafeScreen scrollable={false} {...safeScreenProps}>
-        <View style={[styles.root, styles.centerFill, !isOwnProfile && { paddingTop: insets.top }]}>
+        <View style={[styles.root, styles.centerFill]}>
           <MaterialIcons name="error-outline" size={40} color={C.accent.error} />
           <Text style={styles.errTxt}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => loadData(false)}>
@@ -1216,7 +1219,9 @@ export default function MentorProfileScreen({ navigation, route }) {
             <View
               style={[
                 styles.heroTopBar,
-                { paddingTop: isOwnProfile ? 6 : Math.max(6, insets.top - 6) },
+                {
+                  paddingTop: (isOwnProfile ? 0 : insets.top) + T.spacing.sm,
+                },
               ]}
             >
               <View style={styles.heroBarActions}>
@@ -1239,20 +1244,19 @@ export default function MentorProfileScreen({ navigation, route }) {
           <ProfileFadeIn delayIndex={1} style={styles.identityBlock}>
             <View style={styles.avatarRingWrap}>
               <AvatarPulseRing>
-                <LinearGradient
+                <CircularProfileImage
+                  size={94}
+                  ringWidth={3}
                   colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.avatarRingGrad}
-                >
-                  {avatarUrl ? (
-                    <Image source={{ uri: avatarUrl }} style={styles.avatar} resizeMode="cover" />
-                  ) : (
-                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  innerBg={SCREEN_BG}
+                  uri={avatarUrl}
+                  style={Platform.select({ ios: T.shadows.medium, android: { elevation: 8 } })}
+                  fallback={
+                    <View style={[styles.avatarPlaceholder, styles.avatarFallbackLarge]}>
                       <MaterialIcons name="person" size={48} color={PURPLE_LINK} />
                     </View>
-                  )}
-                </LinearGradient>
+                  }
+                />
               </AvatarPulseRing>
               <PulseOnlineDot />
             </View>
@@ -1579,6 +1583,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.35)',
     ...Platform.select({ ios: T.shadows.medium, android: { elevation: 8 } }),
   },
+  avatarFallbackLarge: {
+    width: 88,
+    height: 88,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: SCREEN_BG,
+  },
   avatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: SCREEN_BG },
   avatarPlaceholder: { justifyContent: 'center', alignItems: 'center' },
   avatarOnlineDot: {
@@ -1655,9 +1666,11 @@ const styles = StyleSheet.create({
   },
   ctaHalf: {
     flex: 1,
+    flexBasis: 0,
     minWidth: 0,
     borderRadius: 12,
     overflow: 'hidden',
+    alignSelf: 'stretch',
     ...Platform.select({ ios: T.shadows.small, android: { elevation: 3 } }),
   },
   ctaHalfInner: {

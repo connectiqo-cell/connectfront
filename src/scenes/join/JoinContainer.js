@@ -1,13 +1,13 @@
 import {
   View,
   TouchableOpacity,
-  SafeAreaView,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
   Keyboard,
   Platform,
   StyleSheet,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraSwitch, Speaker } from "../../assets/icons";
 import Button from "../../components/Button";
 import { UNIFIED_THEME } from "../../unifiedTheme";

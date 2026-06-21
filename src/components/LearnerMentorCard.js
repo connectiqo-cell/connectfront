@@ -2,15 +2,15 @@ import React from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   Platform,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicButton from './CosmicButton';
+import { CircularProfileImage } from './CircularGradientFrame';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { iosFlexChild } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -45,20 +45,18 @@ export function LearnerMentorCard({
     <>
       <View style={styles.topRow}>
         <View style={styles.avatarRingWrap}>
-          <LinearGradient
+          <CircularProfileImage
+            size={48}
+            ringWidth={2}
             colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.avatarRingGrad}
-          >
-            {mentor.profiles?.avatar_url ? (
-              <Image source={{ uri: mentor.profiles.avatar_url }} style={styles.avatarImg} />
-            ) : (
-              <View style={[styles.avatarImg, styles.avatarPh]}>
+            innerBg={C.primary.void}
+            uri={mentor.profiles?.avatar_url}
+            fallback={
+              <View style={[styles.avatarPh, styles.avatarFallbackSmall]}>
                 <Text style={styles.avatarLetter}>{initial}</Text>
               </View>
-            )}
-          </LinearGradient>
+            }
+          />
         </View>
         <View style={styles.headMain}>
           <Text style={styles.name} numberOfLines={2}>
@@ -135,12 +133,13 @@ export function LearnerMentorCard({
 
 const styles = StyleSheet.create({
   card: {
-    width: 176,
+    width: Platform.OS === 'ios' ? 192 : 176,
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16,
     padding: T.spacing.md,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.14)',
+    alignSelf: 'flex-start',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -161,12 +160,19 @@ const styles = StyleSheet.create({
   },
   topRow: {
     flexDirection: 'row',
-    gap: T.spacing.sm,
     marginBottom: T.spacing.sm,
     alignItems: 'flex-start',
+    ...Platform.select({
+      ios: {},
+      default: { gap: T.spacing.sm },
+    }),
   },
   avatarRingWrap: {
     alignItems: 'center',
+    ...Platform.select({
+      ios: { marginRight: T.spacing.sm },
+      default: {},
+    }),
   },
   avatarRingGrad: {
     padding: 2,
@@ -174,15 +180,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
-  avatarImg: {
+  avatarFallbackSmall: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: C.primary.void,
-  },
-  avatarPh: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarPh: {
     backgroundColor: S.accentViolet,
   },
   avatarLetter: {
@@ -190,17 +194,21 @@ const styles = StyleSheet.create({
     color: PURPLE_LINK,
     fontWeight: '700',
   },
-  headMain: {
-    flex: 1,
-    minWidth: 0,
-  },
+  headMain: iosFlexChild(),
   name: {
-    fontSize: 13,
+    fontSize: Platform.OS === 'ios' ? 15 : 13,
     color: C.text.primary,
-    fontWeight: '800',
+    fontWeight: Platform.OS === 'ios' ? '700' : '800',
     marginBottom: 5,
-    lineHeight: 17,
-    letterSpacing: -0.2,
+    lineHeight: Platform.OS === 'ios' ? 20 : 17,
+    letterSpacing: Platform.OS === 'ios' ? 0 : -0.2,
+    flexShrink: 1,
+    ...(Platform.OS === 'ios'
+      ? {
+          backgroundColor: 'transparent',
+          width: '100%',
+        }
+      : {}),
   },
   badgeRow: {
     flexDirection: 'row',
@@ -241,8 +249,8 @@ const styles = StyleSheet.create({
     color: GOLD,
     fontWeight: '700',
     marginBottom: T.spacing.sm,
-    minHeight: 26,
-    lineHeight: 16,
+    minHeight: Platform.OS === 'ios' ? 32 : 26,
+    lineHeight: Platform.OS === 'ios' ? 18 : 16,
   },
   priceRow: {
     flexDirection: 'row',
@@ -280,7 +288,7 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 'auto',
   },
-  bookBtnThemed: { flex: 1, marginVertical: 0 },
+  bookBtnThemed: { flex: 1, flexBasis: 0, minWidth: 0, marginVertical: 0 },
   profileBtn: {
     width: 38,
     height: 38,

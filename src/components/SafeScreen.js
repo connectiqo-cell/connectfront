@@ -7,14 +7,16 @@ import CosmicBackground from './CosmicBackground';
 /**
  * SafeScreen - Uses react-native-safe-area-context for better safe area handling
  * Ensures all screens fit safely on any mobile device with notches, bottom bars, tabs, etc.
+ *
+ * Stack overlay screens: SafeScreen includeTopInset={false} + StackScreenHeader (applies status-bar inset once).
  */
 export const SafeScreen = ({
   children,
   scrollable = true,
   backgroundColor = 'transparent',
   padding = UNIFIED_THEME.spacing.lg,
-  hasBottomTabs = true, // Add extra space for bottom tab navigator
-  /** When false, top inset is omitted (e.g. material top tab bar already clears status bar). */
+  hasBottomTabs = true,
+  /** When false, top inset is omitted (material top tabs or iOS stack modal handles it). */
   includeTopInset = true,
   refreshControl,
 }) => {
@@ -35,6 +37,7 @@ export const SafeScreen = ({
     <CosmicBackground style={styles.safeArea}>
       {scrollable ? (
         <ScrollView
+          style={styles.flex1}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={paddingStyle}
           keyboardShouldPersistTaps="handled"
@@ -56,6 +59,9 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     position: 'relative',
+  },
+  flex1: {
+    flex: 1,
   },
   container: {
     flex: 1,

@@ -11,6 +11,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { iosGradientTextBlock } from '../utils/platformLayout';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -74,7 +75,8 @@ export function MentorImageCard({ mentor, onPress, style, entranceDelay }) {
     style,
     {
       opacity,
-      transform: [{ translateY }, { scale }],
+      transform:
+        Platform.OS === 'ios' ? [{ translateY }] : [{ translateY }, { scale }],
     },
   ];
 
@@ -105,21 +107,31 @@ export function MentorImageCard({ mentor, onPress, style, entranceDelay }) {
         </View>
       ) : null}
 
-      {/* Bottom gradient info strip */}
-      <LinearGradient
-        colors={['transparent', 'rgba(3,2,12,0.65)', 'rgba(3,2,12,0.97)']}
-        style={styles.strip}
-        pointerEvents="none"
-      >
-        <Text style={styles.name} numberOfLines={1}>{name}</Text>
-        {spec ? (
-          <Text style={styles.spec} numberOfLines={1}>{spec}</Text>
-        ) : null}
-        <View style={styles.metaRow}>
-          <MaterialIcons name="history-edu" size={10} color={C.text.muted} />
-          <Text style={styles.sessions}>{sessions} sessions</Text>
+      {/* Bottom info strip */}
+      <View style={styles.strip} pointerEvents="none">
+        {Platform.OS === 'ios' ? (
+          <View style={styles.stripBgIos} />
+        ) : (
+          <LinearGradient
+            colors={['transparent', 'rgba(3,2,12,0.65)', 'rgba(3,2,12,0.97)']}
+            style={StyleSheet.absoluteFillObject}
+          />
+        )}
+        <View style={[styles.stripContent, iosGradientTextBlock]}>
+          <Text style={styles.name} numberOfLines={2} ellipsizeMode="tail">
+            {name}
+          </Text>
+          {spec ? (
+            <Text style={styles.spec} numberOfLines={1}>
+              {spec}
+            </Text>
+          ) : null}
+          <View style={styles.metaRow}>
+            <MaterialIcons name="history-edu" size={10} color={C.text.muted} />
+            <Text style={styles.sessions}>{sessions} sessions</Text>
+          </View>
         </View>
-      </LinearGradient>
+      </View>
       </Pressable>
     </Animated.View>
   );
@@ -127,8 +139,8 @@ export function MentorImageCard({ mentor, onPress, style, entranceDelay }) {
 
 const styles = StyleSheet.create({
   defaultSize: {
-    width: 120,
-    height: 172,
+    width: Platform.OS === 'ios' ? 128 : 120,
+    height: Platform.OS === 'ios' ? 180 : 172,
   },
   cardFill: {
     width: '100%',
@@ -190,15 +202,31 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: T.spacing.sm,
-    paddingTop: T.spacing.xxl,
-    paddingBottom: T.spacing.sm,
+    paddingTop: Platform.OS === 'ios' ? T.spacing.xl : T.spacing.xxl,
+    paddingBottom: Platform.OS === 'ios' ? T.spacing.sm + 2 : T.spacing.sm,
+    overflow: 'hidden',
+  },
+  stripBgIos: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(3,2,12,0.94)',
+  },
+  stripContent: {
+    width: '100%',
+    position: 'relative',
+    zIndex: 1,
   },
   name: {
     color: C.text.primary,
-    fontWeight: '800',
-    fontSize: 12,
-    lineHeight: 16,
+    fontWeight: '700',
+    fontSize: Platform.OS === 'ios' ? 12 : 12,
+    lineHeight: Platform.OS === 'ios' ? 16 : 16,
     marginBottom: 2,
+    ...(Platform.OS === 'ios'
+      ? {
+          backgroundColor: 'transparent',
+          width: '100%',
+        }
+      : {}),
   },
   spec: {
     fontSize: 10,

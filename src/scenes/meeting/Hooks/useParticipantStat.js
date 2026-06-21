@@ -10,6 +10,12 @@ function useParticipantStat({ participantId }) {
     getShareStats,
     isPresenting,
     displayName,
+    webcamOn,
+    micOn,
+    screenShareOn,
+    screenShareStream,
+    setQuality,
+    isLocal,
   } = useParticipant(participantId);
 
   const statsIntervalIdRef = useRef();
@@ -105,6 +111,13 @@ function useParticipantStat({ participantId }) {
     audioStats,
     videoStats,
     displayName,
+    webcamOn,
+    webcamStream,
+    micOn,
+    screenShareOn,
+    screenShareStream,
+    setQuality,
+    isLocal,
   };
 }
 

@@ -1,5 +1,5 @@
 ﻿import { useMeeting } from '@videosdk.live/react-native-sdk';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import React from 'react';
 import Toast from 'react-native-simple-toast';
 import OneToOneMeetingViewer from './OneToOne';
@@ -20,14 +20,18 @@ export default function MeetingContainer({
   const hasJoinedRef = useRef(false);
   const joinRequestedRef = useRef(false);
 
+  const onMeetingJoined = useCallback(() => {
+    hasJoinedRef.current = true;
+    setJoined(true);
+  }, []);
+
+  const onError = useCallback(({ message }) => {
+    Toast.show(message || 'Failed to join session');
+  }, []);
+
   const { join, participants, leave, localMicOn, localWebcamOn, toggleMic, toggleWebcam } = useMeeting({
-    onMeetingJoined: () => {
-      hasJoinedRef.current = true;
-      setJoined(true);
-    },
-    onError: ({ message }) => {
-      Toast.show(message || 'Failed to join session');
-    },
+    onMeetingJoined,
+    onError,
   });
 
   const remoteParticipantCount = participants.size;

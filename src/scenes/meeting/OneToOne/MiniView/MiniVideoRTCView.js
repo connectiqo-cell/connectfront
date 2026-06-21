@@ -4,7 +4,6 @@ import { View, TouchableOpacity } from "react-native";
 import { NetworkIcon } from "../../../../assets/icons";
 import Avatar from "../../../../components/Avatar";
 import colors from "../../../../styles/colors";
-import useParticipantStat from "../../Hooks/useParticipantStat";
 
 const buttonStyle = {
   alignItems: "center",
@@ -25,11 +24,9 @@ export default MiniVideoRTCView = ({
   isLocal,
   openStatsBottomSheet,
   micOn,
+  score,
   participantId,
 }) => {
-  const { score } = useParticipantStat({
-    participantId,
-  });
   return (
     <View
       style={{

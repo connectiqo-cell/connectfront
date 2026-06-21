@@ -1,4 +1,3 @@
-import { useParticipant } from "@videosdk.live/react-native-sdk";
 import React, { useEffect } from "react";
 import { View, TouchableOpacity } from "react-native";
 import { NetworkIcon } from "../../../../assets/icons";
@@ -22,6 +21,7 @@ export default LargeViewContainer = ({
   openStatsBottomSheet,
 }) => {
   const {
+    score,
     screenShareOn,
     screenShareStream,
     webcamOn,
@@ -30,14 +30,10 @@ export default LargeViewContainer = ({
     setQuality,
     isLocal,
     micOn,
-  } = useParticipant(participantId, {});
-
-  const { score } = useParticipantStat({
-    participantId,
-  });
+  } = useParticipantStat({ participantId });
 
   useEffect(() => {
-    setQuality("high");
+    setQuality?.("high");
   }, []);
 
   return (

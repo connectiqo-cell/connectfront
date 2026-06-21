@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -78,6 +78,11 @@ function resolveCameras(cams) {
 }
 
 export default function OneToOneMeetingViewer({ isHost, booking }) {
+  const onMeetingError = useCallback((data) => {
+    const { code, message } = data;
+    Toast.show(`Error: ${code}: ${message}`);
+  }, []);
+
   const {
     join,
     participants,
@@ -99,12 +104,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     recordingState,
     enableScreenShare,
     disableScreenShare,
-  } = useMeeting({
-    onError: (data) => {
-      const { code, message } = data;
-      Toast.show(`Error: ${code}: ${message}`);
-    },
-  });
+  } = useMeeting({ onError: onMeetingError });
   const recordingConsentPubSub = usePubSub("RECORDING_CONSENT", {});
 
   const leaveMenu = useRef();

@@ -76,7 +76,7 @@ function usePressScale(enabled) {
   return { scale, onPressIn, onPressOut };
 }
 
-function PressableShell({ pressScale, onPress, style, children, disabled }) {
+function PressableShell({ pressScale, onPress, style, children, disabled, innerRadius }) {
   const { scale, onPressIn, onPressOut } = usePressScale(pressScale && !disabled);
 
   if (!pressScale || disabled) {
@@ -100,7 +100,7 @@ function PressableShell({ pressScale, onPress, style, children, disabled }) {
         onPress={onPress}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
-        style={styles.pressableFill}
+        style={[styles.pressableFill, innerRadius && { borderRadius: innerRadius, overflow: 'hidden' }]}
         disabled={disabled}
       >
         {children}
@@ -222,6 +222,7 @@ export default function CosmicButton({
         pressScale={pressScale}
         onPress={onPress}
         disabled={isDisabled}
+        innerRadius={pillRadius}
         style={[
           shell,
           { borderColor: gradientConfig.border },
@@ -274,6 +275,7 @@ export default function CosmicButton({
       pressScale={pressScale}
       onPress={onPress}
       disabled={isDisabled}
+      innerRadius={pillRadius}
       style={[
         shell,
         flat,

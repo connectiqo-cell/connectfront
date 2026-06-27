@@ -13,24 +13,15 @@ const BASE = {
 
 describe('recordingConfig', () => {
   describe('buildOneToOneRecordingConfig', () => {
-    it('uses SPOTLIGHT layout for a single participant', () => {
+    it('always uses GRID layout regardless of participant count', () => {
       expect(buildOneToOneRecordingConfig(1)).toEqual({
         ...BASE,
-        layout: {
-          type: 'SPOTLIGHT',
-          priority: 'SPEAKER',
-        },
+        layout: { type: 'GRID', priority: 'SPEAKER', gridSize: 1 },
       });
-    });
 
-    it('uses GRID layout sized to participant count for 2–4 participants', () => {
       expect(buildOneToOneRecordingConfig(2)).toEqual({
         ...BASE,
-        layout: {
-          type: 'GRID',
-          priority: 'SPEAKER',
-          gridSize: 2,
-        },
+        layout: { type: 'GRID', priority: 'SPEAKER', gridSize: 2 },
       });
 
       expect(buildOneToOneRecordingConfig(3).layout).toEqual({
@@ -41,8 +32,8 @@ describe('recordingConfig', () => {
     });
 
     it('clamps invalid counts to safe bounds', () => {
-      expect(buildOneToOneRecordingConfig(0).layout.type).toBe('SPOTLIGHT');
-      expect(buildOneToOneRecordingConfig(-2).layout.type).toBe('SPOTLIGHT');
+      expect(buildOneToOneRecordingConfig(0).layout.gridSize).toBe(1);
+      expect(buildOneToOneRecordingConfig(-2).layout.gridSize).toBe(1);
       expect(buildOneToOneRecordingConfig(9).layout.gridSize).toBe(4);
     });
 
@@ -56,7 +47,7 @@ describe('recordingConfig', () => {
   });
 
   describe('ONE_TO_ONE_RECORDING_CONFIG', () => {
-    it('matches the legacy 2-participant grid preset', () => {
+    it('matches the 2-participant grid preset', () => {
       expect(ONE_TO_ONE_RECORDING_CONFIG).toEqual(buildOneToOneRecordingConfig(2));
     });
   });
@@ -65,13 +56,13 @@ describe('recordingConfig', () => {
     it('passes null webhook paths and dynamic layout to VideoSDK', () => {
       const startRecording = jest.fn();
 
-      startOneToOneRecording(startRecording, 1);
+      startOneToOneRecording(startRecording, 2);
 
       expect(startRecording).toHaveBeenCalledTimes(1);
       expect(startRecording).toHaveBeenCalledWith(
         null,
         null,
-        buildOneToOneRecordingConfig(1),
+        buildOneToOneRecordingConfig(2),
       );
     });
   });

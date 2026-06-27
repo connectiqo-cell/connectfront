@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -20,7 +19,6 @@ import { SCREEN_NAMES } from '../../navigators/screenNames';
 const T = UNIFIED_THEME;
 const C = T.colors;
 const B = C.buttons;
-const S = C.surface;
 
 import { AUTH_FORM_STYLES } from '../../utils/authFormStyles';
 
@@ -32,34 +30,41 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  const handleEmailChange = (text) => {
+    setEmail(text);
+    if (loginError) setLoginError('');
+  };
+
+  const handlePasswordChange = (text) => {
+    setPassword(text);
+    if (loginError) setLoginError('');
+  };
 
   const handleLogin = async () => {
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email');
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail) {
+      setLoginError('Please enter your email address.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setLoginError('Please enter a valid email address.');
       return;
     }
     if (!password) {
-      Alert.alert('Error', 'Please enter your password');
+      setLoginError('Please enter your password.');
       return;
     }
 
+    setLoginError('');
     setLoading(true);
     try {
-      await authApi.signIn({
-        email: email.trim().toLowerCase(),
-        password,
-      });
-
+      await authApi.signIn({ email: trimmedEmail, password });
       Toast.show('Signed in successfully!');
     } catch (error) {
-      console.error('Login error:', error);
-      let message = error.message || 'Something went wrong. Please try again.';
-
-      if (error.message?.includes('Invalid login credentials')) {
-        message = 'Invalid email or password. Please check and try again.';
-      }
-
-      Alert.alert('Login Error', message);
+      console.warn('Login failed:', error?.message);
+      setLoginError(error?.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -80,6 +85,16 @@ export default function LoginScreen({ navigation }) {
           </View>
 
           <View style={styles.formContainer}>
+            {!!loginError && (
+              <View style={styles.errorBanner}>
+                <MaterialIcons name="error-outline" size={18} color="#ef4444" style={styles.errorIcon} />
+                <Text style={styles.errorText}>{loginError}</Text>
+                <TouchableOpacity onPress={() => setLoginError('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <MaterialIcons name="close" size={16} color="#ef4444" />
+                </TouchableOpacity>
+              </View>
+            )}
+
             <View style={styles.inputWrapper}>
               <MaterialIcons name="email" size={20} color={C.text.secondary} style={styles.inputIcon} />
               <TextInput
@@ -87,12 +102,14 @@ export default function LoginScreen({ navigation }) {
                 placeholderTextColor={C.text.muted}
                 style={styles.input}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={handleEmailChange}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 editable={!loading}
-                cursorColor={PURPLE_LINK}
+                cursorColor="#ffffff"
                 selectionColor={PURPLE_LINK}
+                selectionHandleColor="transparent"
+                underlineColorAndroid="transparent"
               />
             </View>
 
@@ -103,11 +120,13 @@ export default function LoginScreen({ navigation }) {
                 placeholderTextColor={C.text.muted}
                 style={styles.input}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={handlePasswordChange}
                 secureTextEntry={!showPassword}
                 editable={!loading}
-                cursorColor={PURPLE_LINK}
+                cursorColor="#ffffff"
                 selectionColor={PURPLE_LINK}
+                selectionHandleColor="transparent"
+                underlineColorAndroid="transparent"
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
@@ -193,6 +212,28 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     marginBottom: T.spacing.xxxl,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.35)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: T.spacing.md,
+    gap: 8,
+  },
+  errorIcon: {
+    flexShrink: 0,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#ef4444',
+    lineHeight: 18,
+    fontWeight: '500',
   },
   inputWrapper: AUTH_FORM_STYLES.inputWrapper,
   inputIcon: AUTH_FORM_STYLES.inputIcon,

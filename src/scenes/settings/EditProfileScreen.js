@@ -1055,7 +1055,10 @@ export default function EditProfileScreen({ navigation }) {
                     try {
                       setLoading(true);
                       await supabase.rpc('delete_user');
-                      await supabase.auth.signOut();
+                      // Auth user is now deleted — use scope:'local' so we only
+                      // clear the local token without making a server round-trip
+                      // (the server would 404 since the user no longer exists).
+                      await supabase.auth.signOut({ scope: 'local' });
                       navigation.reset({ index: 0, routes: [{ name: 'Auth' }] });
                     } catch (err) {
                       console.error('Delete account error:', err?.message || err);

@@ -303,9 +303,9 @@ const sk = StyleSheet.create({
 
 const TIME_SLOTS = (() => {
   const slots = [];
-  for (let h = 6; h <= 22; h++) {
+  for (let h = 0; h <= 23; h++) {
     slots.push(`${String(h).padStart(2, '0')}:00`);
-    if (h < 22) slots.push(`${String(h).padStart(2, '0')}:30`);
+    slots.push(`${String(h).padStart(2, '0')}:30`);
   }
   return slots;
 })();
@@ -314,9 +314,11 @@ const SLOT_DURATION = 20;
 const SLOT_BUFFER_MINS = 30;
 
 const SLOT_PERIODS = [
-  { id: 'morning', label: 'Morning', hint: '6:00 – 11:30', icon: 'wb-sunny', startHour: 6, endHour: 12 },
-  { id: 'afternoon', label: 'Afternoon', hint: '12:00 – 16:30', icon: 'brightness-5', startHour: 12, endHour: 17 },
-  { id: 'evening', label: 'Evening', hint: '17:00 – 22:00', icon: 'nightlight-round', startHour: 17, endHour: 23 },
+  { id: 'night',      label: 'Night',      hint: '0:00 – 5:30',   icon: 'nights-stay',    startHour: 0,  endHour: 6  },
+  { id: 'morning',    label: 'Morning',    hint: '6:00 – 11:30',  icon: 'wb-sunny',       startHour: 6,  endHour: 12 },
+  { id: 'afternoon',  label: 'Afternoon',  hint: '12:00 – 16:30', icon: 'brightness-5',   startHour: 12, endHour: 17 },
+  { id: 'evening',    label: 'Evening',    hint: '17:00 – 21:30', icon: 'nightlight-round', startHour: 17, endHour: 22 },
+  { id: 'late_night', label: 'Late Night', hint: '22:00 – 23:30', icon: 'bedtime',         startHour: 22, endHour: 24 },
 ];
 
 function formatSlotTime(time24) {
@@ -328,13 +330,15 @@ function formatSlotTime(time24) {
 
 function getSlotPeriodId(startTime) {
   const hour = parseInt(startTime.split(':')[0], 10);
+  if (hour < 6)  return 'night';
   if (hour < 12) return 'morning';
   if (hour < 17) return 'afternoon';
-  return 'evening';
+  if (hour < 22) return 'evening';
+  return 'late_night';
 }
 
 function groupTimeSlots(slots) {
-  const grouped = { morning: [], afternoon: [], evening: [] };
+  const grouped = { night: [], morning: [], afternoon: [], evening: [], late_night: [] };
   slots.forEach((startTime, index) => {
     grouped[getSlotPeriodId(startTime)].push({ startTime, index });
   });

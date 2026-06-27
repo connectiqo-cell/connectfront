@@ -116,8 +116,10 @@ export default function SignupScreen({ navigation }) {
                 value={name}
                 onChangeText={v => { setName(v); clearError('name'); }}
                 editable={!loading}
-                cursorColor={PURPLE_LINK}
+                cursorColor="#ffffff"
                 selectionColor={PURPLE_LINK}
+                selectionHandleColor="transparent"
+                underlineColorAndroid="transparent"
               />
             </View>
             {errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
@@ -133,8 +135,10 @@ export default function SignupScreen({ navigation }) {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 editable={!loading}
-                cursorColor={PURPLE_LINK}
+                cursorColor="#ffffff"
                 selectionColor={PURPLE_LINK}
+                selectionHandleColor="transparent"
+                underlineColorAndroid="transparent"
               />
             </View>
             {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
@@ -149,8 +153,10 @@ export default function SignupScreen({ navigation }) {
                 onChangeText={v => { setPassword(v); clearError('password'); }}
                 secureTextEntry={!showPassword}
                 editable={!loading}
-                cursorColor={PURPLE_LINK}
+                cursorColor="#ffffff"
                 selectionColor={PURPLE_LINK}
+                selectionHandleColor="transparent"
+                underlineColorAndroid="transparent"
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
@@ -178,8 +184,10 @@ export default function SignupScreen({ navigation }) {
                 onChangeText={v => { setConfirmPassword(v); clearError('confirmPassword'); }}
                 secureTextEntry={!showConfirmPassword}
                 editable={!loading}
-                cursorColor={PURPLE_LINK}
+                cursorColor="#ffffff"
                 selectionColor={PURPLE_LINK}
+                selectionHandleColor="transparent"
+                underlineColorAndroid="transparent"
               />
               <TouchableOpacity
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}

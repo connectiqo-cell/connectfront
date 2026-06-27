@@ -265,6 +265,7 @@ export default function WelcomeScreen({ navigation }) {
               icon="arrow-forward"
               onPress={() => navigation.navigate(SCREEN_NAMES.Signup)}
               pressScale
+              pill
               style={styles.welcomeButton}
             />
           </Animated.View>

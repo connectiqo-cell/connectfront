@@ -96,18 +96,21 @@ const styles = {
     width: '100vw',
     height: '100vh',
     background: '#000',
-    gap: '2px',
   },
   tile: {
     flex: 1,
     overflow: 'hidden',
-    background: '#111',
+    background: '#000',
     position: 'relative',
+    minHeight: 0,
   },
   video: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
     width: '100%',
     height: '100%',
-    objectFit: 'cover',  // fills tile edge-to-edge — no black bars
+    objectFit: 'cover',
     display: 'block',
   },
   avatarWrap: {

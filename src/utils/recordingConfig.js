@@ -5,7 +5,7 @@
  * @see https://docs.videosdk.live/react-native/guide/video-and-audio-calling-api-sdk/recording-and-live-streaming/record-meeting
  */
 
-const RECORDING_TEMPLATE_URL = 'https://YOUR_TEMPLATE.vercel.app'; // ← replace after deploy
+const RECORDING_TEMPLATE_URL = 'https://rec-tempate.vercel.app';
 
 const BASE_RECORDING_OPTIONS = {
   theme: 'DARK',

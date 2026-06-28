@@ -12,23 +12,6 @@ function ParticipantTile({ participantId }) {
   const containerRef = useRef(null);
   const rafRef = useRef(null);
 
-  // Match canvas pixel size to container
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const sync = () => {
-      canvas.width = container.clientWidth || 360;
-      canvas.height = container.clientHeight || 640;
-    };
-
-    sync();
-    const t = setTimeout(sync, 300); // retry after layout settles
-    return () => clearTimeout(t);
-  }, []);
-
-  // Draw video to canvas every frame with cover scaling — bypasses objectFit entirely
   useEffect(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -41,22 +24,32 @@ function ParticipantTile({ participantId }) {
 
     const draw = () => {
       rafRef.current = requestAnimationFrame(draw);
+
+      // Sync canvas pixel size to actual rendered container size every frame
+      const container = containerRef.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        const cw = Math.round(rect.width) || window.innerWidth || 720;
+        const ch = Math.round(rect.height) || Math.floor(window.innerHeight / 2) || 640;
+        if (canvas.width !== cw) canvas.width = cw;
+        if (canvas.height !== ch) canvas.height = ch;
+      }
+
       if (!video.videoWidth || video.readyState < 2) return;
 
-      const cw = canvas.width || 360;
-      const ch = canvas.height || 640;
+      const cw = canvas.width;
+      const ch = canvas.height;
       const vw = video.videoWidth;
       const vh = video.videoHeight;
 
-      // Cover: scale up so both dimensions fill, crop the excess
+      // Cover: scale so video fills tile completely, crop the excess
       const scale = Math.max(cw / vw, ch / vh);
       const dw = vw * scale;
       const dh = vh * scale;
       const dx = (cw - dw) / 2;
       const dy = (ch - dh) / 2;
 
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, dx, dy, dw, dh);
+      canvas.getContext('2d').drawImage(video, dx, dy, dw, dh);
     };
 
     rafRef.current = requestAnimationFrame(draw);
@@ -86,9 +79,7 @@ function ParticipantTile({ participantId }) {
 
 function MeetingView() {
   const { participants, join } = useMeeting();
-
   useEffect(() => { join(); }, []);
-
   const ids = [...participants.keys()];
 
   return (
@@ -106,7 +97,7 @@ function MeetingView() {
 
 export default function App() {
   if (!TOKEN || !MEETING_ID) {
-    return <div style={{ color: '#888', padding: 24, fontFamily: 'sans-serif' }}>Missing token or meetingId in URL params.</div>;
+    return <div style={{ color: '#888', padding: 24, fontFamily: 'sans-serif' }}>Missing token or meetingId.</div>;
   }
 
   return (
@@ -123,7 +114,7 @@ export default function App() {
 const styles = {
   container: { display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', background: '#000' },
   tile: { flex: 1, overflow: 'hidden', background: '#000', position: 'relative', minHeight: 0 },
-  canvas: { display: 'block', width: '100%', height: '100%' },
+  canvas: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'block' },
   avatarWrap: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 },
   avatar: { width: 72, height: 72, borderRadius: 36, background: '#2a2a3a', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontSize: 28, fontWeight: '700', fontFamily: 'sans-serif' },

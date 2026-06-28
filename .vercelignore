@@ -1,7 +1,7 @@
 node_modules
 android
 ios
-src
+/src
 scripts
 docs
 public

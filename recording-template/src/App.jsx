@@ -10,6 +10,7 @@ function Tile({ participantId, top, height }) {
   const videoRef = useRef(null);
 
   useEffect(() => {
+    console.log('[Tile] participant:', participantId, '| webcamOn:', webcamOn, '| hasStream:', !!webcamStream, '| hasTrack:', !!webcamStream?.track);
     const video = videoRef.current;
     if (!video) return;
     const track = webcamStream?.track;
@@ -21,7 +22,9 @@ function Tile({ participantId, top, height }) {
     ms.addTrack(track);
     video.muted = true;
     video.srcObject = ms;
-    video.play().catch(() => {});
+    video.play()
+      .then(() => console.log('[Tile] video playing for:', participantId))
+      .catch(err => console.error('[Tile] video play error for:', participantId, err));
     return () => { video.srcObject = null; };
   }, [webcamStream, webcamOn]);
 
@@ -59,19 +62,45 @@ function Tile({ participantId, top, height }) {
 function MeetingView() {
   const [ids, setIds] = useState([]);
 
+  const onMeetingJoined = useCallback(() => {
+    console.log('[Meeting] joined successfully');
+  }, []);
+
+  const onError = useCallback((err) => {
+    console.error('[Meeting] error:', JSON.stringify(err));
+  }, []);
+
   const onParticipantJoined = useCallback((p) => {
+    console.log('[Meeting] participant joined:', p.id, p.displayName);
     setIds(prev => prev.includes(p.id) ? prev : [...prev, p.id]);
   }, []);
 
   const onParticipantLeft = useCallback((p) => {
+    console.log('[Meeting] participant left:', p.id);
     setIds(prev => prev.filter(id => id !== p.id));
   }, []);
 
-  const { participants } = useMeeting({ onParticipantJoined, onParticipantLeft });
+  const onStreamEnabled = useCallback((stream, participant) => {
+    console.log('[Meeting] stream enabled | participant:', participant?.id, '| kind:', stream?.kind);
+  }, []);
+
+  const onStreamDisabled = useCallback((stream, participant) => {
+    console.log('[Meeting] stream disabled | participant:', participant?.id, '| kind:', stream?.kind);
+  }, []);
+
+  const { participants } = useMeeting({
+    onMeetingJoined,
+    onError,
+    onParticipantJoined,
+    onParticipantLeft,
+    onStreamEnabled,
+    onStreamDisabled,
+  });
 
   // Fallback: also read from participants map directly (in case callbacks fire before mount)
   useEffect(() => {
     const mapIds = [...participants.keys()];
+    console.log('[Meeting] participants map size:', mapIds.length, '| ids:', mapIds);
     if (mapIds.length > 0) {
       setIds(prev => {
         const merged = [...new Set([...prev, ...mapIds])];

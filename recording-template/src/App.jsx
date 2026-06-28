@@ -8,17 +8,37 @@ const MEETING_ID = params.get('meetingId');
 function ParticipantTile({ participantId }) {
   const { webcamStream, webcamOn, displayName } = useParticipant(participantId);
   const videoRef = useRef(null);
+  const containerRef = useRef(null);
 
   useEffect(() => {
-    if (!videoRef.current || !webcamStream) return;
+    const video = videoRef.current;
+    const container = containerRef.current;
+    if (!video || !webcamStream) return;
+
     const mediaStream = new MediaStream();
     mediaStream.addTrack(webcamStream.track);
-    videoRef.current.srcObject = mediaStream;
-    videoRef.current.play().catch(() => {});
+    video.srcObject = mediaStream;
+
+    const fillContainer = () => {
+      if (!video.videoWidth || !container) return;
+      const scaleX = container.clientWidth / video.videoWidth;
+      const scaleY = container.clientHeight / video.videoHeight;
+      const scale = Math.max(scaleX, scaleY);
+      // Set natural size then scale-up to cover the container
+      video.style.width = video.videoWidth + 'px';
+      video.style.height = video.videoHeight + 'px';
+      video.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    };
+
+    video.addEventListener('loadedmetadata', () => {
+      fillContainer();
+      video.play().catch(() => {});
+    });
+    video.addEventListener('resize', fillContainer);
   }, [webcamStream]);
 
   return (
-    <div style={styles.tile}>
+    <div ref={containerRef} style={styles.tile}>
       {webcamOn ? (
         <video
           ref={videoRef}
@@ -106,11 +126,8 @@ const styles = {
   },
   video: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
+    top: '50%',
+    left: '50%',
     display: 'block',
   },
   avatarWrap: {

@@ -383,14 +383,6 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
             requesterId: localParticipantIdRef.current,
             ts: Date.now(),
           });
-          if (isHost) {
-            getToken()
-              .then(token => startOneToOneRecordingViaAPI({ token, meetingId }))
-              .catch(err => {
-                console.error('[Recording] start failed:', err);
-                Toast.show('Failed to start recording');
-              });
-          }
           Toast.show("Both agreed. Starting recording...");
         } else {
           Toast.show("Other participant declined recording.");
@@ -399,12 +391,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         return;
       }
 
-      if (
-        payload.type === "RECORDING_START_APPROVED" &&
-        payload.requesterId !== localParticipantIdRef.current &&
-        isHost
-      ) {
-        // Only start if truly stopped — not if already starting/started (avoids double-call)
+      if (payload.type === "RECORDING_START_APPROVED" && isHost) {
         if (
           !recordingState ||
           recordingState === Constants.recordingEvents.RECORDING_STOPPED
@@ -414,7 +401,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
             .then(() => Toast.show("Recording started."))
             .catch(err => {
               console.error('[Recording] start failed:', err);
-              Toast.show('Failed to start recording');
+              Toast.show('Rec error: ' + (err?.message || String(err)));
             });
         }
         return;

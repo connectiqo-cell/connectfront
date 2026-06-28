@@ -56,3 +56,4 @@ android/local.properties
 .github/
 connectback/
 admin/
+.vercel

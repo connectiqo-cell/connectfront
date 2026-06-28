@@ -1,4 +1,4 @@
-const RECORDING_TEMPLATE_URL = 'https://connectfront-eta.vercel.app';
+const RECORDING_TEMPLATE_URL = 'https://connectfront-psi.vercel.app';
 
 const RECORDING_API_URL = 'https://api.videosdk.live/v2/recordings/start';
 
@@ -7,13 +7,16 @@ const RECORDING_API_URL = 'https://api.videosdk.live/v2/recordings/start';
  * The SDK's startRecording() cannot load custom templates — only the REST API supports templateUrl.
  */
 export async function startOneToOneRecordingViaAPI({ token, meetingId }) {
-  const templateUrl =
-    `${RECORDING_TEMPLATE_URL}` +
-    `?token=${encodeURIComponent(token)}` +
-    `&meetingId=${encodeURIComponent(meetingId)}` +
-    `&participantId=RECORDER_${meetingId.replace(/-/g, '')}`;
+  console.warn('[Recording] startViaAPI | meetingId:', meetingId, '| hasToken:', !!token);
 
-  console.warn('[Recording] REST API start | meetingId:', meetingId);
+  if (!meetingId) throw new Error('meetingId is missing');
+  if (!token) throw new Error('token is missing');
+
+  // VideoSDK auto-appends ?token=&meetingId=&participantId= to this URL
+  // when it launches the headless Chromium recorder — do NOT add them manually.
+  const templateUrl = RECORDING_TEMPLATE_URL;
+
+  console.warn('[Recording] templateUrl:', templateUrl);
 
   const res = await fetch(RECORDING_API_URL, {
     method: 'POST',
@@ -25,6 +28,11 @@ export async function startOneToOneRecordingViaAPI({ token, meetingId }) {
       roomId: meetingId,
       templateUrl,
       config: {
+        layout: {
+          type: 'GRID',
+          priority: 'SPEAKER',
+          gridSize: 2,
+        },
         theme: 'DARK',
         mode: 'video-and-audio',
         quality: 'high',
@@ -33,12 +41,18 @@ export async function startOneToOneRecordingViaAPI({ token, meetingId }) {
     }),
   });
 
+  const responseText = await res.text().catch(() => '');
+  console.warn('[Recording] API response | status:', res.status, '| body:', responseText);
+
   if (!res.ok) {
-    const text = await res.text().catch(() => res.status.toString());
-    throw new Error(`VideoSDK recording start failed (${res.status}): ${text}`);
+    throw new Error(`VideoSDK ${res.status}: ${responseText}`);
   }
 
-  return res.json();
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    return responseText;
+  }
 }
 
 /** Fallback: SDK-native GRID layout (no custom template). */

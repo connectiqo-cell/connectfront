@@ -43,6 +43,7 @@
     "react-native-responsive-fontsize": "^0.5.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "^4.18.0",
+    "react-native-screenshot-prevent": "^1.2.2",
     "react-native-simple-toast": "^3.3.2",
     "react-native-svg": "^15.12.0",
     "react-native-tab-view": "^4.3.0",

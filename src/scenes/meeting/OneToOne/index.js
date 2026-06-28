@@ -410,7 +410,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         return;
       }
     });
-  }, [recordingConsentPubSub.messages, isHost, recordingState, startRecording]);
+  }, [recordingConsentPubSub.messages, isHost, recordingState, startRecording, participantCount]);
 
   useEffect(() => {
     if (Platform.OS === "ios") {

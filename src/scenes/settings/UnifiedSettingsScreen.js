@@ -44,9 +44,9 @@ const TEAL = C.accent.secondary;
 const PANEL_BG = '#161432';
 
 const APP_VERSION = '0.0.1';
-const SUPPORT_EMAIL = 'support@connectiqo.app';
-const PRIVACY_URL = 'https://connectiqo.app/privacy';
-const TERMS_URL = 'https://connectiqo.app/terms';
+const SUPPORT_EMAIL = 'contact@connectiqo.com';
+const PRIVACY_URL = 'https://connectiqo.com/privacy';
+const TERMS_URL = 'https://connectiqo.com/terms';
 
 const ACCENT_COLORS = { gold: GOLD, teal: TEAL, purple: PURPLE_LINK };
 const ACCENT_BG = {
@@ -994,7 +994,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
             <MenuRow
               icon="video-library"
               accent="gold"
-              label="Recorded Lectures"
+              label="Recorded Session"
               subtitle="Replay past live sessions"
               onPress={() => navigation.navigate(SCREEN_NAMES.RecordedLectures)}
               index={0}

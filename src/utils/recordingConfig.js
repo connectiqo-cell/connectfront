@@ -1,12 +1,14 @@
 /**
  * VideoSDK cloud recording layout for 1-on-1 mentoring calls.
- * Portrait + GRID gridSize 2 → equal top/bottom stack (not side-by-side).
- * Grid size follows active participants so a drop does not leave an empty tile.
+ * Uses a custom template deployed on Vercel — 50/50 split with objectFit:cover
+ * so each tile fills edge-to-edge with no black bars.
  * @see https://docs.videosdk.live/react-native/guide/video-and-audio-calling-api-sdk/recording-and-live-streaming/record-meeting
  */
 
+const RECORDING_TEMPLATE_URL = 'https://rec-tempate.vercel.app';
+
 const BASE_RECORDING_OPTIONS = {
-  theme: 'LIGHT',
+  theme: 'DARK',
   mode: 'video-and-audio',
   quality: 'high',
   orientation: 'portrait',
@@ -15,16 +17,20 @@ const BASE_RECORDING_OPTIONS = {
 export function buildOneToOneRecordingConfig(activeParticipantCount = 2) {
   const count = Math.max(1, Math.min(activeParticipantCount, 4));
 
-  if (count <= 1) {
+  // CUSTOM template: renders a 50/50 split with objectFit:cover — no black bars.
+  // Fallback to GRID if template URL is not set yet.
+  if (RECORDING_TEMPLATE_URL && !RECORDING_TEMPLATE_URL.includes('YOUR_TEMPLATE')) {
     return {
       ...BASE_RECORDING_OPTIONS,
       layout: {
-        type: 'SPOTLIGHT',
-        priority: 'SPEAKER',
+        type: 'CUSTOM',
+        customTemplate: RECORDING_TEMPLATE_URL,
+        gridSize: count,
       },
     };
   }
 
+  // Fallback: GRID until template is deployed
   return {
     ...BASE_RECORDING_OPTIONS,
     layout: {

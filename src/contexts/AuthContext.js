@@ -92,6 +92,26 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  const recoverProfile = async (userId) => {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser?.email) return false;
+      const prefix = authUser.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 15);
+      const username = `${prefix}_${Math.random().toString(36).substring(2, 6)}`;
+      const { error } = await supabase.from('profiles').insert({
+        id: userId,
+        email: authUser.email,
+        name: authUser.user_metadata?.full_name || authUser.email.split('@')[0],
+        role: 'learner',
+        username,
+        created_at: new Date().toISOString(),
+      });
+      return !error;
+    } catch {
+      return false;
+    }
+  };
+
   const fetchProfile = async (userId) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -107,10 +127,19 @@ export const AuthProvider = ({ children }) => {
       clearTimeout(timeoutId);
 
       if (error) {
-        console.error('❌ Profile fetch error:', error.message, error.code || '');
+        console.warn('⚠️ Profile fetch error:', error.message, error.code || '');
 
         if (error.code === 'PGRST116' || error.message.includes('not found')) {
-          await supabase.auth.signOut();
+          // Auth user exists but profile is missing — attempt to recreate it
+          // so the user is not permanently locked out (e.g. after a partial deletion)
+          const recovered = await recoverProfile(userId);
+          if (recovered) {
+            fetchProfile(userId);
+            return;
+          }
+          // Recovery failed — clear everything locally (server signOut may fail if
+          // auth user was already deleted, so use scope:'local' to avoid the round-trip)
+          await supabase.auth.signOut({ scope: 'local' });
           setSession(null);
           setUser(null);
           setProfile(null);

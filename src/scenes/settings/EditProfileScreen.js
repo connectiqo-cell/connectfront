@@ -1033,6 +1033,49 @@ export default function EditProfileScreen({ navigation }) {
     navigation.goBack();
   }, [navigation]);
 
+  const handleDeleteProfile = useCallback(() => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account, profile, and all associated data. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Are you absolutely sure?',
+              `Type DELETE to confirm. Your account for ${profile?.email || 'this user'} will be permanently removed.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete my account',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      setLoading(true);
+                      await supabase.rpc('delete_user');
+                      // Auth user is now deleted — use scope:'local' so we only
+                      // clear the local token without making a server round-trip
+                      // (the server would 404 since the user no longer exists).
+                      await supabase.auth.signOut({ scope: 'local' });
+                      navigation.reset({ index: 0, routes: [{ name: 'Auth' }] });
+                    } catch (err) {
+                      console.error('Delete account error:', err?.message || err);
+                      Toast.show(err?.message || 'Failed to delete account. Contact support.');
+                    } finally {
+                      setLoading(false);
+                    }
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
+  }, [profile?.email, navigation]);
+
   const handleSave = async () => {
     Keyboard.dismiss();
     if (!userId) {
@@ -1318,6 +1361,31 @@ export default function EditProfileScreen({ navigation }) {
               }}
             />
           </SectionBlock>
+
+          <FadeSlideIn delay={360} style={styles.dangerZone}>
+            <View style={styles.dangerZoneHeader}>
+              <MaterialIcons name="warning" size={14} color="#ef4444" />
+              <Text style={styles.dangerZoneTitle}>Danger Zone</Text>
+            </View>
+            <View style={styles.dangerZoneCard}>
+              <View style={styles.dangerZoneInfo}>
+                <Text style={styles.dangerZoneHeading}>Delete Account</Text>
+                <Text style={styles.dangerZoneSubtitle}>
+                  Permanently remove your account and all associated data. This cannot be undone.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={handleDeleteProfile}
+                activeOpacity={0.82}
+                style={styles.deleteBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Delete account"
+              >
+                <MaterialIcons name="delete-forever" size={18} color="#ef4444" />
+                <Text style={styles.deleteBtnText}>Delete Account</Text>
+              </TouchableOpacity>
+            </View>
+          </FadeSlideIn>
         </View>
       </ScrollView>
 
@@ -1807,5 +1875,61 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: B.primaryText || C.text.onAccent,
     letterSpacing: 0.4,
+  },
+  dangerZone: {
+    marginTop: T.spacing.md,
+    marginBottom: T.spacing.xl,
+  },
+  dangerZoneHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: T.spacing.sm,
+    paddingHorizontal: T.spacing.xs,
+  },
+  dangerZoneTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#ef4444',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  dangerZoneCard: {
+    backgroundColor: 'rgba(239,68,68,0.06)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.25)',
+    padding: T.spacing.lg,
+    gap: T.spacing.md,
+  },
+  dangerZoneInfo: {
+    gap: 4,
+  },
+  dangerZoneHeading: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: C.text.primary,
+  },
+  dangerZoneSubtitle: {
+    fontSize: 13,
+    color: C.text.muted,
+    lineHeight: 18,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.4)',
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    paddingVertical: 12,
+    paddingHorizontal: T.spacing.lg,
+  },
+  deleteBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ef4444',
   },
 });

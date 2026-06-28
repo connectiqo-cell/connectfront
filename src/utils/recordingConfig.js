@@ -5,7 +5,7 @@
  * @see https://docs.videosdk.live/react-native/guide/video-and-audio-calling-api-sdk/recording-and-live-streaming/record-meeting
  */
 
-const RECORDING_TEMPLATE_URL = 'https://rec-tempate.vercel.app';
+const RECORDING_TEMPLATE_URL = 'https://connectfront-opal.vercel.app';
 
 const BASE_RECORDING_OPTIONS = {
   theme: 'DARK',
@@ -46,5 +46,7 @@ export const ONE_TO_ONE_RECORDING_CONFIG = buildOneToOneRecordingConfig(2);
 
 /** Pass null webhook/aws paths so VideoSDK applies the layout config. */
 export function startOneToOneRecording(startRecording, activeParticipantCount = 2) {
-  startRecording(null, null, buildOneToOneRecordingConfig(activeParticipantCount));
+  const config = buildOneToOneRecordingConfig(activeParticipantCount);
+  console.warn('[Recording] layout type:', config.layout.type, '| template:', config.layout.customTemplate || 'none');
+  startRecording(null, null, config);
 }

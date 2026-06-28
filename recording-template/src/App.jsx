@@ -5,14 +5,13 @@ const params = new URLSearchParams(window.location.search);
 const TOKEN = params.get('token');
 const MEETING_ID = params.get('meetingId');
 
-// Tile: absolutely positioned slice of the screen, video fills it via min-width/min-height
 function Tile({ participantId, top, height }) {
   const { webcamStream, webcamOn, displayName } = useParticipant(participantId);
   const videoRef = useRef(null);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !webcamStream) return;
+    if (!video || !webcamStream || !webcamStream.track) return;
     const ms = new MediaStream();
     ms.addTrack(webcamStream.track);
     video.srcObject = ms;
@@ -50,8 +49,7 @@ function Tile({ participantId, top, height }) {
 }
 
 function MeetingView() {
-  const { participants, join } = useMeeting();
-  useEffect(() => { join(); }, []);
+  const { participants } = useMeeting();
   const ids = [...participants.keys()];
 
   if (ids.length === 0) {
@@ -62,7 +60,6 @@ function MeetingView() {
     );
   }
 
-  // Each tile gets an equal vertical slice of the screen
   const tileHeight = `${100 / ids.length}%`;
 
   return (

@@ -49,7 +49,8 @@ import ChatViewer from "../Components/ChatViewer";
 import Blink from "../../../components/Blink";
 import VideosdkRPK from "../../../../VideosdkRPK";
 import ParticipantStatsViewer from "../Components/ParticipantStatsViewer";
-import { startOneToOneRecording } from "../../../utils/recordingConfig";
+import { startOneToOneRecordingViaAPI } from "../../../utils/recordingConfig";
+import { getToken } from "../../../api/api";
 import { computeSessionTiming, formatCountdown } from "../../../utils/sessionSlotTimer";
 
 // VideoSDK Android reports facingMode as "front" / "environment" (not WebRTC
@@ -98,7 +99,6 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     localScreenShareOn,
     toggleScreenShare,
     meetingId,
-    startRecording,
     stopRecording,
     meeting,
     recordingState,
@@ -384,7 +384,12 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
             ts: Date.now(),
           });
           if (isHost) {
-            startOneToOneRecording(startRecording, Math.max(1, participantCount || 1));
+            getToken()
+              .then(token => startOneToOneRecordingViaAPI({ token, meetingId }))
+              .catch(err => {
+                console.error('[Recording] start failed:', err);
+                Toast.show('Failed to start recording');
+              });
           }
           Toast.show("Both agreed. Starting recording...");
         } else {
@@ -404,13 +409,18 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
           !recordingState ||
           recordingState === Constants.recordingEvents.RECORDING_STOPPED
         ) {
-          startOneToOneRecording(startRecording, Math.max(1, participantCount || 1));
-          Toast.show("Recording started.");
+          getToken()
+            .then(token => startOneToOneRecordingViaAPI({ token, meetingId }))
+            .then(() => Toast.show("Recording started."))
+            .catch(err => {
+              console.error('[Recording] start failed:', err);
+              Toast.show('Failed to start recording');
+            });
         }
         return;
       }
     });
-  }, [recordingConsentPubSub.messages, isHost, recordingState, startRecording, participantCount]);
+  }, [recordingConsentPubSub.messages, isHost, recordingState, meetingId, participantCount]);
 
   useEffect(() => {
     if (Platform.OS === "ios") {
@@ -505,7 +515,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     }
   };
 
-  const MIN_SESSION_SECONDS = 300; // 5 minutes
+  const MIN_SESSION_SECONDS = 60; // 1 minute (testing — change back to 300 for production)
 
   const tryLeave = (endForAll = false) => {
     if (bothJoinedAtRef.current) {

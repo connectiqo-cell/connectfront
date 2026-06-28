@@ -1,52 +1,54 @@
+const RECORDING_TEMPLATE_URL = 'https://connectfront-eta.vercel.app';
+
+const RECORDING_API_URL = 'https://api.videosdk.live/v2/recordings/start';
+
 /**
- * VideoSDK cloud recording layout for 1-on-1 mentoring calls.
- * Uses a custom template deployed on Vercel — 50/50 split with objectFit:cover
- * so each tile fills edge-to-edge with no black bars.
- * @see https://docs.videosdk.live/react-native/guide/video-and-audio-calling-api-sdk/recording-and-live-streaming/record-meeting
+ * Starts recording via VideoSDK REST API with a custom template URL.
+ * The SDK's startRecording() cannot load custom templates — only the REST API supports templateUrl.
  */
+export async function startOneToOneRecordingViaAPI({ token, meetingId }) {
+  const templateUrl =
+    `${RECORDING_TEMPLATE_URL}` +
+    `?token=${encodeURIComponent(token)}` +
+    `&meetingId=${encodeURIComponent(meetingId)}` +
+    `&participantId=RECORDER_${meetingId.replace(/-/g, '')}`;
 
-const RECORDING_TEMPLATE_URL = 'https://connectfront-opal.vercel.app';
+  console.warn('[Recording] REST API start | meetingId:', meetingId);
 
-const BASE_RECORDING_OPTIONS = {
-  theme: 'DARK',
-  mode: 'video-and-audio',
-  quality: 'high',
-  orientation: 'portrait',
-};
-
-export function buildOneToOneRecordingConfig(activeParticipantCount = 2) {
-  const count = Math.max(1, Math.min(activeParticipantCount, 4));
-
-  // CUSTOM template: renders a 50/50 split with objectFit:cover — no black bars.
-  // Fallback to GRID if template URL is not set yet.
-  if (RECORDING_TEMPLATE_URL && !RECORDING_TEMPLATE_URL.includes('YOUR_TEMPLATE')) {
-    return {
-      ...BASE_RECORDING_OPTIONS,
-      layout: {
-        type: 'CUSTOM',
-        customTemplate: RECORDING_TEMPLATE_URL,
-        gridSize: count,
+  const res = await fetch(RECORDING_API_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      roomId: meetingId,
+      templateUrl,
+      config: {
+        theme: 'DARK',
+        mode: 'video-and-audio',
+        quality: 'high',
+        orientation: 'portrait',
       },
-    };
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.status.toString());
+    throw new Error(`VideoSDK recording start failed (${res.status}): ${text}`);
   }
 
-  // Fallback: GRID until template is deployed
-  return {
-    ...BASE_RECORDING_OPTIONS,
-    layout: {
-      type: 'GRID',
-      priority: 'SPEAKER',
-      gridSize: count,
-    },
-  };
+  return res.json();
 }
 
-/** @deprecated Use buildOneToOneRecordingConfig */
-export const ONE_TO_ONE_RECORDING_CONFIG = buildOneToOneRecordingConfig(2);
-
-/** Pass null webhook/aws paths so VideoSDK applies the layout config. */
+/** Fallback: SDK-native GRID layout (no custom template). */
 export function startOneToOneRecording(startRecording, activeParticipantCount = 2) {
-  const config = buildOneToOneRecordingConfig(activeParticipantCount);
-  console.warn('[Recording] layout type:', config.layout.type, '| template:', config.layout.customTemplate || 'none');
-  startRecording(null, null, config);
+  const count = Math.max(1, Math.min(activeParticipantCount, 4));
+  startRecording(null, null, {
+    theme: 'DARK',
+    mode: 'video-and-audio',
+    quality: 'high',
+    orientation: 'portrait',
+    layout: { type: 'GRID', priority: 'SPEAKER', gridSize: count },
+  });
 }

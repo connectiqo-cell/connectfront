@@ -7,8 +7,9 @@ const MEETING_ID = params.get('meetingId');
 const PARTICIPANT_ID = params.get('participantId');
 
 function Tile({ participantId, top, height }) {
-  const { webcamStream, webcamOn, displayName } = useParticipant(participantId);
+  const { webcamStream, webcamOn, micStream, micOn, displayName } = useParticipant(participantId);
   const videoRef = useRef(null);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     console.log('[Tile] participant:', participantId, '| webcamOn:', webcamOn, '| hasStream:', !!webcamStream, '| hasTrack:', !!webcamStream?.track);
@@ -29,10 +30,29 @@ function Tile({ participantId, top, height }) {
     return () => { video.srcObject = null; };
   }, [webcamStream, webcamOn]);
 
+  useEffect(() => {
+    console.log('[Tile] mic | participant:', participantId, '| micOn:', micOn, '| hasTrack:', !!micStream?.track);
+    const audio = audioRef.current;
+    if (!audio) return;
+    const track = micStream?.track;
+    if (!track) {
+      audio.srcObject = null;
+      return;
+    }
+    const ms = new MediaStream();
+    ms.addTrack(track);
+    audio.srcObject = ms;
+    audio.play()
+      .then(() => console.log('[Tile] audio playing for:', participantId))
+      .catch(err => console.error('[Tile] audio play error for:', participantId, err));
+    return () => { audio.srcObject = null; };
+  }, [micStream, micOn]);
+
   const hasStream = !!webcamStream?.track;
 
   return (
     <div style={{ position: 'absolute', top, left: 0, right: 0, height, overflow: 'hidden', background: '#111' }}>
+      <audio ref={audioRef} autoPlay />
       <video
         ref={videoRef}
         autoPlay muted playsInline

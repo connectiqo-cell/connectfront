@@ -1,4 +1,4 @@
-const RECORDING_TEMPLATE_URL = 'https://connectfront-three.vercel.app';
+const RECORDING_TEMPLATE_URL = 'https://connectfront-plum.vercel.app';
 
 const RECORDING_API_URL = 'https://api.videosdk.live/v2/recordings/start';
 

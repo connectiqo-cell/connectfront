@@ -4,6 +4,7 @@ import { MeetingProvider, useMeeting, useParticipant } from '@videosdk.live/reac
 const params = new URLSearchParams(window.location.search);
 const TOKEN = params.get('token');
 const MEETING_ID = params.get('meetingId');
+const PARTICIPANT_ID = params.get('participantId');
 
 function Tile({ participantId, top, height }) {
   const { webcamStream, webcamOn, displayName } = useParticipant(participantId);
@@ -139,7 +140,7 @@ export default function App() {
   }
   return (
     <MeetingProvider
-      config={{ meetingId: MEETING_ID, micEnabled: false, webcamEnabled: false, name: 'Recorder', multiStream: false }}
+      config={{ meetingId: MEETING_ID, micEnabled: false, webcamEnabled: false, name: 'Recorder', participantId: PARTICIPANT_ID, multiStream: false }}
       token={TOKEN}
       joinWithoutUserInteraction
     >

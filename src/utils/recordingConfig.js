@@ -1,4 +1,4 @@
-const RECORDING_TEMPLATE_URL = 'https://connectfront-psi.vercel.app';
+const RECORDING_TEMPLATE_URL = 'https://connectfront-tau.vercel.app';
 
 const RECORDING_API_URL = 'https://api.videosdk.live/v2/recordings/start';
 
@@ -12,9 +12,8 @@ export async function startOneToOneRecordingViaAPI({ token, meetingId }) {
   if (!meetingId) throw new Error('meetingId is missing');
   if (!token) throw new Error('token is missing');
 
-  // VideoSDK auto-appends ?token=&meetingId=&participantId= to this URL
-  // when it launches the headless Chromium recorder — do NOT add them manually.
-  const templateUrl = RECORDING_TEMPLATE_URL;
+  // Provide meetingId + token in URL. VideoSDK auto-appends &participantId= itself.
+  const templateUrl = `${RECORDING_TEMPLATE_URL}?meetingId=${encodeURIComponent(meetingId)}&token=${encodeURIComponent(token)}`;
 
   console.warn('[Recording] templateUrl:', templateUrl);
 

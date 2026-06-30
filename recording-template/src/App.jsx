@@ -73,6 +73,7 @@ function MeetingView() {
 
   const onParticipantJoined = useCallback((p) => {
     console.log('[Meeting] participant joined:', p.id, p.displayName);
+    if (PARTICIPANT_ID && p.id === PARTICIPANT_ID) return;
     setIds(prev => prev.includes(p.id) ? prev : [...prev, p.id]);
   }, []);
 
@@ -89,7 +90,7 @@ function MeetingView() {
     console.log('[Meeting] stream disabled | participant:', participant?.id, '| kind:', stream?.kind);
   }, []);
 
-  const { participants } = useMeeting({
+  const { participants, localParticipant } = useMeeting({
     onMeetingJoined,
     onError,
     onParticipantJoined,
@@ -98,17 +99,15 @@ function MeetingView() {
     onStreamDisabled,
   });
 
-  // Fallback: also read from participants map directly (in case callbacks fire before mount)
+  // Fallback: sync from participants map, excluding the recorder
   useEffect(() => {
-    const mapIds = [...participants.keys()];
-    console.log('[Meeting] participants map size:', mapIds.length, '| ids:', mapIds);
+    const localId = localParticipant?.id || PARTICIPANT_ID;
+    const mapIds = [...participants.keys()].filter(id => id !== localId);
+    console.log('[Meeting] participants map size:', mapIds.length, '| ids:', mapIds, '| localId:', localId);
     if (mapIds.length > 0) {
-      setIds(prev => {
-        const merged = [...new Set([...prev, ...mapIds])];
-        return merged;
-      });
+      setIds(prev => [...new Set([...prev, ...mapIds])]);
     }
-  }, [participants.size]);
+  }, [participants.size, localParticipant?.id]);
 
   if (ids.length === 0) {
     return (

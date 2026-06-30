@@ -349,10 +349,6 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       }
       processedConsentMessagesRef.current.add(uniqueMessageId);
 
-      if (entry.senderId === localParticipantIdRef.current) {
-        return;
-      }
-
       let payload;
       try {
         payload = JSON.parse(entry.message);
@@ -361,6 +357,29 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       }
 
       if (!payload || typeof payload !== 'object' || typeof payload.type !== 'string') {
+        return;
+      }
+
+      // Host must process RECORDING_START_APPROVED even when it sent the message itself
+      // (when mentor initiates: mentor publishes APPROVED, so senderId === localId)
+      if (payload.type === "RECORDING_START_APPROVED" && isHost) {
+        if (
+          !recordingState ||
+          recordingState === Constants.recordingEvents.RECORDING_STOPPED
+        ) {
+          getToken()
+            .then(token => startOneToOneRecordingViaAPI({ token, meetingId }))
+            .then(() => Toast.show("Recording started."))
+            .catch(err => {
+              console.error('[Recording] start failed:', err);
+              Toast.show('Rec error: ' + (err?.message || String(err)));
+            });
+        }
+        return;
+      }
+
+      // Skip own messages for all other message types
+      if (entry.senderId === localParticipantIdRef.current) {
         return;
       }
 
@@ -388,22 +407,6 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
           Toast.show("Other participant declined recording.");
         }
         pendingRecordingRequestRef.current = null;
-        return;
-      }
-
-      if (payload.type === "RECORDING_START_APPROVED" && isHost) {
-        if (
-          !recordingState ||
-          recordingState === Constants.recordingEvents.RECORDING_STOPPED
-        ) {
-          getToken()
-            .then(token => startOneToOneRecordingViaAPI({ token, meetingId }))
-            .then(() => Toast.show("Recording started."))
-            .catch(err => {
-              console.error('[Recording] start failed:', err);
-              Toast.show('Rec error: ' + (err?.message || String(err)));
-            });
-        }
         return;
       }
     });

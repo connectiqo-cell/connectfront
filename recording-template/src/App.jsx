@@ -39,16 +39,18 @@ function ConnectiqoDivider() {
   );
 }
 
-function Tile({ participantId, top, height, isMentor }) {
+function Tile({ participantId, top, height, isMentor, nameOverride }) {
   const { webcamStream, webcamOn, micStream, micOn, displayName, setQuality } = useParticipant(participantId);
   const videoRef = useRef(null);
   const audioRef = useRef(null);
 
+  const resolvedName = nameOverride || displayName;
+
   useEffect(() => { setQuality('high'); }, []);
 
   useEffect(() => {
-    console.log('[Tile] displayName:', displayName, '| participantId:', participantId);
-  }, [displayName]);
+    console.log('[Tile] displayName:', displayName, '| nameOverride:', nameOverride, '| participantId:', participantId);
+  }, [displayName, nameOverride]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -95,15 +97,15 @@ function Tile({ participantId, top, height, isMentor }) {
           filter: 'brightness(1.08) contrast(1.06) saturate(1.1)',
         }}
       />
-      {displayName && <NameOverlay displayName={displayName} />}
+      {resolvedName && <NameOverlay displayName={resolvedName} />}
       {!hasStream && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <div style={{ width: 64, height: 64, borderRadius: 32, background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: '#fff', fontSize: 24, fontWeight: 700, fontFamily: 'sans-serif' }}>
-              {displayName?.[0]?.toUpperCase() || '?'}
+              {resolvedName?.[0]?.toUpperCase() || '?'}
             </span>
           </div>
-          <span style={{ color: '#888', fontSize: 13, fontFamily: 'sans-serif' }}>{displayName || 'Participant'}</span>
+          <span style={{ color: '#888', fontSize: 13, fontFamily: 'sans-serif' }}>{resolvedName || 'Participant'}</span>
         </div>
       )}
     </div>
@@ -112,6 +114,7 @@ function Tile({ participantId, top, height, isMentor }) {
 
 function MeetingView() {
   const [ids, setIds] = useState([]);
+  const [names, setNames] = useState({});  // { participantId: displayName }
 
   const onMeetingJoined = useCallback(() => { console.log('[Meeting] joined'); }, []);
   const onError = useCallback((err) => { console.error('[Meeting] error:', JSON.stringify(err)); }, []);
@@ -120,6 +123,7 @@ function MeetingView() {
     console.log('[Meeting] participant joined:', p.id, p.displayName);
     if (PARTICIPANT_ID && p.id === PARTICIPANT_ID) return;
     setIds(prev => prev.includes(p.id) ? prev : [...prev, p.id]);
+    if (p.displayName) setNames(prev => ({ ...prev, [p.id]: p.displayName }));
   }, []);
 
   const onParticipantLeft = useCallback((p) => {
@@ -140,8 +144,15 @@ function MeetingView() {
 
   useEffect(() => {
     const localId = localParticipant?.id || PARTICIPANT_ID;
-    const mapIds = [...participants.keys()].filter(id => id !== localId);
-    if (mapIds.length > 0) setIds(prev => [...new Set([...prev, ...mapIds])]);
+    const filtered = [...participants.entries()].filter(([id]) => id !== localId);
+    if (filtered.length > 0) {
+      setIds(prev => [...new Set([...prev, ...filtered.map(([id]) => id)])]);
+      setNames(prev => {
+        const updates = {};
+        filtered.forEach(([id, p]) => { if (p.displayName) updates[id] = p.displayName; });
+        return { ...prev, ...updates };
+      });
+    }
   }, [participants.size, localParticipant?.id]);
 
   if (ids.length === 0) {
@@ -163,6 +174,7 @@ function MeetingView() {
           top={`${(100 / ids.length) * i}%`}
           height={tileHeight}
           isMentor={MENTOR_ID ? id === MENTOR_ID : i === 0}
+          nameOverride={names[id]}
         />
       ))}
       {ids.length === 2 && <ConnectiqoDivider />}

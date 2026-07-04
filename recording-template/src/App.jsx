@@ -47,6 +47,10 @@ function Tile({ participantId, top, height, isMentor }) {
   useEffect(() => { setQuality('high'); }, []);
 
   useEffect(() => {
+    console.log('[Tile] displayName:', displayName, '| participantId:', participantId);
+  }, [displayName]);
+
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     const track = webcamStream?.track;

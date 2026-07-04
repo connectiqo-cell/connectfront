@@ -6,45 +6,81 @@ const TOKEN = params.get('token');
 const MEETING_ID = params.get('meetingId');
 const PARTICIPANT_ID = params.get('participantId');
 
+const coverStyle = {
+  position: 'absolute',
+  top: '50%', left: '50%',
+  minWidth: '100%', minHeight: '100%',
+  width: 'auto', height: 'auto',
+  maxWidth: 'none', maxHeight: 'none',
+  transform: 'translate(-50%, -50%)',
+};
+
 function Tile({ participantId, top, height }) {
   const { webcamStream, webcamOn, micStream, micOn, displayName } = useParticipant(participantId);
-  const videoRef = useRef(null);
+  const videoRef = useRef(null);   // hidden source — never shown
+  const canvasRef = useRef(null);  // beauty-filtered output — shown
   const audioRef = useRef(null);
+  const rafRef = useRef(null);
 
+  // Wire raw stream to hidden video element
   useEffect(() => {
-    console.log('[Tile] participant:', participantId, '| webcamOn:', webcamOn, '| hasStream:', !!webcamStream, '| hasTrack:', !!webcamStream?.track);
     const video = videoRef.current;
     if (!video) return;
     const track = webcamStream?.track;
-    if (!track) {
-      video.srcObject = null;
-      return;
-    }
+    if (!track) { video.srcObject = null; return; }
     const ms = new MediaStream();
     ms.addTrack(track);
     video.muted = true;
     video.srcObject = ms;
-    video.play()
-      .then(() => console.log('[Tile] video playing for:', participantId))
-      .catch(err => console.error('[Tile] video play error for:', participantId, err));
+    video.play().catch(err => console.error('[Tile] video play error:', participantId, err));
     return () => { video.srcObject = null; };
   }, [webcamStream, webcamOn]);
 
+  // Beauty filter render loop: video frames → canvas
+  // Dual-pass technique:
+  //   Pass 1 — blur smooths skin texture
+  //   Pass 2 — sharp original at 70% opacity restores edges + adds brightness/tone
   useEffect(() => {
-    console.log('[Tile] mic | participant:', participantId, '| micOn:', micOn, '| hasTrack:', !!micStream?.track);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const draw = () => {
+      if (video.readyState >= 2 && video.videoWidth > 0) {
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        if (canvas.width !== w) canvas.width = w;
+        if (canvas.height !== h) canvas.height = h;
+
+        // Pass 1: soft skin smoothing
+        ctx.filter = 'blur(1.5px)';
+        ctx.drawImage(video, 0, 0, w, h);
+
+        // Pass 2: sharp detail + beauty tone
+        ctx.filter = 'brightness(1.08) contrast(1.06) saturate(1.1)';
+        ctx.globalAlpha = 0.7;
+        ctx.drawImage(video, 0, 0, w, h);
+        ctx.globalAlpha = 1;
+        ctx.filter = 'none';
+      }
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    rafRef.current = requestAnimationFrame(draw);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [webcamStream, webcamOn]);
+
+  // Wire mic audio
+  useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     const track = micStream?.track;
-    if (!track) {
-      audio.srcObject = null;
-      return;
-    }
+    if (!track) { audio.srcObject = null; return; }
     const ms = new MediaStream();
     ms.addTrack(track);
     audio.srcObject = ms;
-    audio.play()
-      .then(() => console.log('[Tile] audio playing for:', participantId))
-      .catch(err => console.error('[Tile] audio play error for:', participantId, err));
+    audio.play().catch(err => console.error('[Tile] audio play error:', participantId, err));
     return () => { audio.srcObject = null; };
   }, [micStream, micOn]);
 
@@ -53,18 +89,10 @@ function Tile({ participantId, top, height }) {
   return (
     <div style={{ position: 'absolute', top, left: 0, right: 0, height, overflow: 'hidden', background: '#111' }}>
       <audio ref={audioRef} autoPlay />
-      <video
-        ref={videoRef}
-        autoPlay muted playsInline
-        style={{
-          position: 'absolute',
-          top: '50%', left: '50%',
-          minWidth: '100%', minHeight: '100%',
-          width: 'auto', height: 'auto',
-          maxWidth: 'none', maxHeight: 'none',
-          transform: 'translate(-50%, -50%)',
-          display: hasStream ? 'block' : 'none',
-        }}
+      <video ref={videoRef} autoPlay muted playsInline style={{ display: 'none' }} />
+      <canvas
+        ref={canvasRef}
+        style={{ ...coverStyle, display: hasStream ? 'block' : 'none' }}
       />
       {!hasStream && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
@@ -159,7 +187,7 @@ export default function App() {
   }
   return (
     <MeetingProvider
-      config={{ meetingId: MEETING_ID, micEnabled: false, webcamEnabled: false, name: 'Recorder', participantId: PARTICIPANT_ID, multiStream: false }}
+      config={{ meetingId: MEETING_ID, micEnabled: false, webcamEnabled: false, name: 'Recorder', participantId: PARTICIPANT_ID }}
       token={TOKEN}
       joinWithoutUserInteraction
     >

@@ -7,9 +7,12 @@ const MEETING_ID = params.get('meetingId');
 const PARTICIPANT_ID = params.get('participantId');
 
 function Tile({ participantId, top, height }) {
-  const { webcamStream, webcamOn, micStream, micOn, displayName } = useParticipant(participantId);
+  const { webcamStream, webcamOn, micStream, micOn, displayName, setQuality } = useParticipant(participantId);
   const videoRef = useRef(null);
   const audioRef = useRef(null);
+
+  // Request highest quality stream from VideoSDK for this participant
+  useEffect(() => { setQuality('high'); }, []);
 
   useEffect(() => {
     const video = videoRef.current;

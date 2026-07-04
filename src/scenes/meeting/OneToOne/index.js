@@ -132,8 +132,8 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
 
   const participantCount = participantIds ? participantIds.length : null;
 
-  const localDisplayName = meeting?.localParticipant?.displayName || '';
-  const remoteDisplayName = participants.get(remoteParticipantId)?.displayName || '';
+  const localDisplayName = (meeting?.localParticipant?.displayName || '').split(' ')[0];
+  const remoteDisplayName = (participants.get(remoteParticipantId)?.displayName || '').split(' ')[0];
 
   const [splitMode, setSplitMode] = useState(true);
   const [chatViewer, setchatViewer] = useState(false);
@@ -748,7 +748,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         </View>
       </View>
       {/* Center */}
-      <View style={{ flex: 1, marginTop: 8, marginBottom: 12, overflow: 'hidden' }}>
+      <View style={{ flex: 1, marginTop: 2, marginBottom: 2, overflow: 'hidden' }}>
         {participantCount > 1 ? (
           splitMode ? (
             localScreenShareOn ? (
@@ -763,21 +763,18 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
                     />
                   ) : null}
                   {remoteDisplayName ? (
-                    <View style={{ position: 'absolute', top: 12, left: 12 }} pointerEvents="none">
-                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15, fontFamily: ROBOTO_FONTS.RobotoBold, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
+                    <View style={{ position: 'absolute', bottom: 12, right: 12, alignItems: 'flex-end' }} pointerEvents="none">
+                      <Text style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 'bold', fontSize: 15, fontFamily: ROBOTO_FONTS.RobotoBold, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
                         {remoteDisplayName}
-                      </Text>
-                      <Text style={{ color: '#a78bfa', fontSize: 12, fontFamily: ROBOTO_FONTS.RobotoMedium, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
-                        {isHost ? 'Learner' : 'Creator'}
                       </Text>
                     </View>
                   ) : null}
                 </View>
                 {/* Connectiqo branding divider */}
-                <View style={{ height: 40, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 }}>
+                <View style={{ height: 18, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 }}>
                   <View style={{ flex: 1, height: 1, backgroundColor: '#7c3aed', opacity: 0.7 }} />
                   <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#7c3aed' }} />
-                  <Text style={{ color: '#fff', fontSize: 14, fontFamily: ROBOTO_FONTS.RobotoMedium, letterSpacing: 1 }}>connectiqo</Text>
+                  <Text style={{ color: '#fff', fontSize: 12, fontFamily: ROBOTO_FONTS.RobotoMedium, letterSpacing: 1 }}>Connectiqo</Text>
                   <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#7c3aed' }} />
                   <View style={{ flex: 1, height: 1, backgroundColor: '#7c3aed', opacity: 0.7 }} />
                 </View>
@@ -789,12 +786,9 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
                     />
                   ) : null}
                   {localDisplayName ? (
-                    <View style={{ position: 'absolute', top: 12, left: 12 }} pointerEvents="none">
-                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15, fontFamily: ROBOTO_FONTS.RobotoBold, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
+                    <View style={{ position: 'absolute', bottom: 12, right: 12, alignItems: 'flex-end' }} pointerEvents="none">
+                      <Text style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 'bold', fontSize: 15, fontFamily: ROBOTO_FONTS.RobotoBold, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
                         {localDisplayName}
-                      </Text>
-                      <Text style={{ color: '#a78bfa', fontSize: 12, fontFamily: ROBOTO_FONTS.RobotoMedium, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
-                        {isHost ? 'Creator' : 'Learner'}
                       </Text>
                     </View>
                   ) : null}

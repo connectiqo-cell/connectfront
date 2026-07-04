@@ -90,7 +90,7 @@ function useParticipantStat({ participantId }) {
         clearInterval(statsIntervalIdRef.current);
       }
 
-      statsIntervalIdRef.current = setInterval(updateStats, 1000);
+      statsIntervalIdRef.current = setInterval(updateStats, 3000);
     } else {
       if (statsIntervalIdRef.current) {
         clearInterval(statsIntervalIdRef.current);

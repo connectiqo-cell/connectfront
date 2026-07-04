@@ -19,6 +19,7 @@ import RaiseHand from "./RaiseHand";
 import Person from "./Person";
 import Send from "./Send";
 import NetworkIcon from "./NetworkIcon";
+import WifiIcon from "./WifiIcon";
 import Speaker from "./Speaker";
 
 import Home from "./Home";
@@ -50,6 +51,7 @@ export {
   Recording,
   Participants,
   NetworkIcon,
+  WifiIcon,
   Speaker,
   Home,
   Bookings,

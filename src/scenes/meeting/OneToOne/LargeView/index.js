@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { View, TouchableOpacity } from "react-native";
-import { NetworkIcon } from "../../../../assets/icons";
+import { WifiIcon } from "../../../../assets/icons";
 import colors from "../../../../styles/colors";
 import useParticipantStat from "../../Hooks/useParticipantStat";
 import LargeVideoRTCView from "./LargeVideoRTCView";
@@ -9,12 +9,12 @@ const buttonStyle = {
   alignItems: "center",
   position: "absolute",
   top: 10,
-  padding: 8,
-  height: 26,
-  aspectRatio: 1,
-  borderRadius: 12,
-  justifyContent: "center",
   left: 10,
+  padding: 4,
+  height: 18,
+  aspectRatio: 1,
+  borderRadius: 8,
+  justifyContent: "center",
 };
 export default LargeViewContainer = ({
   participantId,
@@ -62,22 +62,17 @@ export default LargeViewContainer = ({
             objectFit={"cover"}
             isLocal={isLocal}
           />
-          {micOn || webcamOn ? (
+          {(micOn || webcamOn) && score && score <= 7 ? (
             <TouchableOpacity
               style={{
                 ...buttonStyle,
-                backgroundColor:
-                  score && score > 7
-                    ? "#3BA55D"
-                    : score > 4
-                    ? "#faa713"
-                    : "#FF5D5D",
+                backgroundColor: score > 4 ? "#faa713" : "#FF5D5D",
               }}
               onPress={() => {
                 openStatsBottomSheet({ pId: participantId });
               }}
             >
-              <NetworkIcon fill={"#fff"} />
+              <WifiIcon fill={"#fff"} width={10} height={10} />
             </TouchableOpacity>
           ) : null}
         </>

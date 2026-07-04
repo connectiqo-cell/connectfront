@@ -7,14 +7,12 @@ const MEETING_ID = params.get('meetingId');
 const PARTICIPANT_ID = params.get('participantId');
 const MENTOR_ID = params.get('mentorId');
 
-function NameOverlay({ displayName, role }) {
+function NameOverlay({ displayName }) {
+  const firstName = displayName?.split(' ')[0] || displayName;
   return (
-    <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 10, pointerEvents: 'none' }}>
-      <div style={{ color: '#fff', fontWeight: 700, fontSize: 15, fontFamily: 'sans-serif', textShadow: '0 1px 4px rgba(0,0,0,0.85)', marginBottom: 2 }}>
-        {displayName}
-      </div>
-      <div style={{ color: '#a78bfa', fontSize: 12, fontFamily: 'sans-serif', textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}>
-        {role}
+    <div style={{ position: 'absolute', bottom: 14, right: 14, zIndex: 10, pointerEvents: 'none', textAlign: 'right' }}>
+      <div style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 700, fontSize: 15, fontFamily: 'sans-serif', textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}>
+        {firstName}
       </div>
     </div>
   );
@@ -93,7 +91,7 @@ function Tile({ participantId, top, height, isMentor }) {
           filter: 'brightness(1.08) contrast(1.06) saturate(1.1)',
         }}
       />
-      {displayName && <NameOverlay displayName={displayName} role={role} />}
+      {displayName && <NameOverlay displayName={displayName} />}
       {!hasStream && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <div style={{ width: 64, height: 64, borderRadius: 32, background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

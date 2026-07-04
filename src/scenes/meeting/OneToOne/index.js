@@ -132,6 +132,9 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
 
   const participantCount = participantIds ? participantIds.length : null;
 
+  const localDisplayName = meeting?.localParticipant?.displayName || '';
+  const remoteDisplayName = participants.get(remoteParticipantId)?.displayName || '';
+
   const [splitMode, setSplitMode] = useState(true);
   const [chatViewer, setchatViewer] = useState(false);
   const [participantListViewer, setparticipantListViewer] = useState(false);
@@ -368,7 +371,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
           recordingState === Constants.recordingEvents.RECORDING_STOPPED
         ) {
           getToken()
-            .then(token => startOneToOneRecordingViaAPI({ token, meetingId }))
+            .then(token => startOneToOneRecordingViaAPI({ token, meetingId, mentorId: localParticipantIdRef.current }))
             .then(() => Toast.show("Recording started."))
             .catch(err => {
               console.error('[Recording] start failed:', err);
@@ -751,7 +754,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
             localScreenShareOn ? (
               <LocalParticipantPresenter />
             ) : (
-              <View style={{ flex: 1, gap: 8 }}>
+              <View style={{ flex: 1 }}>
                 <View style={{ flex: 1 }}>
                   {remoteParticipantId ? (
                     <LargeView
@@ -759,6 +762,24 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
                       openStatsBottomSheet={openStatsBottomSheet}
                     />
                   ) : null}
+                  {remoteDisplayName ? (
+                    <View style={{ position: 'absolute', top: 12, left: 12 }} pointerEvents="none">
+                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15, fontFamily: ROBOTO_FONTS.RobotoBold, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
+                        {remoteDisplayName}
+                      </Text>
+                      <Text style={{ color: '#a78bfa', fontSize: 12, fontFamily: ROBOTO_FONTS.RobotoMedium, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
+                        {isHost ? 'Learner' : 'Creator'}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                {/* Connectiqo branding divider */}
+                <View style={{ height: 40, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 }}>
+                  <View style={{ flex: 1, height: 1, backgroundColor: '#7c3aed', opacity: 0.7 }} />
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#7c3aed' }} />
+                  <Text style={{ color: '#fff', fontSize: 14, fontFamily: ROBOTO_FONTS.RobotoMedium, letterSpacing: 1 }}>connectiqo</Text>
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#7c3aed' }} />
+                  <View style={{ flex: 1, height: 1, backgroundColor: '#7c3aed', opacity: 0.7 }} />
                 </View>
                 <View style={{ flex: 1 }}>
                   {localParticipantId ? (
@@ -766,6 +787,16 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
                       participantId={localParticipantId}
                       openStatsBottomSheet={openStatsBottomSheet}
                     />
+                  ) : null}
+                  {localDisplayName ? (
+                    <View style={{ position: 'absolute', top: 12, left: 12 }} pointerEvents="none">
+                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15, fontFamily: ROBOTO_FONTS.RobotoBold, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
+                        {localDisplayName}
+                      </Text>
+                      <Text style={{ color: '#a78bfa', fontSize: 12, fontFamily: ROBOTO_FONTS.RobotoMedium, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
+                        {isHost ? 'Creator' : 'Learner'}
+                      </Text>
+                    </View>
                   ) : null}
                 </View>
               </View>

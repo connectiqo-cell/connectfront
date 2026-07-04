@@ -5,13 +5,47 @@ const params = new URLSearchParams(window.location.search);
 const TOKEN = params.get('token');
 const MEETING_ID = params.get('meetingId');
 const PARTICIPANT_ID = params.get('participantId');
+const MENTOR_ID = params.get('mentorId');
 
-function Tile({ participantId, top, height }) {
+function NameOverlay({ displayName, role }) {
+  return (
+    <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 10, pointerEvents: 'none' }}>
+      <div style={{ color: '#fff', fontWeight: 700, fontSize: 15, fontFamily: 'sans-serif', textShadow: '0 1px 4px rgba(0,0,0,0.85)', marginBottom: 2 }}>
+        {displayName}
+      </div>
+      <div style={{ color: '#a78bfa', fontSize: 12, fontFamily: 'sans-serif', textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}>
+        {role}
+      </div>
+    </div>
+  );
+}
+
+function ConnectiqoDivider() {
+  return (
+    <div style={{
+      position: 'absolute', top: '50%', left: 0, right: 0,
+      transform: 'translateY(-50%)',
+      height: 40, zIndex: 20,
+      display: 'flex', alignItems: 'center',
+      paddingLeft: 16, paddingRight: 16, gap: 10,
+      pointerEvents: 'none',
+    }}>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, transparent, #7c3aed)' }} />
+      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#7c3aed' }} />
+      <span style={{ color: '#fff', fontSize: 14, fontFamily: 'sans-serif', letterSpacing: 1, fontWeight: 500 }}>
+        connectiqo
+      </span>
+      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#7c3aed' }} />
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, transparent, #7c3aed)' }} />
+    </div>
+  );
+}
+
+function Tile({ participantId, top, height, isMentor }) {
   const { webcamStream, webcamOn, micStream, micOn, displayName, setQuality } = useParticipant(participantId);
   const videoRef = useRef(null);
   const audioRef = useRef(null);
 
-  // Request highest quality stream from VideoSDK for this participant
   useEffect(() => { setQuality('high'); }, []);
 
   useEffect(() => {
@@ -40,6 +74,7 @@ function Tile({ participantId, top, height }) {
   }, [micStream, micOn]);
 
   const hasStream = !!webcamStream?.track;
+  const role = MENTOR_ID ? (isMentor ? 'Creator' : 'Learner') : null;
 
   return (
     <div style={{ position: 'absolute', top, left: 0, right: 0, height, overflow: 'hidden', background: '#111' }}>
@@ -58,6 +93,7 @@ function Tile({ participantId, top, height }) {
           filter: 'brightness(1.08) contrast(1.06) saturate(1.1)',
         }}
       />
+      {displayName && <NameOverlay displayName={displayName} role={role} />}
       {!hasStream && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <div style={{ width: 64, height: 64, borderRadius: 32, background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -75,13 +111,8 @@ function Tile({ participantId, top, height }) {
 function MeetingView() {
   const [ids, setIds] = useState([]);
 
-  const onMeetingJoined = useCallback(() => {
-    console.log('[Meeting] joined successfully');
-  }, []);
-
-  const onError = useCallback((err) => {
-    console.error('[Meeting] error:', JSON.stringify(err));
-  }, []);
+  const onMeetingJoined = useCallback(() => { console.log('[Meeting] joined'); }, []);
+  const onError = useCallback((err) => { console.error('[Meeting] error:', JSON.stringify(err)); }, []);
 
   const onParticipantJoined = useCallback((p) => {
     console.log('[Meeting] participant joined:', p.id, p.displayName);
@@ -90,7 +121,6 @@ function MeetingView() {
   }, []);
 
   const onParticipantLeft = useCallback((p) => {
-    console.log('[Meeting] participant left:', p.id);
     setIds(prev => prev.filter(id => id !== p.id));
   }, []);
 
@@ -103,22 +133,13 @@ function MeetingView() {
   }, []);
 
   const { participants, localParticipant } = useMeeting({
-    onMeetingJoined,
-    onError,
-    onParticipantJoined,
-    onParticipantLeft,
-    onStreamEnabled,
-    onStreamDisabled,
+    onMeetingJoined, onError, onParticipantJoined, onParticipantLeft, onStreamEnabled, onStreamDisabled,
   });
 
-  // Fallback: sync from participants map, excluding the recorder
   useEffect(() => {
     const localId = localParticipant?.id || PARTICIPANT_ID;
     const mapIds = [...participants.keys()].filter(id => id !== localId);
-    console.log('[Meeting] participants map size:', mapIds.length, '| ids:', mapIds, '| localId:', localId);
-    if (mapIds.length > 0) {
-      setIds(prev => [...new Set([...prev, ...mapIds])]);
-    }
+    if (mapIds.length > 0) setIds(prev => [...new Set([...prev, ...mapIds])]);
   }, [participants.size, localParticipant?.id]);
 
   if (ids.length === 0) {
@@ -139,8 +160,10 @@ function MeetingView() {
           participantId={id}
           top={`${(100 / ids.length) * i}%`}
           height={tileHeight}
+          isMentor={MENTOR_ID ? id === MENTOR_ID : i === 0}
         />
       ))}
+      {ids.length === 2 && <ConnectiqoDivider />}
     </div>
   );
 }

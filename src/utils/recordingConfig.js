@@ -6,14 +6,14 @@ const RECORDING_API_URL = 'https://api.videosdk.live/v2/recordings/start';
  * Starts recording via VideoSDK REST API with a custom template URL.
  * The SDK's startRecording() cannot load custom templates — only the REST API supports templateUrl.
  */
-export async function startOneToOneRecordingViaAPI({ token, meetingId }) {
+export async function startOneToOneRecordingViaAPI({ token, meetingId, mentorId }) {
   console.warn('[Recording] startViaAPI | meetingId:', meetingId, '| hasToken:', !!token);
 
   if (!meetingId) throw new Error('meetingId is missing');
   if (!token) throw new Error('token is missing');
 
-  // Provide meetingId + token in URL. VideoSDK auto-appends &participantId= itself.
-  const templateUrl = `${RECORDING_TEMPLATE_URL}?meetingId=${encodeURIComponent(meetingId)}&token=${encodeURIComponent(token)}`;
+  let templateUrl = `${RECORDING_TEMPLATE_URL}?meetingId=${encodeURIComponent(meetingId)}&token=${encodeURIComponent(token)}`;
+  if (mentorId) templateUrl += `&mentorId=${encodeURIComponent(mentorId)}`;
 
   console.warn('[Recording] templateUrl:', templateUrl);
 

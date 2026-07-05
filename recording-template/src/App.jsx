@@ -10,8 +10,19 @@ const MENTOR_ID = params.get('mentorId');
 function NameOverlay({ displayName }) {
   const firstName = displayName?.split(' ')[0] || displayName;
   return (
-    <div style={{ position: 'absolute', bottom: 14, right: 14, zIndex: 10, pointerEvents: 'none', textAlign: 'right' }}>
-      <div style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 700, fontSize: 15, fontFamily: 'sans-serif', textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}>
+    <div style={{ position: 'absolute', bottom: 18, right: 18, zIndex: 10, pointerEvents: 'none', textAlign: 'right' }}>
+      <div style={{
+        display: 'inline-block',
+        background: 'rgba(0,0,0,0.45)',
+        borderRadius: 6,
+        padding: '4px 10px',
+        color: 'rgba(255,255,255,0.9)',
+        fontWeight: 700,
+        fontSize: 22,
+        fontFamily: 'sans-serif',
+        textShadow: '0 1px 6px rgba(0,0,0,0.9)',
+        letterSpacing: 0.5,
+      }}>
         {firstName}
       </div>
     </div>
@@ -28,13 +39,13 @@ function ConnectiqoDivider() {
       paddingLeft: 16, paddingRight: 16, gap: 10,
       pointerEvents: 'none',
     }}>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, transparent, #7c3aed)' }} />
-      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#7c3aed' }} />
-      <span style={{ color: '#fff', fontSize: 14, fontFamily: 'sans-serif', letterSpacing: 1, fontWeight: 500 }}>
-        connectiqo
+      <div style={{ flex: 1, height: 2, background: 'linear-gradient(to right, transparent, #7c3aed)' }} />
+      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#7c3aed' }} />
+      <span style={{ color: '#fff', fontSize: 20, fontFamily: 'sans-serif', letterSpacing: 2, fontWeight: 600, textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}>
+        Connectiqo
       </span>
-      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#7c3aed' }} />
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, transparent, #7c3aed)' }} />
+      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#7c3aed' }} />
+      <div style={{ flex: 1, height: 2, background: 'linear-gradient(to left, transparent, #7c3aed)' }} />
     </div>
   );
 }

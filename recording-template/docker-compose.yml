@@ -2,8 +2,6 @@ services:
   recording-template:
     build:
       context: .
-      args:
-        VITE_EXAMPLE_KEY: ${VITE_EXAMPLE_KEY}
     container_name: recording-template
     restart: unless-stopped
     ports:

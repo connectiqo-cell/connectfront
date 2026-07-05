@@ -41,7 +41,7 @@ function ConnectiqoDivider() {
     }}>
       <div style={{ flex: 1, height: 2, background: 'linear-gradient(to right, transparent, #7c3aed)' }} />
       <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#7c3aed' }} />
-      <span style={{ color: '#fff', fontSize: 20, fontFamily: 'sans-serif', letterSpacing: 2, fontWeight: 600, textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}>
+      <span style={{ color: '#fff', fontSize: 28, fontFamily: 'sans-serif', letterSpacing: 3, fontWeight: 700, textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>
         Connectiqo
       </span>
       <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#7c3aed' }} />

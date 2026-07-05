@@ -34,18 +34,31 @@ function ConnectiqoDivider() {
     <div style={{
       position: 'absolute', top: '50%', left: 0, right: 0,
       transform: 'translateY(-50%)',
-      height: 40, zIndex: 20,
+      height: 52, zIndex: 20,
       display: 'flex', alignItems: 'center',
-      paddingLeft: 16, paddingRight: 16, gap: 10,
+      paddingLeft: 24, paddingRight: 24, gap: 14,
       pointerEvents: 'none',
     }}>
-      <div style={{ flex: 1, height: 2, background: 'linear-gradient(to right, transparent, #7c3aed)' }} />
-      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#7c3aed' }} />
-      <span style={{ color: '#fff', fontSize: 28, fontFamily: 'sans-serif', letterSpacing: 3, fontWeight: 700, textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>
-        Connectiqo
-      </span>
-      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#7c3aed' }} />
-      <div style={{ flex: 1, height: 2, background: 'linear-gradient(to left, transparent, #7c3aed)' }} />
+      <div style={{ flex: 1, height: 1.5, background: 'linear-gradient(to right, transparent, rgba(124,58,237,0.9))' }} />
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(109,40,217,0.75), rgba(139,92,246,0.55))',
+        border: '1.5px solid rgba(167,139,250,0.7)',
+        borderRadius: 28,
+        padding: '7px 22px',
+      }}>
+        <span style={{
+          color: '#fff',
+          fontSize: 17,
+          fontFamily: 'sans-serif',
+          letterSpacing: 4,
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          textShadow: '0 0 14px rgba(167,139,250,0.95)',
+        }}>
+          Connectiqo
+        </span>
+      </div>
+      <div style={{ flex: 1, height: 1.5, background: 'linear-gradient(to left, transparent, rgba(124,58,237,0.9))' }} />
     </div>
   );
 }

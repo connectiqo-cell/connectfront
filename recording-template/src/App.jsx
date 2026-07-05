@@ -48,7 +48,7 @@ function ConnectiqoDivider() {
       }}>
         <span style={{
           color: '#fff',
-          fontSize: 28,
+          fontSize: 32,
           fontFamily: 'sans-serif',
           letterSpacing: 4,
           fontWeight: 700,

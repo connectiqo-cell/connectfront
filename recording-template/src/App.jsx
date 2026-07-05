@@ -10,7 +10,7 @@ const MENTOR_ID = params.get('mentorId');
 function NameOverlay({ displayName }) {
   const firstName = displayName?.split(' ')[0] || displayName;
   return (
-    <div style={{ position: 'absolute', bottom: 18, left: 18, zIndex: 10, pointerEvents: 'none', textAlign: 'left' }}>
+    <div style={{ position: 'absolute', bottom: 18, right: 60, zIndex: 10, pointerEvents: 'none', textAlign: 'right' }}>
       <div style={{
         display: 'inline-block',
         background: 'rgba(0,0,0,0.45)',

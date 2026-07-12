@@ -28,7 +28,6 @@ import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
 import { getFloatingTabBarContentInset } from '../../components/CosmicBottomTabBar';
 import CosmicButton from '../../components/CosmicButton';
-import { AvatarPreviewModal } from '../../components/AvatarPreviewModal';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { iosFlexChild } from '../../utils/platformLayout';
@@ -409,11 +408,39 @@ function VideoPlayerModal({ video, onClose }) {
   const [paused, setPaused] = useState(false);
   const [buffering, setBuffering] = useState(true);
   const [error, setError] = useState(false);
+  const closingRef = useRef(false);
+  const controlsTop = insets.top + 52;
 
-  const handleClose = () => {
+  useEffect(() => {
+    closingRef.current = false;
+    let entry;
+    try {
+      entry = StatusBar.pushStackEntry({
+        barStyle: 'light-content',
+        backgroundColor: '#000000',
+        hidden: false,
+      });
+    } catch (_) {
+      entry = null;
+    }
+    return () => {
+      setPaused(true);
+      if (entry) {
+        try {
+          StatusBar.popStackEntry(entry);
+        } catch (_) {
+          StatusBar.setHidden(false);
+        }
+      }
+    };
+  }, [video?.id]);
+
+  const handleClose = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
     setPaused(true);
     onClose();
-  };
+  }, [onClose]);
 
   if (!video?.video_url) return null;
 
@@ -423,12 +450,14 @@ function VideoPlayerModal({ video, onClose }) {
       animationType="fade"
       transparent={false}
       onRequestClose={handleClose}
-      statusBarTranslucent
+      {...Platform.select({
+        ios: { presentationStyle: 'fullScreen' },
+        default: {},
+      })}
     >
-      <StatusBar hidden />
       <View style={vStyles.container}>
         <Video
-          key={video.id}
+          key={video.id || video.video_url}
           source={{ uri: video.video_url }}
           style={vStyles.video}
           resizeMode="contain"
@@ -451,20 +480,32 @@ function VideoPlayerModal({ video, onClose }) {
             <Text style={vStyles.errorText}>Could not play video</Text>
           </View>
         )}
-        <View style={[vStyles.topBar, { paddingTop: insets.top + 8 }]}>
-          <TouchableOpacity onPress={handleClose} style={vStyles.closeBtn}>
-            <MaterialIcons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={vStyles.titleText} numberOfLines={1}>{video.title || 'Video'}</Text>
-          <View style={{ width: 40 }} />
-        </View>
-        <TouchableOpacity style={vStyles.playArea} onPress={() => setPaused(p => !p)} activeOpacity={1}>
+        <Pressable
+          style={[vStyles.playArea, { top: controlsTop }]}
+          onPress={() => setPaused(p => !p)}
+        >
           {paused && (
             <View style={vStyles.playBtn}>
               <MaterialIcons name="play-arrow" size={52} color="#fff" />
             </View>
           )}
-        </TouchableOpacity>
+        </Pressable>
+        <View
+          style={[vStyles.topBar, { paddingTop: insets.top + 8 }]}
+          pointerEvents="box-none"
+        >
+          <Pressable
+            onPress={handleClose}
+            style={vStyles.closeBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Close video"
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#fff" />
+          </Pressable>
+          <Text style={vStyles.titleText} numberOfLines={1}>{video.title || 'Video'}</Text>
+          <View style={{ width: 40 }} />
+        </View>
       </View>
     </Modal>
   );
@@ -477,14 +518,14 @@ const vStyles = StyleSheet.create({
   errorBox: { alignItems: 'center', gap: 8 },
   errorText: { color: C.accent.error, fontSize: 14 },
   topBar: {
-    position: 'absolute', top: 0, left: 0, right: 0,
+    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, elevation: 20,
     flexDirection: 'row', alignItems: 'center',
     paddingTop: 16, paddingHorizontal: 12, paddingBottom: 12,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  closeBtn: { padding: 8, width: 40 },
+  closeBtn: { padding: 8, width: 40, zIndex: 21 },
   titleText: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
-  playArea: { position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
+  playArea: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, justifyContent: 'center', alignItems: 'center' },
   playBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
 });
 
@@ -966,6 +1007,7 @@ export default function MentorProfileScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { height: winH, width: winW } = useWindowDimensions();
   const { user, profile, refreshProfile } = useAuth();
+  const { showAvatarPreview: openAvatarPreview } = useAvatarPreview();
   const mentorId = route.params?.mentorId ?? null;
   const paramMentorName = route.params?.mentorName?.trim?.() || '';
   const coverFromParams = route.params?.coverImageUrl?.trim?.() || '';
@@ -980,7 +1022,6 @@ export default function MentorProfileScreen({ navigation, route }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [showSubSheet, setShowSubSheet] = useState(false);
-  const [showAvatarPreview, setShowAvatarPreview] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [playingVideo, setPlayingVideo] = useState(null);
 
@@ -1090,6 +1131,14 @@ export default function MentorProfileScreen({ navigation, route }) {
     if (isOwnProfile) setIsUnlocked(true);
   }, [isOwnProfile]);
 
+  // Own Profile tab: restore status bar after video modal so Me top tabs stay visible.
+  useFocusEffect(
+    useCallback(() => {
+      StatusBar.setHidden(false);
+      return undefined;
+    }, []),
+  );
+
   useEffect(() => {
     loadData(false);
   }, [loadData]);
@@ -1198,15 +1247,10 @@ export default function MentorProfileScreen({ navigation, route }) {
       Toast.show('Video unavailable', Toast.SHORT);
       return;
     }
-    if (isOwnProfile) {
-      setPlayingVideo(video);
-      return;
-    }
-    navigation.navigate(SCREEN_NAMES.MentorVideoFeed, {
-      filterMentorId: mentorId,
-      startVideoId: video.id,
-    });
-  }, [isOwnProfile, mentorId, navigation]);
+    // A card tap should play that video, not open the scrollable feed.
+    // Access control is handled by PortraitVideoCard before this callback.
+    setPlayingVideo(video);
+  }, []);
 
   const openRecap = (session) => {
     if (!session?.recap_url) {
@@ -1243,14 +1287,19 @@ export default function MentorProfileScreen({ navigation, route }) {
       ));
       await refreshProfile?.();
       await loadData(true);
-      setShowAvatarPreview(true);
+      openAvatarPreview({
+        uri: url,
+        name: mentor?.profiles?.name || paramMentorName || 'Mentor',
+        isOwnProfile: true,
+        onChangePhoto: handleChangeAvatar,
+      });
       Toast.show('Photo updated');
     } catch {
       Toast.show('Failed to update photo');
     } finally {
       setAvatarUploading(false);
     }
-  }, [avatarUploading, isOwnProfile, loadData, mentorId, refreshProfile]);
+  }, [avatarUploading, isOwnProfile, loadData, mentorId, refreshProfile, openAvatarPreview, mentor?.profiles?.name, paramMentorName]);
 
   const avatarUrl = mentor?.profiles?.avatar_url;
   const name = mentor?.profiles?.name || paramMentorName || 'Mentor';
@@ -1270,9 +1319,15 @@ export default function MentorProfileScreen({ navigation, route }) {
       return;
     }
     if (avatarUrl || isOwnProfile) {
-      setShowAvatarPreview(true);
+      openAvatarPreview({
+        uri: avatarUrl,
+        name,
+        isOwnProfile,
+        uploading: avatarUploading,
+        onChangePhoto: isOwnProfile ? handleChangeAvatar : undefined,
+      });
     }
-  }, [avatarUrl, handleChangeAvatar, isOwnProfile]);
+  }, [avatarUrl, avatarUploading, handleChangeAvatar, isOwnProfile, name, openAvatarPreview]);
 
   if (!mentorId) {
     return (
@@ -1315,6 +1370,7 @@ export default function MentorProfileScreen({ navigation, route }) {
   }
 
   return (
+    <>
     <SafeScreen
       scrollable
       {...safeScreenProps}
@@ -1586,6 +1642,7 @@ export default function MentorProfileScreen({ navigation, route }) {
         <View style={{ height: T.spacing.xxxl + bottomTabInset }} />
 
       </View>
+    </SafeScreen>
 
       {/* ── Subscribe Bottom Sheet ── */}
       <Modal
@@ -1593,7 +1650,6 @@ export default function MentorProfileScreen({ navigation, route }) {
         transparent
         animationType="slide"
         onRequestClose={() => setShowSubSheet(false)}
-        statusBarTranslucent
       >
         <TouchableOpacity
           style={sheet.backdrop}
@@ -1657,16 +1713,6 @@ export default function MentorProfileScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      <AvatarPreviewModal
-        visible={showAvatarPreview}
-        uri={avatarUrl}
-        name={name}
-        isOwnProfile={isOwnProfile}
-        uploading={avatarUploading}
-        onClose={() => setShowAvatarPreview(false)}
-        onChangePhoto={handleChangeAvatar}
-      />
-
       {playingVideo ? (
         <VideoPlayerModal
           video={playingVideo}
@@ -1674,7 +1720,7 @@ export default function MentorProfileScreen({ navigation, route }) {
         />
       ) : null}
 
-    </SafeScreen>
+    </>
   );
 }
 

@@ -6,6 +6,7 @@ import {
   Image,
   ScrollView,
   Pressable,
+  TouchableOpacity,
   StyleSheet,
   Alert,
   ActivityIndicator,
@@ -706,6 +707,10 @@ export default function UnifiedSettingsScreen({ navigation }) {
   );
 
   const handlePickImage = async () => {
+    if (!profile?.id) {
+      Toast.show('Profile not loaded yet');
+      return;
+    }
     try {
       const picked = await pickProfileAvatar();
       if (!picked) return;
@@ -846,13 +851,13 @@ export default function UnifiedSettingsScreen({ navigation }) {
                     uri={avatarUrl}
                     previewName={profile?.name || 'User'}
                     pressable={false}
-                  imageProps={{ key: avatarUrl, cache: 'reload' }}
-                  fallback={
-                    <View style={[styles.avatarPlaceholder, styles.avatarFallback]}>
-                      <MaterialIcons name="person" size={36} color={PURPLE_LINK} />
-                    </View>
-                  }
-                />
+                    imageProps={{ key: avatarUrl, cache: 'reload' }}
+                    fallback={
+                      <View style={[styles.avatarPlaceholder, styles.avatarFallback]}>
+                        <MaterialIcons name="person" size={36} color={PURPLE_LINK} />
+                      </View>
+                    }
+                  />
                 </TouchableOpacity>
                 <AnimatedPressable
                   style={styles.cameraBtn}

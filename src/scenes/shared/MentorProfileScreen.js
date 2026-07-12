@@ -26,7 +26,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-simple-toast';
 import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
-import { getFloatingTabBarContentInset } from '../../components/CosmicBottomTabBar';
 import CosmicButton from '../../components/CosmicButton';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { UNIFIED_THEME } from '../../unifiedTheme';
@@ -403,6 +402,15 @@ function GoldStarsRow({ rating, size = 11 }) {
   );
 }
 
+function restoreAppStatusBar() {
+  StatusBar.setHidden(false);
+  StatusBar.setBarStyle('light-content');
+  if (Platform.OS === 'android') {
+    StatusBar.setTranslucent(false);
+    StatusBar.setBackgroundColor(SCREEN_BG);
+  }
+}
+
 function VideoPlayerModal({ video, onClose }) {
   const insets = useSafeAreaInsets();
   const [paused, setPaused] = useState(false);
@@ -410,52 +418,50 @@ function VideoPlayerModal({ video, onClose }) {
   const [error, setError] = useState(false);
   const closingRef = useRef(false);
   const controlsTop = insets.top + 52;
+  const visible = Boolean(video?.video_url);
 
   useEffect(() => {
+    if (!visible) {
+      closingRef.current = false;
+      setPaused(true);
+      return undefined;
+    }
     closingRef.current = false;
-    let entry;
-    try {
-      entry = StatusBar.pushStackEntry({
-        barStyle: 'light-content',
-        backgroundColor: '#000000',
-        hidden: false,
-      });
-    } catch (_) {
-      entry = null;
+    setPaused(false);
+    setBuffering(true);
+    setError(false);
+    if (Platform.OS === 'android') {
+      StatusBar.setBackgroundColor('#000000');
     }
     return () => {
       setPaused(true);
-      if (entry) {
-        try {
-          StatusBar.popStackEntry(entry);
-        } catch (_) {
-          StatusBar.setHidden(false);
-        }
-      }
+      restoreAppStatusBar();
     };
-  }, [video?.id]);
+  }, [visible, video?.id]);
 
   const handleClose = useCallback(() => {
     if (closingRef.current) return;
     closingRef.current = true;
     setPaused(true);
+    restoreAppStatusBar();
     onClose();
   }, [onClose]);
 
-  if (!video?.video_url) return null;
-
   return (
     <Modal
-      visible
+      visible={visible}
       animationType="fade"
       transparent={false}
       onRequestClose={handleClose}
+      onDismiss={restoreAppStatusBar}
       {...Platform.select({
-        ios: { presentationStyle: 'fullScreen' },
+        // overFullScreen keeps the Me tab chrome in the view hierarchy (avoids layout glitches).
+        ios: { presentationStyle: 'overFullScreen' },
         default: {},
       })}
     >
       <View style={vStyles.container}>
+        {video?.video_url ? (
         <Video
           key={video.id || video.video_url}
           source={{ uri: video.video_url }}
@@ -464,6 +470,8 @@ function VideoPlayerModal({ video, onClose }) {
           paused={paused}
           repeat={false}
           controls={false}
+          fullscreen={false}
+          fullscreenAutorotate={false}
           ignoreSilentSwitch="obey"
           playInBackground={false}
           playWhenInactive={false}
@@ -471,6 +479,7 @@ function VideoPlayerModal({ video, onClose }) {
           onLoad={() => setBuffering(false)}
           onError={() => { setBuffering(false); setError(true); }}
         />
+        ) : null}
         {buffering && !error && (
           <ActivityIndicator style={vStyles.loader} size="large" color={C.accent.secondary} />
         )}
@@ -1030,10 +1039,9 @@ export default function MentorProfileScreen({ navigation, route }) {
     [mentorId, profile?.id, user?.id],
   );
   const libraryUnlocked = isUnlocked || isOwnProfile;
-  const bottomTabInset = isOwnProfile ? getFloatingTabBarContentInset(insets) : 0;
   const safeScreenProps = {
     padding: 0,
-    hasBottomTabs: false,
+    hasBottomTabs: isOwnProfile,
     includeTopInset: isOwnProfile ? false : Platform.OS !== 'ios',
   };
 
@@ -1134,10 +1142,14 @@ export default function MentorProfileScreen({ navigation, route }) {
   // Own Profile tab: restore status bar after video modal so Me top tabs stay visible.
   useFocusEffect(
     useCallback(() => {
-      StatusBar.setHidden(false);
+      restoreAppStatusBar();
       return undefined;
     }, []),
   );
+
+  useEffect(() => {
+    if (!playingVideo) restoreAppStatusBar();
+  }, [playingVideo]);
 
   useEffect(() => {
     loadData(false);
@@ -1232,14 +1244,26 @@ export default function MentorProfileScreen({ navigation, route }) {
     navigation.navigate(SCREEN_NAMES.Booking, { mentorId, mentorName: nm });
   };
 
+  const openLearnerVideoFeed = useCallback(({ videoId } = {}) => {
+    if (!mentorId) return;
+    navigation.navigate(SCREEN_NAMES.RootUnifiedTabs, {
+      screen: SCREEN_NAMES.LearnerSection,
+      params: {
+        screen: SCREEN_NAMES.LearnerVideos,
+        params: {
+          filterMentorId: mentorId,
+          ...(videoId ? { startVideoId: videoId } : {}),
+        },
+      },
+    });
+  }, [mentorId, navigation]);
+
   const seeAll = () => {
     if (isOwnProfile) {
       navigation.navigate(SCREEN_NAMES.MentorVideos);
       return;
     }
-    navigation.navigate(SCREEN_NAMES.MentorVideoFeed, {
-      filterMentorId: mentorId,
-    });
+    openLearnerVideoFeed();
   };
 
   const handlePlayVideo = useCallback((video) => {
@@ -1247,9 +1271,16 @@ export default function MentorProfileScreen({ navigation, route }) {
       Toast.show('Video unavailable', Toast.SHORT);
       return;
     }
-    // A card tap should play that video, not open the scrollable feed.
-    // Access control is handled by PortraitVideoCard before this callback.
-    setPlayingVideo(video);
+    if (isOwnProfile) {
+      setPlayingVideo(video);
+      return;
+    }
+    openLearnerVideoFeed({ videoId: video.id });
+  }, [isOwnProfile, openLearnerVideoFeed]);
+
+  const handleCloseVideo = useCallback(() => {
+    restoreAppStatusBar();
+    setPlayingVideo(null);
   }, []);
 
   const openRecap = (session) => {
@@ -1639,8 +1670,6 @@ export default function MentorProfileScreen({ navigation, route }) {
             </View>
           </View>
         </View>
-        <View style={{ height: T.spacing.xxxl + bottomTabInset }} />
-
       </View>
     </SafeScreen>
 
@@ -1713,12 +1742,10 @@ export default function MentorProfileScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {playingVideo ? (
-        <VideoPlayerModal
-          video={playingVideo}
-          onClose={() => setPlayingVideo(null)}
-        />
-      ) : null}
+      <VideoPlayerModal
+        video={playingVideo}
+        onClose={handleCloseVideo}
+      />
 
     </>
   );
@@ -1754,8 +1781,8 @@ const sheet = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  root: { flexGrow: 1, backgroundColor: 'transparent' },
-  mainColumn: { flexGrow: 1 },
+  root: { backgroundColor: 'transparent' },
+  mainColumn: {},
   bodyFlex: { width: '100%' },
   videoRailSection: { flexShrink: 0, marginTop: T.spacing.md, marginBottom: T.spacing.sm },
   videoRailScroll: { flexGrow: 0 },
@@ -1952,7 +1979,6 @@ const styles = StyleSheet.create({
   ctaHalfTxtDark: { color: '#0c1228', fontWeight: '800', fontSize: 12 },
   ctaHalfTxtMuted: { color: C.text.muted, fontWeight: '700', fontSize: 12 },
   singleScreenBody: {
-    flexGrow: 1,
     paddingTop: 2,
     paddingBottom: T.spacing.md,
   },

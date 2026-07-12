@@ -23,6 +23,7 @@ import { recordingsApi, meetingIdFromBooking } from '../../api/recordingsApi';
 import { profileApi } from '../../api/profileApi';
 import { useAuth } from '../../hooks/useAuth';
 import { resolveLobbyPartner } from '../../utils/sessionLobbyRules';
+import { releaseIosCallAudioSession } from '../../utils/iosCallAudioSession';
 import MeetingContainer from '../meeting/MeetingContainer';
 import SessionLobbyView from '../meeting/Components/SessionLobbyView';
 
@@ -76,6 +77,7 @@ export default function VideoCallScreen({ navigation, route }) {
   const [participantCount, setParticipantCount] = useState(1);
   const joinTimeRef = useRef(null); // Track when both participants joined (use Ref to persist across re-renders)
   const recordingRef = useRef();
+  const sessionEndedRef = useRef(false);
 
   // Track when both participants have joined
   useEffect(() => {
@@ -132,8 +134,7 @@ export default function VideoCallScreen({ navigation, route }) {
 
     return () => {
       cancelled = true;
-      if (Platform.OS === 'ios') {
-        const { releaseIosCallAudioSession } = require('../../utils/iosCallAudioSession');
+      if (Platform.OS === 'ios' && !sessionEndedRef.current) {
         releaseIosCallAudioSession();
       }
     };
@@ -290,88 +291,104 @@ export default function VideoCallScreen({ navigation, route }) {
     setReady(true);
   };
 
-  const handleMeetingLeft = async () => {
-    try {
-      // Only mark as completed if:
-      // 1. BOTH mentor and learner joined (joinTimeRef proves both were in call)
-      // 2. Meeting lasted at least 5 minutes (300 seconds)
-      const endTime = new Date();
-      const callDuration = joinTimeRef.current ? Math.round((endTime - joinTimeRef.current) / 1000) : 0;
-      const MIN_DURATION_SECONDS = 300; // 5 minutes
-      const shouldMarkComplete = !!joinTimeRef.current && callDuration >= MIN_DURATION_SECONDS;
+  const runPostCallCleanup = async (snapshotCallParams) => {
+    const endTime = new Date();
+    const callDuration = joinTimeRef.current ? Math.round((endTime - joinTimeRef.current) / 1000) : 0;
+    const MIN_DURATION_SECONDS = 300; // 5 minutes
+    const shouldMarkComplete = !!joinTimeRef.current && callDuration >= MIN_DURATION_SECONDS;
 
-
-      if (shouldMarkComplete) {
-        // Only the mentor triggers the completion — the Supabase wallet-credit
-        // function checks auth.uid() === mentor_id, so calling it from the
-        // learner's session throws an Unauthorized error.
-        if (isHost) {
+    if (shouldMarkComplete) {
+      if (isHost) {
+        try {
           await bookingApi.updateBookingStatus({
             bookingId,
             status: 'completed',
           });
-        }
-
-        // Persist recording URL to booking (host-side best effort with retries).
-        if (isHost && callParams?.meetingId && callParams?.token) {
-          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-          let recordingUrl = null;
-
-          for (let attempt = 1; attempt <= 8; attempt += 1) {
-            recordingUrl = await fetchRecordingUrl({
-              meetingId: callParams.meetingId,
-              token: callParams.token,
-            });
-            if (recordingUrl) break;
-            // Recording file may take some time after session end to become available.
-            await sleep(attempt <= 3 ? 4000 : 8000);
-          }
-
-          if (recordingUrl) {
-            try {
-              const bookingRow = await bookingApi.getBooking(bookingId);
-              await recordingsApi.updateRecordingUrls({
-                bookingId,
-                recordingUrl,
-                recordingPlaybackUrl: recordingUrl,
-                mentorId: bookingRow?.mentor_id || profile.id,
-                learnerId: bookingRow?.learner_id,
-                meetingId: callParams.meetingId,
-              });
-            } catch (recErr) {
-              console.warn('⚠️ Recording URL save skipped (recordings table not set up):', recErr);
-            }
-          } else {
-          }
-        }
-
-        Toast.show('Session completed');
-      } else {
-        // Check why session wasn't completed
-        let reason = '';
-        if (!joinTimeRef.current) {
-          reason = 'both participants did not join';
-          if (isHost) {
-            try {
-              await bookingApi.clearMeetingId(bookingId);
-            } catch (cleanupError) {
-              console.error('⚠️ Failed to clean up meeting_id:', cleanupError);
-            }
-          }
-          Toast.show('Session ended - Meeting abandoned');
-        } else if (callDuration < MIN_DURATION_SECONDS) {
-          // Both were in the call but it was too short for "completed" status.
-          // Keep meeting_id intact — mentor/learner can rejoin the same room
-          // without spinning up a new session pipeline.
-          Toast.show('Session ended — minimum 5 minutes required for completion');
+        } catch (err) {
+          console.warn('[Call] Failed to mark booking completed:', err?.message);
         }
       }
 
-      navigation.goBack();
-    } catch (error) {
-      console.error('Error ending call:', error);
-      navigation.goBack();
+      if (isHost && snapshotCallParams?.meetingId && snapshotCallParams?.token) {
+        const { stopOneToOneRecordingSession } = require('../../utils/recordingConfig');
+        try {
+          await stopOneToOneRecordingSession({
+            token: snapshotCallParams.token,
+            meetingId: snapshotCallParams.meetingId,
+          });
+        } catch (stopErr) {
+          console.warn('[Recording] stop on leave failed:', stopErr?.message);
+        }
+
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+        let recordingUrl = null;
+
+        for (let attempt = 1; attempt <= 8; attempt += 1) {
+          recordingUrl = await fetchRecordingUrl({
+            meetingId: snapshotCallParams.meetingId,
+            token: snapshotCallParams.token,
+          });
+          if (recordingUrl) break;
+          await sleep(attempt <= 3 ? 4000 : 8000);
+        }
+
+        if (recordingUrl) {
+          try {
+            const bookingRow = await bookingApi.getBooking(bookingId);
+            await recordingsApi.updateRecordingUrls({
+              bookingId,
+              recordingUrl,
+              recordingPlaybackUrl: recordingUrl,
+              mentorId: bookingRow?.mentor_id || profile.id,
+              learnerId: bookingRow?.learner_id,
+              meetingId: snapshotCallParams.meetingId,
+            });
+          } catch (recErr) {
+            console.warn('⚠️ Recording URL save skipped (recordings table not set up):', recErr);
+          }
+        }
+      }
+
+      Toast.show('Session completed');
+      return;
     }
+
+    if (!joinTimeRef.current) {
+      if (isHost) {
+        try {
+          await bookingApi.clearMeetingId(bookingId);
+        } catch (cleanupError) {
+          console.error('⚠️ Failed to clean up meeting_id:', cleanupError);
+        }
+      }
+      Toast.show('Session ended - Meeting abandoned');
+      return;
+    }
+
+    if (callDuration < MIN_DURATION_SECONDS) {
+      Toast.show('Session ended — minimum 5 minutes required for completion');
+    }
+  };
+
+  const handleMeetingLeft = () => {
+    if (sessionEndedRef.current) return;
+    sessionEndedRef.current = true;
+
+    const snapshotCallParams = callParams;
+
+    // Tear down WebRTC UI before navigation so iOS can release camera/audio cleanly.
+    setReady(false);
+    setCallParams(null);
+
+    if (Platform.OS === 'ios') {
+      setTimeout(() => releaseIosCallAudioSession(), 300);
+    }
+
+    navigation.goBack();
+
+    runPostCallCleanup(snapshotCallParams).catch(error => {
+      console.error('Error ending call:', error);
+    });
   };
 
   const VOID_BG = UNIFIED_THEME.colors.primary.void;
@@ -442,7 +459,7 @@ export default function VideoCallScreen({ navigation, route }) {
       config={{
         meetingId: callParams.meetingId,
         micEnabled: false,
-        webcamEnabled: true,
+        webcamEnabled: Platform.OS !== 'ios',
         name: profile?.name || 'Guest',
         notification: {
           title: 'Session in Progress',
@@ -453,7 +470,7 @@ export default function VideoCallScreen({ navigation, route }) {
       token={callParams.token}
     >
       <View style={{ flex: 1 }}>
-        <CallErrorBoundary onLeave={() => navigation.goBack()}>
+        <CallErrorBoundary onLeave={handleMeetingLeft}>
           <MeetingConsumer onMeetingLeft={handleMeetingLeft}>
             {() => (
               <MeetingContainer

@@ -75,11 +75,12 @@ class VideosdkRPK: RCTEventEmitter {
     DispatchQueue.main.async { [self] in
       let pickerView = RPSystemBroadcastPickerView(
         frame: CGRect(x: 0, y: 0, width: 0, height: 0))
-      var tap = pickerView.subviews.first as! UIButton
       pickerView.translatesAutoresizingMaskIntoConstraints = false
       pickerView.preferredExtension = "com.connectiqo.app.ScreenBroadcast"
+      guard let tap = pickerView.subviews.first(where: { $0 is UIButton }) as? UIButton else {
+        return
+      }
       tap.sendActions(for: .touchUpInside)
-      
     }
   }
   

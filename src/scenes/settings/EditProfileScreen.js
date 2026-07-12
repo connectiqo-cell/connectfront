@@ -962,9 +962,9 @@ export default function EditProfileScreen({ navigation }) {
     ]);
   };
 
-  const handlePickImage = async () => {
+  const handlePickImage = async (source) => {
     try {
-      const picked = await pickProfileAvatar();
+      const picked = await pickProfileAvatar({ source });
       if (!picked) return;
       setLoading(true);
       const url = await profileApi.uploadAvatar({
@@ -1223,10 +1223,10 @@ export default function EditProfileScreen({ navigation }) {
                 />
                 <TouchableOpacity
                   style={styles.avatarCamera}
-                  onPress={handlePickImage}
+                  onPress={() => handlePickImage('camera')}
                   disabled={loading}
                   activeOpacity={0.85}
-                  accessibilityLabel="Change profile photo"
+                  accessibilityLabel="Take profile photo"
                 >
                   <MaterialIcons name="camera-alt" size={14} color={C.text.primary} />
                 </TouchableOpacity>

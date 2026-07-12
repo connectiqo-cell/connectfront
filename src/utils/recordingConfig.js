@@ -2,6 +2,16 @@ const RECORDING_TEMPLATE_URL = 'https://template.connectiqo.com';
 
 const RECORDING_API_URL = 'https://api.videosdk.live/v2/recordings/start';
 
+let restRecordingMeetingId = null;
+
+export function markRestRecordingStarted(meetingId) {
+  restRecordingMeetingId = meetingId || null;
+}
+
+export function clearRestRecordingStarted() {
+  restRecordingMeetingId = null;
+}
+
 /**
  * Starts recording via VideoSDK REST API with a custom template URL.
  * The SDK's startRecording() cannot load custom templates — only the REST API supports templateUrl.
@@ -47,6 +57,8 @@ export async function startOneToOneRecordingViaAPI({ token, meetingId, mentorId 
     throw new Error(`VideoSDK ${res.status}: ${responseText}`);
   }
 
+  markRestRecordingStarted(meetingId);
+
   try {
     return JSON.parse(responseText);
   } catch {
@@ -78,6 +90,33 @@ export async function stopOneToOneRecordingViaAPI({ token, meetingId }) {
   } catch {
     return responseText;
   }
+}
+
+/** Stop cloud recording started via REST and/or the SDK. */
+export async function stopOneToOneRecordingSession({
+  token,
+  meetingId,
+  stopRecording,
+} = {}) {
+  const roomId = meetingId || restRecordingMeetingId;
+
+  if (token && roomId) {
+    try {
+      await stopOneToOneRecordingViaAPI({ token, meetingId: roomId });
+    } catch (err) {
+      console.warn('[Recording] REST stop failed:', err?.message || err);
+    }
+  }
+
+  if (typeof stopRecording === 'function') {
+    try {
+      stopRecording();
+    } catch (err) {
+      console.warn('[Recording] SDK stop failed:', err?.message || err);
+    }
+  }
+
+  clearRestRecordingStarted();
 }
 
 /** Fallback: SDK-native GRID layout (no custom template). */

@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, TouchableOpacity } from "react-native";
+import { View, TouchableOpacity, Platform } from "react-native";
 import { WifiIcon } from "../../../../assets/icons";
 import colors from "../../../../styles/colors";
 import useParticipantStat from "../../Hooks/useParticipantStat";
@@ -33,7 +33,7 @@ export default LargeViewContainer = ({
   } = useParticipantStat({ participantId });
 
   useEffect(() => {
-    setQuality?.("high");
+    setQuality?.(Platform.OS === 'ios' ? 'medium' : 'high');
   }, []);
 
   return (

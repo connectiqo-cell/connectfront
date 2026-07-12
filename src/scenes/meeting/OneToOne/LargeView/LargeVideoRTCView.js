@@ -1,7 +1,8 @@
 import React from "react";
-import { RTCView, MediaStream } from "@videosdk.live/react-native-sdk";
+import { RTCView } from "@videosdk.live/react-native-sdk";
 import Avatar from "../../../../components/Avatar";
 import colors from "../../../../styles/colors";
+import { useRtcStreamUrl } from "../../../../hooks/useRtcStreamUrl";
 
 export default LargeVideoRTCView = ({
   stream,
@@ -10,12 +11,14 @@ export default LargeVideoRTCView = ({
   objectFit,
   isLocal,
 }) => {
-  return isOn && stream ? (
+  const streamURL = useRtcStreamUrl(stream);
+
+  return isOn && streamURL ? (
     <RTCView
       objectFit={objectFit}
       mirror={isLocal}
       style={{ flex: 1, backgroundColor: "#424242" }}
-      streamURL={new MediaStream([stream.track]).toURL()}
+      streamURL={streamURL}
     />
   ) : (
     <Avatar

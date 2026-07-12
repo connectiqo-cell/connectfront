@@ -1,6 +1,6 @@
 import { useParticipant } from "@videosdk.live/react-native-sdk";
 import React, { useEffect } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import colors from "../../../styles/colors";
 import LargeVideoRTCView from "./LargeView/LargeVideoRTCView";
 
@@ -9,7 +9,7 @@ export default function LocalViewContainer({ participantId }) {
     useParticipant(participantId, {});
 
   useEffect(() => {
-    setQuality("high");
+    setQuality(Platform.OS === 'ios' ? 'medium' : 'high');
   }, []);
 
   return (

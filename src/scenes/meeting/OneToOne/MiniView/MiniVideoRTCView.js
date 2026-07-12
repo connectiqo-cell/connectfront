@@ -1,6 +1,7 @@
-import { RTCView, MediaStream } from "@videosdk.live/react-native-sdk";
+import { RTCView } from "@videosdk.live/react-native-sdk";
 import React from "react";
 import { View, TouchableOpacity } from "react-native";
+import { useRtcStreamUrl } from "../../../../hooks/useRtcStreamUrl";
 import { NetworkIcon } from "../../../../assets/icons";
 import Avatar from "../../../../components/Avatar";
 import colors from "../../../../styles/colors";
@@ -26,26 +27,20 @@ export default MiniVideoRTCView = ({
   micOn,
   score,
   participantId,
+  onSwapPress,
+  height = 160,
 }) => {
-  return (
-    <View
-      style={{
-        position: "absolute",
-        bottom: 10,
-        right: 10,
-        height: 160,
-        aspectRatio: 0.7,
-        borderRadius: 8,
-        overflow: "hidden",
-      }}
-    >
-      {isOn && stream ? (
+  const streamURL = useRtcStreamUrl(stream);
+
+  const content = (
+    <>
+      {isOn && streamURL ? (
         <RTCView
           objectFit="cover"
           zOrder={1}
           mirror={isLocal}
           style={{ flex: 1, backgroundColor: "#424242" }}
-          streamURL={new MediaStream([stream.track]).toURL()}
+          streamURL={streamURL}
         />
       ) : (
         <Avatar
@@ -78,6 +73,25 @@ export default MiniVideoRTCView = ({
           <NetworkIcon fill={"#fff"} />
         </TouchableOpacity>
       ) : null}
-    </View>
+    </>
+  );
+
+  return (
+    <TouchableOpacity
+      activeOpacity={onSwapPress ? 0.85 : 1}
+      disabled={!onSwapPress}
+      onPress={onSwapPress}
+      style={{
+        position: "absolute",
+        bottom: 10,
+        right: 10,
+        height,
+        aspectRatio: 0.7,
+        borderRadius: 8,
+        overflow: "hidden",
+      }}
+    >
+      {content}
+    </TouchableOpacity>
   );
 };

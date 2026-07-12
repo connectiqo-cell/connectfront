@@ -3,8 +3,8 @@ import { View, Text, TouchableOpacity } from "react-native";
 import {
   useParticipant,
   RTCView,
-  MediaStream,
 } from "@videosdk.live/react-native-sdk";
+import { useRtcStreamUrl } from "../../../hooks/useRtcStreamUrl";
 import { convertRFValue } from "../../../styles/spacing";
 import colors from "../../../styles/colors";
 import Avatar from "../../../components/Avatar";
@@ -46,6 +46,8 @@ export default function ParticipantView({
   const { score } = useParticipantStat({
     participantId,
   });
+
+  const streamURL = useRtcStreamUrl(webcamStream);
 
   const updateStats = async () => {
     let stats = [];
@@ -123,10 +125,10 @@ export default function ParticipantView({
         marginVertical: 3,
       }}
     >
-      {webcamOn && webcamStream ? (
+      {webcamOn && streamURL ? (
         <>
           <RTCView
-            streamURL={new MediaStream([webcamStream.track]).toURL()}
+            streamURL={streamURL}
             objectFit={"cover"}
             mirror={isLocal ? true : false}
             style={{

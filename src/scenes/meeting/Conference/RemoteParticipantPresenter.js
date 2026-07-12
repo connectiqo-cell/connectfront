@@ -3,8 +3,8 @@ import { View, Text } from "react-native";
 import {
   useParticipant,
   RTCView,
-  MediaStream,
 } from "@videosdk.live/react-native-sdk";
+import { useRtcStreamUrl } from "../../../hooks/useRtcStreamUrl";
 import colors from "../../../styles/colors";
 import { convertRFValue } from "../../../styles/spacing";
 import { ROBOTO_FONTS } from "../../../styles/fonts";
@@ -14,20 +14,21 @@ export default function RemoteParticipantPresenter({ presenterId }) {
   const { displayName, screenShareStream, screenShareOn } =
     useParticipant(presenterId);
 
+  const streamURL = useRtcStreamUrl(screenShareStream);
   const presentingText = displayName || "";
 
   return (
     <View
       style={{
-        flex: 3,
+        flex: 1,
         paddingHorizontal: 12,
         borderTopColor: colors.primary[700],
         justifyContent: "space-between",
       }}
     >
-      {screenShareOn && screenShareStream ? (
+      {screenShareOn && streamURL ? (
         <RTCView
-          streamURL={new MediaStream([screenShareStream.track]).toURL()}
+          streamURL={streamURL}
           objectFit={"contain"}
           style={{
             flex: 1,

@@ -12,7 +12,6 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Video from 'react-native-video';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { normalizeRecordingUrl } from '../../api/api';
-import { useScreenProtection } from '../../hooks/useScreenProtection';
 
 const TEAL = UNIFIED_THEME.colors.accent.secondary;
 
@@ -21,7 +20,6 @@ export default function RecordingPlayerScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
-  const { isRecordingDetected } = useScreenProtection();
 
   const sourceUrl = useMemo(() => {
     const rawUrl = route?.params?.recordingUrl;

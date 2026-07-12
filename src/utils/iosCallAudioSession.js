@@ -2,11 +2,13 @@ import { Platform, NativeModules, NativeEventEmitter } from 'react-native';
 
 let eventEmitter = null;
 let routeListener = null;
+let iosCallSessionActive = false;
 
 function getInCallManager() {
   // Lazy load — only invoked on iOS (Android uses VideoSDK's default flow).
   return require('@videosdk.live/react-native-incallmanager').default;
 }
+
 /**
  * VideoSDK calls InCallManager.start() only after onMeetingJoined, but WebRTC
  * configures AVAudioSession during join while the category is still Ambient
@@ -30,7 +32,10 @@ export async function ensureIosCallAudioSession() {
     return false;
   }
 
-  InCallManager.start({ media: 'video' });
+  if (!iosCallSessionActive) {
+    InCallManager.start({ media: 'video' });
+    iosCallSessionActive = true;
+  }
   InCallManager.setForceSpeakerphoneOn(true);
 
   return true;
@@ -52,9 +57,11 @@ function attachIosCallAudioListeners() {
 }
 
 export function releaseIosCallAudioSession() {
-  if (Platform.OS !== 'ios') {
+  if (Platform.OS !== 'ios' || !iosCallSessionActive) {
     return;
   }
+
+  iosCallSessionActive = false;
 
   try {
     getInCallManager().stop();

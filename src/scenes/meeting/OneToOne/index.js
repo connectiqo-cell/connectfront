@@ -7,7 +7,7 @@ import {
   Platform,
   Alert,
   BackHandler,
-  AppState,
+  InteractionManager,
 } from "react-native";
 import { CosmicLoader } from "../../../components/LoadingSpinner";
 import {
@@ -35,10 +35,7 @@ import {
 } from "../../../assets/icons";
 import colors from "../../../styles/colors";
 import IconContainer from "../../../components/IconContainer";
-import LocalViewContainer from "./LocalViewContainer";
-import LargeView from "./LargeView";
-import MiniView from "./MiniView";
-import LocalParticipantPresenter from "../Components/LocalParticipantPresenter";
+import OneToOneCallLayout from "./OneToOneCallLayout";
 import Menu from "../../../components/Menu";
 import MenuItem from "../Components/MenuItem";
 import { ROBOTO_FONTS } from "../../../styles/fonts";
@@ -46,12 +43,21 @@ import Toast from "react-native-simple-toast";
 import BottomSheet from "../../../components/BottomSheet";
 import ParticipantListViewer from "../Components/ParticipantListViewer";
 import ChatViewer from "../Components/ChatViewer";
+import ChatMessagePopup from "../Components/ChatMessagePopup";
 import Blink from "../../../components/Blink";
 import VideosdkRPK from "../../../../VideosdkRPK";
 import ParticipantStatsViewer from "../Components/ParticipantStatsViewer";
-import { startOneToOneRecordingViaAPI, startOneToOneRecording } from "../../../utils/recordingConfig";
+import {
+  startOneToOneRecordingViaAPI,
+  startOneToOneRecording,
+  stopOneToOneRecordingSession,
+} from "../../../utils/recordingConfig";
 import { getToken } from "../../../api/api";
 import { computeSessionTiming, formatCountdown } from "../../../utils/sessionSlotTimer";
+import { useBackgroundWebcamRestore } from "../../../hooks/useBackgroundWebcamRestore";
+import { useInCallChatPopup } from "../../../hooks/useInCallChatPopup";
+import { useOrientation } from "../../../utils/useOrientation";
+import { pressScreenShare } from "../../../utils/screenShareActions";
 
 // VideoSDK Android reports facingMode as "front" / "environment" (not WebRTC
 // standard "user" / "environment"). Labels are often just "0" / "1".
@@ -84,7 +90,22 @@ function shouldSelectFrontCameraOnInit() {
   return Platform.OS !== "ios";
 }
 
-export default function OneToOneMeetingViewer({ isHost, booking }) {
+// iOS silently drops Alert.alert while a Modal (e.g. the More menu) is still visible.
+function runAfterMenuDismiss(action) {
+  if (Platform.OS === "ios") {
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(action, 350);
+    });
+    return;
+  }
+  action();
+}
+
+function showDeferredAlert(title, message, buttons, options) {
+  runAfterMenuDismiss(() => Alert.alert(title, message, buttons, options));
+}
+
+export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave, onSessionEnding }) {
   const onMeetingError = useCallback((data) => {
     const { code, message } = data;
     Toast.show(`Error: ${code}: ${message}`);
@@ -112,6 +133,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     enableScreenShare,
     disableScreenShare,
   } = useMeeting({ onError: onMeetingError });
+  const exitMeeting = onRequestLeave || leave;
   const recordingConsentPubSub = usePubSub("RECORDING_CONSENT", {});
 
   const leaveMenu = useRef();
@@ -137,12 +159,18 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     participantIds.find((id) => id !== localParticipantId) ??
     participantIds[1];
 
-  const participantCount = participantIds ? participantIds.length : null;
+  // VideoSDK participants map is remote-only; +1 includes the local participant.
+  const remoteParticipantCount = participants.size;
+  const participantCount = remoteParticipantCount + 1;
+  const bothParticipantsPresent = remoteParticipantCount >= 1;
 
   const localDisplayName = (meeting?.localParticipant?.displayName || '').split(' ')[0];
   const remoteDisplayName = (participants.get(remoteParticipantId)?.displayName || '').split(' ')[0];
 
-  const [splitMode, setSplitMode] = useState(true);
+  const [viewLayout, setViewLayout] = useState('split');
+  const [primaryParticipantId, setPrimaryParticipantId] = useState(null);
+  const orientation = useOrientation();
+  const isLandscape = orientation === 'LANDSCAPE';
   const [chatViewer, setchatViewer] = useState(false);
   const [participantListViewer, setparticipantListViewer] = useState(false);
   const [participantStatsViewer, setparticipantStatsViewer] = useState(false);
@@ -150,8 +178,30 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
   const [audioDevice, setAudioDevice] = useState([]);
   const [statParticipantId, setstatParticipantId] = useState("");
   const [meetingElapsedSeconds, setMeetingElapsedSeconds] = useState(0);
+  const [restRecordingActive, setRestRecordingActive] = useState(false);
   const slot = booking?.availability_slots || {};
   const [sessionTiming, setSessionTiming] = useState(() => computeSessionTiming(slot));
+
+  useEffect(() => {
+    if (!remoteParticipantId) return;
+    setPrimaryParticipantId(prev => {
+      if (!prev || (prev !== localParticipantId && prev !== remoteParticipantId)) {
+        return remoteParticipantId;
+      }
+      return prev;
+    });
+  }, [remoteParticipantId, localParticipantId]);
+
+  const secondaryParticipantId =
+    primaryParticipantId === localParticipantId
+      ? remoteParticipantId
+      : localParticipantId;
+
+  const handleSwapPrimary = () => {
+    if (secondaryParticipantId) {
+      setPrimaryParticipantId(secondaryParticipantId);
+    }
+  };
 
   async function updateAudioDeviceList() {
     const devices = await getAudioDeviceList();
@@ -205,10 +255,10 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
   }, []);
 
   useEffect(() => {
-    if (participantCount >= 2 && !bothJoinedAtRef.current) {
+    if (bothParticipantsPresent && !bothJoinedAtRef.current) {
       bothJoinedAtRef.current = Date.now();
     }
-  }, [participantCount]);
+  }, [bothParticipantsPresent]);
 
   useEffect(() => {
     meetingStartedAtRef.current = Date.now();
@@ -282,7 +332,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
   };
 
   const showIncomingRecordingConsent = (requestId, requesterRole) => {
-    Alert.alert(
+    showDeferredAlert(
       "Recording Request",
       `${requesterRole} wants to record this session. Do you agree?`,
       [
@@ -318,8 +368,44 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     );
   };
 
+  const executeStopRecording = () => {
+    getToken()
+      .then(token =>
+        stopOneToOneRecordingSession({
+          token,
+          meetingId,
+          stopRecording,
+        }),
+      )
+      .then(() => {
+        setRestRecordingActive(false);
+        Toast.show("Recording stopped.");
+      })
+      .catch(err => {
+        console.error('[Recording] stop failed:', err);
+        Toast.show('Could not stop recording');
+      });
+  };
+
+  const confirmStopRecording = () => {
+    if (!isHost) {
+      Toast.show("Only mentor can stop recording");
+      return;
+    }
+
+    showDeferredAlert(
+      "Stop Recording",
+      "Are you sure you want to stop recording? The session recording will be finalized.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Stop Recording", style: "destructive", onPress: executeStopRecording },
+      ],
+      { cancelable: true },
+    );
+  };
+
   const requestRecordingConsent = () => {
-    if (participantCount < 2) {
+    if (!bothParticipantsPresent) {
       Toast.show("Wait for the other participant to join");
       return;
     }
@@ -380,12 +466,16 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       // (when mentor initiates: mentor publishes APPROVED, so senderId === localId)
       if (payload.type === "RECORDING_START_APPROVED" && isHost) {
         if (
-          !recordingState ||
-          recordingState === Constants.recordingEvents.RECORDING_STOPPED
+          (!recordingState ||
+            recordingState === Constants.recordingEvents.RECORDING_STOPPED) &&
+          !restRecordingActive
         ) {
           getToken()
             .then(token => startOneToOneRecordingViaAPI({ token, meetingId, mentorId: localParticipantIdRef.current }))
-            .then(() => Toast.show("Recording started."))
+            .then(() => {
+              setRestRecordingActive(true);
+              Toast.show("Recording started.");
+            })
             .catch(err => {
               console.error('[Recording] REST start failed, trying SDK fallback:', err);
               try {
@@ -451,17 +541,20 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
   }, [enableScreenShare, disableScreenShare]);
 
   useEffect(() => {
-    if (recordingRef.current) {
-      if (
-        recordingState === Constants.recordingEvents.RECORDING_STARTING ||
-        recordingState === Constants.recordingEvents.RECORDING_STOPPING
-      ) {
-        recordingRef.current.start();
-      } else {
-        recordingRef.current.stop();
-      }
+    if (!recordingRef.current) return;
+
+    const shouldBlink =
+      restRecordingActive ||
+      recordingState === Constants.recordingEvents.RECORDING_STARTED ||
+      recordingState === Constants.recordingEvents.RECORDING_STARTING ||
+      recordingState === Constants.recordingEvents.RECORDING_STOPPING;
+
+    if (shouldBlink) {
+      recordingRef.current.start();
+    } else {
+      recordingRef.current.stop();
     }
-  }, [recordingState]);
+  }, [recordingState, restRecordingActive]);
 
   useEffect(() => {
     return () => {
@@ -487,9 +580,28 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         : "Ended"
     : null;
   const isRecordingVisible =
+    restRecordingActive ||
     recordingState === Constants.recordingEvents.RECORDING_STARTED ||
     recordingState === Constants.recordingEvents.RECORDING_STOPPING ||
     recordingState === Constants.recordingEvents.RECORDING_STARTING;
+
+  const isRecordingRunning =
+    restRecordingActive ||
+    recordingState === Constants.recordingEvents.RECORDING_STARTED;
+
+  const openChatPanel = () => {
+    setchatViewer(true);
+    setparticipantListViewer(false);
+    setparticipantStatsViewer(false);
+    bottomSheetRef.current?.show();
+  };
+
+  const { popup: chatPopup, unreadCount, dismissPopup, openChatFromPopup } =
+    useInCallChatPopup({
+      localParticipantId,
+      isChatOpen: chatViewer,
+      onOpenChat: openChatPanel,
+    });
 
   const openStatsBottomSheet = ({ pId }) => {
     setparticipantStatsViewer(true);
@@ -527,7 +639,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     }
   };
 
-  const MIN_SESSION_SECONDS = 60; // 1 minute (testing — change back to 300 for production)
+  const MIN_SESSION_SECONDS = 300; // 5 minutes — must match VideoCallScreen completion threshold
 
   const tryLeave = (endForAll = false) => {
     if (bothJoinedAtRef.current) {
@@ -542,9 +654,10 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       }
     }
     if (endForAll) {
+      onSessionEnding?.();
       end();
     } else {
-      leave();
+      exitMeeting();
     }
   };
 
@@ -567,7 +680,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       "Are you sure you want to leave this meeting?",
       [
         { text: "Stay in meeting", style: "cancel" },
-        { text: "Leave meeting", style: "destructive", onPress: () => leave() },
+        { text: "Leave meeting", style: "destructive", onPress: () => exitMeeting() },
       ],
       { cancelable: true }
     );
@@ -585,58 +698,18 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     );
 
     return () => backHandlerSubscription.remove();
-  }, [leave]);
+  }, [exitMeeting]);
 
-  // AppState — camera off in background, restore on foreground.
-  // Auto-leave after 3 minutes in background so the meeting doesn't
-  // silently run forever if the user switches apps and forgets.
-  // Uses refs for webcam state so the subscription is stable and
-  // never re-created mid-session (avoids stale-closure restore bug).
-  useEffect(() => {
-    const BG_LEAVE_MS = 3 * 60 * 1000; // 3 minutes
-    const appStateRef = { current: AppState.currentState };
-    const webcamWasOnRef = { current: false };
-    let bgTimer = null;
-
-    const clearBgTimer = () => {
-      if (bgTimer) {
-        clearTimeout(bgTimer);
-        bgTimer = null;
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', nextState => {
-      const prev = appStateRef.current;
-      appStateRef.current = nextState;
-
-      if (prev === 'active' && nextState.match(/inactive|background/)) {
-        webcamWasOnRef.current = localWebcamOnRef.current;
-        if (localWebcamOnRef.current) toggleWebcam();
-
-        bgTimer = setTimeout(() => {
-          Toast.show('Session ended — app was in background too long');
-          leave();
-        }, BG_LEAVE_MS);
-      }
-
-      if (nextState === 'active' && prev.match(/inactive|background/)) {
-        clearBgTimer();
-        if (webcamWasOnRef.current) {
-          setTimeout(() => {
-            toggleWebcam();
-            if (shouldSelectFrontCameraOnInit() && frontCameraIdRef.current) {
-              setTimeout(() => changeWebcam(frontCameraIdRef.current), 400);
-            }
-          }, 300);
-        }
-      }
-    });
-
-    return () => {
-      clearBgTimer();
-      subscription.remove();
-    };
-  }, [toggleWebcam, changeWebcam, leave]);
+  useBackgroundWebcamRestore({
+    localWebcamOn,
+    toggleWebcam,
+    changeWebcam,
+    frontCameraIdRef,
+    onBackgroundLeave: () => {
+      Toast.show('Session ended — app was in background too long');
+      exitMeeting();
+    },
+  });
 
 
   return (
@@ -741,11 +814,11 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <TouchableOpacity
-            onPress={() => setSplitMode(v => !v)}
+            onPress={() => setViewLayout(layout => (layout === 'split' ? 'pip' : 'split'))}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <View style={{ width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}>
-              {splitMode ? (
+              {viewLayout === 'split' ? (
                 <View style={{ width: 24, height: 24, position: 'relative' }}>
                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderWidth: 1.5, borderColor: colors.primary[100], borderRadius: 3 }} />
                   <View style={{ position: 'absolute', bottom: 2, right: 2, width: 10, height: 8, backgroundColor: colors.primary[100], borderRadius: 2 }} />
@@ -768,79 +841,23 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       </View>
       {/* Center */}
       <View style={{ flex: 1, marginTop: 2, marginBottom: 2, overflow: 'hidden' }}>
-        {participantCount > 1 ? (
-          splitMode ? (
-            localScreenShareOn ? (
-              <LocalParticipantPresenter />
-            ) : (
-              <View style={{ flex: 1 }}>
-                <View style={{ flex: 1 }}>
-                  {remoteParticipantId ? (
-                    <LargeView
-                      participantId={remoteParticipantId}
-                      openStatsBottomSheet={openStatsBottomSheet}
-                    />
-                  ) : null}
-                  {remoteDisplayName ? (
-                    <View style={{ position: 'absolute', bottom: 12, right: 12, alignItems: 'flex-end' }} pointerEvents="none">
-                      <Text style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 'bold', fontSize: 15, fontFamily: ROBOTO_FONTS.RobotoBold, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
-                        {remoteDisplayName}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-                {/* Connectiqo branding divider */}
-                <View style={{ height: 18, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 }}>
-                  <View style={{ flex: 1, height: 1, backgroundColor: '#7c3aed', opacity: 0.7 }} />
-                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#7c3aed' }} />
-                  <Text style={{ color: '#fff', fontSize: 12, fontFamily: ROBOTO_FONTS.RobotoMedium, letterSpacing: 1 }}>Connectiqo</Text>
-                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#7c3aed' }} />
-                  <View style={{ flex: 1, height: 1, backgroundColor: '#7c3aed', opacity: 0.7 }} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  {localParticipantId ? (
-                    <LargeView
-                      participantId={localParticipantId}
-                      openStatsBottomSheet={openStatsBottomSheet}
-                    />
-                  ) : null}
-                  {localDisplayName ? (
-                    <View style={{ position: 'absolute', bottom: 12, right: 12, alignItems: 'flex-end' }} pointerEvents="none">
-                      <Text style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 'bold', fontSize: 15, fontFamily: ROBOTO_FONTS.RobotoBold, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
-                        {localDisplayName}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            )
-          ) : (
-            <>
-              {localScreenShareOn ? (
-                <LocalParticipantPresenter />
-              ) : (
-                <LargeView
-                  participantId={remoteParticipantId ?? participantIds[1]}
-                  openStatsBottomSheet={openStatsBottomSheet}
-                />
-              )}
-              <MiniView
-                openStatsBottomSheet={openStatsBottomSheet}
-                participantId={
-                  participantIds[localScreenShareOn || presenterId ? 1 : 0]
-                }
-              />
-            </>
-          )
-        ) : participantCount === 1 ? (
-          <LocalViewContainer participantId={participantIds[0]} />
-        ) : (
-          <View
-            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-          >
-            <CosmicLoader size={56} />
-          </View>
-        )}
+        <OneToOneCallLayout
+          participantCount={participantCount}
+          viewLayout={viewLayout}
+          isLandscape={isLandscape}
+          localParticipantId={localParticipantId}
+          remoteParticipantId={remoteParticipantId}
+          primaryParticipantId={primaryParticipantId}
+          secondaryParticipantId={secondaryParticipantId}
+          participantIds={participantIds}
+          localDisplayName={localDisplayName}
+          remoteDisplayName={remoteDisplayName}
+          localScreenShareOn={localScreenShareOn}
+          presenterId={presenterId}
+          onSwapPrimary={handleSwapPrimary}
+          openStatsBottomSheet={openStatsBottomSheet}
+          miniViewHeight={isLandscape ? 110 : 160}
+        />
       </View>
       <Menu
         ref={leaveMenu}
@@ -899,8 +916,9 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       >
         <MenuItem
           title={`${
-            !recordingState ||
-            recordingState === Constants.recordingEvents.RECORDING_STOPPED
+            !isRecordingRunning &&
+            (!recordingState ||
+              recordingState === Constants.recordingEvents.RECORDING_STOPPED)
               ? "Start"
               : recordingState === Constants.recordingEvents.RECORDING_STARTING
               ? "Starting"
@@ -910,21 +928,18 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
           } Recording`}
           icon={<Recording width={22} height={22} />}
           onPress={() => {
-            if (
-              !recordingState ||
-              recordingState === Constants.recordingEvents.RECORDING_STOPPED
-            ) {
-              requestRecordingConsent();
-            } else if (
-              recordingState === Constants.recordingEvents.RECORDING_STARTED
-            ) {
-              if (!isHost) {
-                Toast.show("Only mentor can stop recording");
-              } else {
-                stopRecording();
-              }
-            }
             moreOptionsMenu.current.close();
+            runAfterMenuDismiss(() => {
+              if (
+                !isRecordingRunning &&
+                (!recordingState ||
+                  recordingState === Constants.recordingEvents.RECORDING_STOPPED)
+              ) {
+                requestRecordingConsent();
+              } else if (isRecordingRunning) {
+                confirmStopRecording();
+              }
+            });
           }}
         />
         <View
@@ -939,10 +954,13 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
             icon={<ScreenShare width={22} height={22} />}
             onPress={() => {
               moreOptionsMenu.current.close();
-              if (presenterId == null || localScreenShareOn)
-                Platform.OS === "android"
-                  ? toggleScreenShare()
-                  : VideosdkRPK.startBroadcast();
+              pressScreenShare({
+                localScreenShareOn,
+                presenterId,
+                toggleScreenShare,
+                disableScreenShare,
+                afterDismiss: runAfterMenuDismiss,
+              });
             }}
           />
         )}
@@ -1027,17 +1045,34 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
             ? <VideoOn height={24} width={24} fill="#FFF" />
             : <VideoOff height={36} width={36} fill="#1D2939" />}
         </IconContainer>
-        <IconContainer
-          onPress={() => {
-            setchatViewer(true);
-            setparticipantListViewer(false);
-            setparticipantStatsViewer(false);
-            bottomSheetRef.current.show();
-          }}
-          style={{ borderWidth: 1.5, borderColor: "#2B3034" }}
-        >
-          <Chat height={22} width={22} fill="#FFF" />
-        </IconContainer>
+        <View style={{ position: 'relative' }}>
+          <IconContainer
+            onPress={openChatPanel}
+            style={{ borderWidth: 1.5, borderColor: "#2B3034" }}
+          >
+            <Chat height={22} width={22} fill="#FFF" />
+          </IconContainer>
+          {unreadCount > 0 ? (
+            <View
+              style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                backgroundColor: '#7c3aed',
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: 4,
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <IconContainer
           style={{
             borderWidth: 1.5,
@@ -1071,6 +1106,13 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
           <ParticipantStatsViewer participantId={statParticipantId} />
         ) : null}
       </BottomSheet>
+      <ChatMessagePopup
+        visible={!!chatPopup}
+        senderName={chatPopup?.senderName}
+        message={chatPopup?.message}
+        onPress={openChatFromPopup}
+        onDismiss={dismissPopup}
+      />
     </View>
   );
 }

@@ -5,6 +5,8 @@ import useParticipantStat from "../../Hooks/useParticipantStat";
 export default MiniViewContainer = ({
   participantId,
   openStatsBottomSheet,
+  onSwapPress,
+  height,
 }) => {
   const { score, webcamOn, webcamStream, displayName, setQuality, isLocal, micOn } =
     useParticipantStat({ participantId });
@@ -23,6 +25,8 @@ export default MiniViewContainer = ({
       score={score}
       participantId={participantId}
       openStatsBottomSheet={openStatsBottomSheet}
+      onSwapPress={onSwapPress}
+      height={height}
     />
   );
 };

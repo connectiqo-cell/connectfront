@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
+  Alert,
+  InteractionManager,
 } from "react-native";
 import {
   useMeeting,
@@ -39,6 +41,7 @@ import Toast from "react-native-simple-toast";
 import BottomSheet from "../../../components/BottomSheet";
 import ParticipantListViewer from "../Components/ParticipantListViewer";
 import ChatViewer from "../Components/ChatViewer";
+import ChatMessagePopup from "../Components/ChatMessagePopup";
 import Lottie from "lottie-react-native";
 import recording_lottie from "../../../assets/animation/recording_lottie.json";
 import Blink from "../../../components/Blink";
@@ -54,8 +57,11 @@ const MemoizedParticipant = React.memo(
 );
 import { MemoizedParticipantGrid } from "./ConferenceParticipantGrid";
 import { useOrientation } from "../../../utils/useOrientation";
+import { useBackgroundWebcamRestore } from "../../../hooks/useBackgroundWebcamRestore";
+import { useInCallChatPopup } from "../../../hooks/useInCallChatPopup";
+import { pressScreenShare } from "../../../utils/screenShareActions";
 
-export default function ConferenceMeetingViewer() {
+export default function ConferenceMeetingViewer({ onRequestLeave }) {
   const {
     localParticipant,
     participants,
@@ -86,12 +92,24 @@ export default function ConferenceMeetingViewer() {
     },
   });
 
+  const exitMeeting = onRequestLeave || leave;
+
   const leaveMenu = useRef();
   const bottomSheetRef = useRef();
   const audioDeviceMenuRef = useRef();
   const moreOptionsMenu = useRef();
   const recordingRef = useRef();
   const orientation = useOrientation();
+
+  useBackgroundWebcamRestore({
+    localWebcamOn,
+    toggleWebcam,
+    changeWebcam,
+    onBackgroundLeave: () => {
+      Toast.show('Session ended — app was in background too long');
+      exitMeeting();
+    },
+  });
 
   const participantIds = useMemo(() => {
     const pinnedParticipantId = [...pinnedParticipants.keys()].filter(
@@ -129,7 +147,41 @@ export default function ConferenceMeetingViewer() {
 
   const [bottomSheetView, setBottomSheetView] = useState("");
 
+  const openChatPanel = () => {
+    setBottomSheetView("CHAT");
+    bottomSheetRef.current?.show();
+  };
+
+  const { popup: chatPopup, unreadCount, dismissPopup, openChatFromPopup } =
+    useInCallChatPopup({
+      localParticipantId: localParticipant?.id,
+      isChatOpen: bottomSheetView === "CHAT",
+      onOpenChat: openChatPanel,
+    });
+
   const [audioDevice, setAudioDevice] = useState([]);
+
+  const confirmStopRecording = () => {
+    const showAlert = () => {
+      Alert.alert(
+        "Stop Recording",
+        "Are you sure you want to stop recording? The session recording will be finalized.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Stop Recording", style: "destructive", onPress: () => stopRecording() },
+        ],
+        { cancelable: true },
+      );
+    };
+
+    if (Platform.OS === "ios") {
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(showAlert, 350);
+      });
+      return;
+    }
+    showAlert();
+  };
 
   async function updateAudioDeviceList() {
     const devices = await getAudioDeviceList();
@@ -137,37 +189,38 @@ export default function ConferenceMeetingViewer() {
   }
 
   useEffect(() => {
-    if (recordingRef.current) {
-      if (
-        recordingState === Constants.recordingEvents.RECORDING_STARTING ||
-        recordingState === Constants.recordingEvents.RECORDING_STOPPING
-      ) {
-        recordingRef.current.start();
-      } else {
-        recordingRef.current.stop();
-      }
+    if (!recordingRef.current) return;
+
+    const shouldBlink =
+      recordingState === Constants.recordingEvents.RECORDING_STARTED ||
+      recordingState === Constants.recordingEvents.RECORDING_STARTING ||
+      recordingState === Constants.recordingEvents.RECORDING_STOPPING;
+
+    if (shouldBlink) {
+      recordingRef.current.start();
+    } else {
+      recordingRef.current.stop();
     }
   }, [recordingState]);
 
   useEffect(() => {
-    if (Platform.OS == "ios") {
-      VideosdkRPK.addListener("onScreenShare", (event) => {
-        if (event === "START_BROADCAST") {
-          enableScreenShare();
-        } else if (event === "STOP_BROADCAST") {
-          disableScreenShare();
-        }
-      });
+    if (Platform.OS !== "ios") return undefined;
 
-      return () => {
-        VideosdkRPK.removeAllListeners("onScreenShare");
-        // VideosdkRPK.removeSubscription("onScreenShare");
-      };
-    }
-  }, []);
+    const subscription = VideosdkRPK.addListener("onScreenShare", (event) => {
+      if (event === "START_BROADCAST") {
+        enableScreenShare();
+      } else if (event === "STOP_BROADCAST") {
+        disableScreenShare();
+      }
+    });
+
+    return () => {
+      subscription?.remove?.();
+    };
+  }, [enableScreenShare, disableScreenShare]);
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <View
         style={{
           flexDirection: "row",
@@ -293,7 +346,7 @@ export default function ConferenceMeetingViewer() {
           description={"Only you will leave the call"}
           icon={<Leave width={22} height={22} />}
           onPress={() => {
-            leave();
+            exitMeeting();
             moreOptionsMenu.current.close();
           }}
         />
@@ -368,17 +421,27 @@ export default function ConferenceMeetingViewer() {
           } Recording`}
           icon={<Recording width={22} height={22} />}
           onPress={() => {
-            if (
-              !recordingState ||
-              recordingState === Constants.recordingEvents.RECORDING_STOPPED
-            ) {
-              startRecording();
-            } else if (
-              recordingState === Constants.recordingEvents.RECORDING_STARTED
-            ) {
-              stopRecording();
-            }
             moreOptionsMenu.current.close();
+            const action = () => {
+              if (
+                !recordingState ||
+                recordingState === Constants.recordingEvents.RECORDING_STOPPED
+              ) {
+                startRecording();
+              } else if (
+                recordingState === Constants.recordingEvents.RECORDING_STARTED
+              ) {
+                confirmStopRecording();
+              }
+            };
+
+            if (Platform.OS === "ios") {
+              InteractionManager.runAfterInteractions(() => {
+                setTimeout(action, 350);
+              });
+            } else {
+              action();
+            }
           }}
         />
         <View
@@ -393,10 +456,12 @@ export default function ConferenceMeetingViewer() {
             icon={<ScreenShare width={22} height={22} />}
             onPress={() => {
               moreOptionsMenu.current.close();
-              if (presenterId == null || localScreenShareOn)
-                Platform.OS === "android"
-                  ? toggleScreenShare({enableAudio:false})
-                  : VideosdkRPK.startBroadcast();
+              pressScreenShare({
+                localScreenShareOn,
+                presenterId,
+                toggleScreenShare,
+                disableScreenShare,
+              });
             }}
           />
         )}
@@ -456,19 +521,38 @@ export default function ConferenceMeetingViewer() {
             );
           }}
         />
-        <IconContainer
-          onPress={() => {
-            setBottomSheetView("CHAT");
-            bottomSheetRef.current.show();
-          }}
-          style={{
-            borderWidth: 1.5,
-            borderColor: "#2B3034",
-          }}
-          Icon={() => {
-            return <Chat height={22} width={22} fill="#FFF" />;
-          }}
-        />
+        <View style={{ position: 'relative' }}>
+          <IconContainer
+            onPress={openChatPanel}
+            style={{
+              borderWidth: 1.5,
+              borderColor: "#2B3034",
+            }}
+            Icon={() => {
+              return <Chat height={22} width={22} fill="#FFF" />;
+            }}
+          />
+          {unreadCount > 0 ? (
+            <View
+              style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                backgroundColor: '#7c3aed',
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: 4,
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <IconContainer
           style={{
             borderWidth: 1.5,
@@ -500,6 +584,13 @@ export default function ConferenceMeetingViewer() {
           <ParticipantListViewer participantIds={[...participants.keys()]} />
         ) : null}
       </BottomSheet>
-    </>
+      <ChatMessagePopup
+        visible={!!chatPopup}
+        senderName={chatPopup?.senderName}
+        message={chatPopup?.message}
+        onPress={openChatFromPopup}
+        onDismiss={dismissPopup}
+      />
+    </View>
   );
 }

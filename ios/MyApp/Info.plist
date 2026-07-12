@@ -38,7 +38,7 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Camera access is required for live video mentoring sessions.</string>
+	<string>Camera access is used for profile photos, cover images, and live video mentoring sessions.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
 	<key>NSMicrophoneUsageDescription</key>

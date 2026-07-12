@@ -47,7 +47,9 @@ export function AvatarPreviewModal({
 
         <View style={styles.body}>
           {uri ? (
-            <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+            <View style={styles.imageCircle}>
+              <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+            </View>
           ) : (
             <View style={styles.placeholder}>
               <MaterialIcons name="person" size={88} color={PURPLE_LINK} />
@@ -107,12 +109,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: T.spacing.lg,
   },
+  imageCircle: {
+    width: '86%',
+    maxWidth: 360,
+    aspectRatio: 1,
+    borderRadius: 999,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
   image: {
     width: '100%',
     height: '100%',
-    maxWidth: 360,
-    maxHeight: 360,
-    borderRadius: 180,
   },
   placeholder: {
     alignItems: 'center',

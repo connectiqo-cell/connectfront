@@ -33,6 +33,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { isSameUserId } from '../../utils/mentorOwnership';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
+import { consumePendingLearnerVideo } from '../../navigators/pendingVideoNavigation';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -629,12 +630,11 @@ export default function VideosScreen({ navigation, route }) {
   const [lockSheetVideo, setLockSheetVideo] = useState(null);
 
   const flatListRef = useRef(null);
+  const pendingScrollIdRef = useRef(null);
   const startVideoId    = route?.params?.startVideoId;
   const filterMentorId  = route?.params?.filterMentorId;
-  const isFocused = useIsFocused();
-  const [tabFocused, setTabFocused] = useState(false);
-  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
-  const allowPlayback = (isFocused || tabFocused) && appActive && lockSheetVideo === null;
+  const [effectiveFilterMentorId, setEffectiveFilterMentorId] = useState(null);
+  const [scrollTargetId, setScrollTargetId] = useState(null);
 
   const isOwnMentorVideo = useCallback(
     videoMentorId => isSameUserId(videoMentorId, user, profile),
@@ -652,12 +652,39 @@ export default function VideosScreen({ navigation, route }) {
     });
   }, [reelPageHeight]);
 
+  const isFocused = useIsFocused();
+  const [tabFocused, setTabFocused] = useState(false);
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  const allowPlayback = (isFocused || tabFocused) && appActive && lockSheetVideo === null;
+
+  useEffect(() => {
+    if (filterMentorId != null && filterMentorId !== '') {
+      setEffectiveFilterMentorId(String(filterMentorId));
+    }
+  }, [filterMentorId]);
+
   useFocusEffect(
     useCallback(() => {
       setTabFocused(true);
+      const pending = consumePendingLearnerVideo();
+      if (pending?.mentorId) {
+        setEffectiveFilterMentorId(pending.mentorId);
+      }
+      if (pending?.videoId) {
+        pendingScrollIdRef.current = pending.videoId;
+        setScrollTargetId(pending.videoId);
+      }
       return () => setTabFocused(false);
     }, []),
   );
+
+  useEffect(() => {
+    if (startVideoId != null && startVideoId !== '') {
+      const id = String(startVideoId);
+      pendingScrollIdRef.current = id;
+      setScrollTargetId(id);
+    }
+  }, [startVideoId]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
@@ -703,27 +730,53 @@ export default function VideosScreen({ navigation, route }) {
 
   useEffect(() => {
     loadFeed(false, user?.id);
-  }, [user?.id, filterMentorId]);
+  }, [user?.id, effectiveFilterMentorId]);
 
   useEffect(() => {
-    if (!startVideoId || loading || videos.length === 0) return;
-    const idx = videos.findIndex(v => v.id === startVideoId);
-    if (idx >= 0) {
-      const timer = setTimeout(() => scrollToVideoIndex(idx), 150);
+    const targetId = scrollTargetId || pendingScrollIdRef.current;
+    if (!targetId || loading || videos.length === 0) return;
+
+    const idx = videos.findIndex(v => String(v.id) === String(targetId));
+    if (idx < 0) return;
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const finishScroll = () => {
+      pendingScrollIdRef.current = null;
+      setScrollTargetId(null);
       navigation?.setParams?.({ startVideoId: undefined });
-      return () => clearTimeout(timer);
-    }
-    navigation?.setParams?.({ startVideoId: undefined });
-  }, [startVideoId, loading, videos, scrollToVideoIndex, navigation]);
+    };
+
+    const tryScroll = () => {
+      if (cancelled) return;
+      attempts += 1;
+      if (reelPageHeight <= 0) {
+        if (attempts < 40) setTimeout(tryScroll, 50);
+        return;
+      }
+      scrollToVideoIndex(idx);
+      finishScroll();
+    };
+
+    const timer = setTimeout(tryScroll, 80);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [scrollTargetId, loading, videos, reelPageHeight, scrollToVideoIndex, navigation]);
 
   const loadFeed = async (isRefresh = false, userId = user?.id) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [vids, unlocks, homeResult] = await Promise.all([
+      const mentorFilterId = effectiveFilterMentorId ? String(effectiveFilterMentorId) : null;
+
+      const [vids, unlocks, homeResult, mentorVidsRaw] = await Promise.all([
         videoApi.getAllPublicVideos({ excludeMentorId: null }),
         userId ? videoApi.getLearnerUnlocks(userId) : Promise.resolve(new Map()),
         homeApi.getVideos().catch(() => ({ sessions: [] })),
+        mentorFilterId ? videoApi.getMentorVideos(mentorFilterId).catch(() => []) : Promise.resolve([]),
       ]);
 
       // Normalize admin videos to match ShortCard's expected shape
@@ -735,8 +788,26 @@ export default function VideosScreen({ navigation, route }) {
         mentor_profiles: { unlock_price: 0, specialization: 'Featured' },
       }));
 
-      const allVids = [...adminVids, ...vids];
-      const filterId = filterMentorId ? String(filterMentorId) : null;
+      let allVids = [...adminVids, ...vids];
+
+      if (mentorFilterId && Array.isArray(mentorVidsRaw) && mentorVidsRaw.length > 0) {
+        const template = allVids.find(v => v.mentor_id != null && String(v.mentor_id) === mentorFilterId);
+        const mentorVidsEnriched = mentorVidsRaw.map(v => ({
+          ...v,
+          mentor_id: mentorFilterId,
+          profiles: template?.profiles || { name: 'Mentor', avatar_url: null },
+          mentor_profiles: template?.mentor_profiles || { specialization: '', unlock_price: 299 },
+        }));
+        const seen = new Set(allVids.map(v => String(v.id)));
+        mentorVidsEnriched.forEach(v => {
+          if (!seen.has(String(v.id))) {
+            allVids.push(v);
+            seen.add(String(v.id));
+          }
+        });
+      }
+
+      const filterId = mentorFilterId;
 
       setVideos(filterId
         ? [

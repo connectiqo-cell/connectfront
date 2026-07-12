@@ -1,11 +1,14 @@
 import { CommonActions } from '@react-navigation/native';
 import { SCREEN_NAMES } from './screenNames';
+import { setPendingLearnerVideo } from './pendingVideoNavigation';
 
 /**
  * Open Search → Videos tab (inside bottom tabs), optionally filtered/scrolled to a mentor video.
  * Pops mentor-profile and other root-stack overlays back to the main tab navigator first.
  */
 export function navigateToLearnerVideosTab(navigation, { mentorId, videoId } = {}) {
+  setPendingLearnerVideo({ mentorId, videoId });
+
   const videoTabParams = {
     ...(mentorId ? { filterMentorId: mentorId } : {}),
     ...(videoId ? { startVideoId: videoId } : {}),

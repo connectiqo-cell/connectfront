@@ -13,7 +13,6 @@ import {
   Platform,
   Modal,
   ActivityIndicator,
-  StatusBar,
   Dimensions,
   useWindowDimensions,
   RefreshControl,
@@ -24,7 +23,6 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import RazorpayCheckout from 'react-native-razorpay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-simple-toast';
-import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
 import CosmicButton from '../../components/CosmicButton';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
@@ -35,6 +33,7 @@ import { videoApi } from '../../api/videoApi';
 import { bookingApi } from '../../api/bookingApi';
 import { useAuth } from '../../hooks/useAuth';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
+import { navigateToLearnerVideosTab } from '../../navigators/navigateToLearnerVideos';
 import { parseMentorCategories } from '../../utils/mentorCategories';
 import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
 import { isSameUserId } from '../../utils/mentorOwnership';
@@ -401,142 +400,6 @@ function GoldStarsRow({ rating, size = 11 }) {
     </View>
   );
 }
-
-function restoreAppStatusBar() {
-  StatusBar.setHidden(false);
-  StatusBar.setBarStyle('light-content');
-  if (Platform.OS === 'android') {
-    StatusBar.setTranslucent(false);
-    StatusBar.setBackgroundColor(SCREEN_BG);
-  }
-}
-
-function VideoPlayerModal({ video, onClose }) {
-  const insets = useSafeAreaInsets();
-  const [paused, setPaused] = useState(false);
-  const [buffering, setBuffering] = useState(true);
-  const [error, setError] = useState(false);
-  const closingRef = useRef(false);
-  const controlsTop = insets.top + 52;
-  const visible = Boolean(video?.video_url);
-
-  useEffect(() => {
-    if (!visible) {
-      closingRef.current = false;
-      setPaused(true);
-      return undefined;
-    }
-    closingRef.current = false;
-    setPaused(false);
-    setBuffering(true);
-    setError(false);
-    if (Platform.OS === 'android') {
-      StatusBar.setBackgroundColor('#000000');
-    }
-    return () => {
-      setPaused(true);
-      restoreAppStatusBar();
-    };
-  }, [visible, video?.id]);
-
-  const handleClose = useCallback(() => {
-    if (closingRef.current) return;
-    closingRef.current = true;
-    setPaused(true);
-    restoreAppStatusBar();
-    onClose();
-  }, [onClose]);
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      transparent={false}
-      onRequestClose={handleClose}
-      onDismiss={restoreAppStatusBar}
-      {...Platform.select({
-        // overFullScreen keeps the Me tab chrome in the view hierarchy (avoids layout glitches).
-        ios: { presentationStyle: 'overFullScreen' },
-        default: {},
-      })}
-    >
-      <View style={vStyles.container}>
-        {video?.video_url ? (
-        <Video
-          key={video.id || video.video_url}
-          source={{ uri: video.video_url }}
-          style={vStyles.video}
-          resizeMode="contain"
-          paused={paused}
-          repeat={false}
-          controls={false}
-          fullscreen={false}
-          fullscreenAutorotate={false}
-          ignoreSilentSwitch="obey"
-          playInBackground={false}
-          playWhenInactive={false}
-          onLoadStart={() => { setBuffering(true); setError(false); }}
-          onLoad={() => setBuffering(false)}
-          onError={() => { setBuffering(false); setError(true); }}
-        />
-        ) : null}
-        {buffering && !error && (
-          <ActivityIndicator style={vStyles.loader} size="large" color={C.accent.secondary} />
-        )}
-        {error && (
-          <View style={vStyles.errorBox}>
-            <MaterialIcons name="error-outline" size={40} color={C.accent.error} />
-            <Text style={vStyles.errorText}>Could not play video</Text>
-          </View>
-        )}
-        <Pressable
-          style={[vStyles.playArea, { top: controlsTop }]}
-          onPress={() => setPaused(p => !p)}
-        >
-          {paused && (
-            <View style={vStyles.playBtn}>
-              <MaterialIcons name="play-arrow" size={52} color="#fff" />
-            </View>
-          )}
-        </Pressable>
-        <View
-          style={[vStyles.topBar, { paddingTop: insets.top + 8 }]}
-          pointerEvents="box-none"
-        >
-          <Pressable
-            onPress={handleClose}
-            style={vStyles.closeBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Close video"
-          >
-            <MaterialIcons name="arrow-back" size={24} color="#fff" />
-          </Pressable>
-          <Text style={vStyles.titleText} numberOfLines={1}>{video.title || 'Video'}</Text>
-          <View style={{ width: 40 }} />
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const vStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
-  video: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  loader: { position: 'absolute', alignSelf: 'center' },
-  errorBox: { alignItems: 'center', gap: 8 },
-  errorText: { color: C.accent.error, fontSize: 14 },
-  topBar: {
-    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, elevation: 20,
-    flexDirection: 'row', alignItems: 'center',
-    paddingTop: 16, paddingHorizontal: 12, paddingBottom: 12,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  closeBtn: { padding: 8, width: 40, zIndex: 21 },
-  titleText: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
-  playArea: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, justifyContent: 'center', alignItems: 'center' },
-  playBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
-});
 
 function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, onRatingPress }) {
   const ratingNum = Number(rating) || 0;
@@ -1032,7 +895,6 @@ export default function MentorProfileScreen({ navigation, route }) {
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [showSubSheet, setShowSubSheet] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const [playingVideo, setPlayingVideo] = useState(null);
 
   const isOwnProfile = useMemo(
     () => isSameUserId(mentorId, user, profile),
@@ -1041,7 +903,7 @@ export default function MentorProfileScreen({ navigation, route }) {
   const libraryUnlocked = isUnlocked || isOwnProfile;
   const safeScreenProps = {
     padding: 0,
-    hasBottomTabs: isOwnProfile,
+    hasBottomTabs: false,
     includeTopInset: isOwnProfile ? false : Platform.OS !== 'ios',
   };
 
@@ -1139,18 +1001,6 @@ export default function MentorProfileScreen({ navigation, route }) {
     if (isOwnProfile) setIsUnlocked(true);
   }, [isOwnProfile]);
 
-  // Own Profile tab: restore status bar after video modal so Me top tabs stay visible.
-  useFocusEffect(
-    useCallback(() => {
-      restoreAppStatusBar();
-      return undefined;
-    }, []),
-  );
-
-  useEffect(() => {
-    if (!playingVideo) restoreAppStatusBar();
-  }, [playingVideo]);
-
   useEffect(() => {
     loadData(false);
   }, [loadData]);
@@ -1246,16 +1096,7 @@ export default function MentorProfileScreen({ navigation, route }) {
 
   const openLearnerVideoFeed = useCallback(({ videoId } = {}) => {
     if (!mentorId) return;
-    navigation.navigate(SCREEN_NAMES.RootUnifiedTabs, {
-      screen: SCREEN_NAMES.LearnerSection,
-      params: {
-        screen: SCREEN_NAMES.LearnerVideos,
-        params: {
-          filterMentorId: mentorId,
-          ...(videoId ? { startVideoId: videoId } : {}),
-        },
-      },
-    });
+    navigateToLearnerVideosTab(navigation, { mentorId, videoId });
   }, [mentorId, navigation]);
 
   const seeAll = () => {
@@ -1271,17 +1112,8 @@ export default function MentorProfileScreen({ navigation, route }) {
       Toast.show('Video unavailable', Toast.SHORT);
       return;
     }
-    if (isOwnProfile) {
-      setPlayingVideo(video);
-      return;
-    }
     openLearnerVideoFeed({ videoId: video.id });
-  }, [isOwnProfile, openLearnerVideoFeed]);
-
-  const handleCloseVideo = useCallback(() => {
-    restoreAppStatusBar();
-    setPlayingVideo(null);
-  }, []);
+  }, [openLearnerVideoFeed]);
 
   const openRecap = (session) => {
     if (!session?.recap_url) {
@@ -1415,7 +1247,7 @@ export default function MentorProfileScreen({ navigation, route }) {
         />
       )}
     >
-      <View style={styles.root}>
+      <View style={[styles.root, isOwnProfile && styles.ownProfileScrollPad]}>
         <View style={styles.mainColumn}>
           <View style={[styles.hero, { height: compactHero, overflow: 'hidden' }]}>
             <HeroEntrance style={StyleSheet.absoluteFill}>
@@ -1742,11 +1574,6 @@ export default function MentorProfileScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      <VideoPlayerModal
-        video={playingVideo}
-        onClose={handleCloseVideo}
-      />
-
     </>
   );
 }
@@ -1782,6 +1609,7 @@ const sheet = StyleSheet.create({
 
 const styles = StyleSheet.create({
   root: { backgroundColor: 'transparent' },
+  ownProfileScrollPad: { paddingBottom: T.spacing.xxxl },
   mainColumn: {},
   bodyFlex: { width: '100%' },
   videoRailSection: { flexShrink: 0, marginTop: T.spacing.md, marginBottom: T.spacing.sm },

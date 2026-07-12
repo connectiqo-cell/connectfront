@@ -3,6 +3,126 @@
  * Deep space palette, nebula gradients, stellar accents
  */
 
+import { Platform } from 'react-native';
+import {
+  scaleUi,
+  scaleSpacingMap,
+  scaleRadiusMap,
+  scaleTypographyStyle,
+} from './utils/iosUiScale';
+
+const BASE_SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+};
+
+const BASE_BORDER_RADIUS = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  chip: 10,
+  round: 50,
+};
+
+const BASE_TYPOGRAPHY = {
+  headingXL: { fontSize: 32, fontWeight: '700', lineHeight: 40 },
+  headingLg: { fontSize: 28, fontWeight: '700', lineHeight: 36 },
+  headingMd: { fontSize: 24, fontWeight: '700', lineHeight: 32 },
+  headingSm: { fontSize: 20, fontWeight: '700', lineHeight: 28 },
+  headingXs: { fontSize: 18, fontWeight: '600', lineHeight: 24 },
+  bodyLg: { fontSize: 16, fontWeight: '400', lineHeight: 24 },
+  bodyMd: { fontSize: 14, fontWeight: '400', lineHeight: 20 },
+  bodySm: { fontSize: 12, fontWeight: '400', lineHeight: 16 },
+  bodyXs: { fontSize: 11, fontWeight: '400', lineHeight: 14 },
+  labelLg: { fontSize: 14, fontWeight: '600', lineHeight: 20 },
+  labelMd: { fontSize: 12, fontWeight: '600', lineHeight: 16 },
+  labelSm: { fontSize: 11, fontWeight: '600', lineHeight: 14 },
+};
+
+function buildTypography() {
+  if (Platform.OS !== 'ios') {
+    return BASE_TYPOGRAPHY;
+  }
+  return Object.fromEntries(
+    Object.entries(BASE_TYPOGRAPHY).map(([key, style]) => [
+      key,
+      scaleTypographyStyle(style),
+    ]),
+  );
+}
+
+const BASE_TAB_BAR = {
+  outerRadius: 26,
+  glassGradient: ['#0f0e2a', '#161432', '#12102a'],
+  glassBorder: 'rgba(167, 139, 250, 0.22)',
+  activeIndicatorGradient: ['#f0d875', '#5eead4'],
+  activePillGradient: [
+    'rgba(167, 139, 250, 0.28)',
+    'rgba(94, 234, 212, 0.18)',
+    'rgba(240, 216, 117, 0.1)',
+  ],
+  iconRingGradient: [
+    'rgba(167, 139, 250, 0.55)',
+    'rgba(240, 216, 117, 0.45)',
+    'rgba(94, 234, 212, 0.35)',
+  ],
+  rimBorder: 'rgba(167, 139, 250, 0.22)',
+  labelShadow: 'rgba(240, 216, 117, 0.35)',
+  iconSize: 23,
+  iconSizeFocused: 25,
+  floating: {
+    horizontalInset: 16,
+    bottomGap: 12,
+    barMinHeight: 64,
+    contentReserve: 115,
+  },
+  uploadFabSize: 52,
+  uploadFabLift: 22,
+  flatBarBase: '#161432',
+  flatBarEdge: [
+    'rgba(167, 139, 250, 0.4)',
+    'rgba(94, 234, 212, 0.3)',
+    'rgba(240, 216, 117, 0.22)',
+    'rgba(167, 139, 250, 0.18)',
+  ],
+  topNavActiveWash: [
+    'rgba(124, 58, 237, 0.14)',
+    'rgba(94, 234, 212, 0.1)',
+    'rgba(236, 72, 153, 0.06)',
+  ],
+  topNavIconRing: [
+    'rgba(240, 216, 117, 0.35)',
+    'rgba(94, 234, 212, 0.2)',
+    'rgba(167, 139, 250, 0.25)',
+  ],
+};
+
+function buildTabBar() {
+  if (Platform.OS !== 'ios') {
+    return BASE_TAB_BAR;
+  }
+  return {
+    ...BASE_TAB_BAR,
+    outerRadius: scaleUi(BASE_TAB_BAR.outerRadius),
+    iconSize: scaleUi(BASE_TAB_BAR.iconSize),
+    iconSizeFocused: scaleUi(BASE_TAB_BAR.iconSizeFocused),
+    uploadFabSize: scaleUi(BASE_TAB_BAR.uploadFabSize),
+    uploadFabLift: scaleUi(BASE_TAB_BAR.uploadFabLift),
+    floating: {
+      horizontalInset: scaleUi(BASE_TAB_BAR.floating.horizontalInset),
+      bottomGap: scaleUi(BASE_TAB_BAR.floating.bottomGap),
+      barMinHeight: scaleUi(BASE_TAB_BAR.floating.barMinHeight),
+      contentReserve: scaleUi(BASE_TAB_BAR.floating.contentReserve),
+    },
+  };
+}
+
 export const UNIFIED_THEME = {
   colors: {
     primary: {
@@ -27,56 +147,7 @@ export const UNIFIED_THEME = {
     },
 
     /** Bottom tab bar — solid panel strip + gold/teal accents */
-    tabBar: {
-      outerRadius: 26,
-      glassGradient: ['#0f0e2a', '#161432', '#12102a'],
-      glassBorder: 'rgba(167, 139, 250, 0.22)',
-      activeIndicatorGradient: ['#f0d875', '#5eead4'],
-      activePillGradient: [
-        'rgba(167, 139, 250, 0.28)',
-        'rgba(94, 234, 212, 0.18)',
-        'rgba(240, 216, 117, 0.1)',
-      ],
-      iconRingGradient: [
-        'rgba(167, 139, 250, 0.55)',
-        'rgba(240, 216, 117, 0.45)',
-        'rgba(94, 234, 212, 0.35)',
-      ],
-      rimBorder: 'rgba(167, 139, 250, 0.22)',
-      labelShadow: 'rgba(240, 216, 117, 0.35)',
-      iconSize: 23,
-      iconSizeFocused: 25,
-      floating: {
-        horizontalInset: 16,
-        bottomGap: 12,
-        barMinHeight: 64,
-        /** Scroll padding reserve (bar + FAB overflow; safe area added separately) */
-        contentReserve: 115,
-      },
-      uploadFabSize: 52,
-      uploadFabLift: 22,
-      /** Full-width bar base — matches surface.panel */
-      flatBarBase: '#161432',
-      /** Top edge shimmer (horizontal) */
-      flatBarEdge: [
-        'rgba(167, 139, 250, 0.4)',
-        'rgba(94, 234, 212, 0.3)',
-        'rgba(240, 216, 117, 0.22)',
-        'rgba(167, 139, 250, 0.18)',
-      ],
-      /** Material top tabs — soft nebula panel behind active tab */
-      topNavActiveWash: [
-        'rgba(124, 58, 237, 0.14)',
-        'rgba(94, 234, 212, 0.1)',
-        'rgba(236, 72, 153, 0.06)',
-      ],
-      /** Top tabs — icon ring (stellar halo) */
-      topNavIconRing: [
-        'rgba(240, 216, 117, 0.35)',
-        'rgba(94, 234, 212, 0.2)',
-        'rgba(167, 139, 250, 0.25)',
-      ],
-    },
+    tabBar: buildTabBar(),
 
     accent: {
       primary: '#f0d875',
@@ -216,25 +287,9 @@ export const UNIFIED_THEME = {
     },
   },
 
-  spacing: {
-    xs: 4,
-    sm: 8,
-    md: 12,
-    lg: 16,
-    xl: 20,
-    xxl: 24,
-    xxxl: 32,
-  },
+  spacing: scaleSpacingMap(BASE_SPACING),
 
-  borderRadius: {
-    sm: 8,
-    md: 12,
-    lg: 16,
-    xl: 20,
-    /** Tags, badges, chips — rounded rect, not full pill */
-    chip: 10,
-    round: 50,
-  },
+  borderRadius: scaleRadiusMap(BASE_BORDER_RADIUS),
 
   shadows: {
     none: {
@@ -274,20 +329,7 @@ export const UNIFIED_THEME = {
     },
   },
 
-  typography: {
-    headingXL: { fontSize: 32, fontWeight: '700', lineHeight: 40 },
-    headingLg: { fontSize: 28, fontWeight: '700', lineHeight: 36 },
-    headingMd: { fontSize: 24, fontWeight: '700', lineHeight: 32 },
-    headingSm: { fontSize: 20, fontWeight: '700', lineHeight: 28 },
-    headingXs: { fontSize: 18, fontWeight: '600', lineHeight: 24 },
-    bodyLg: { fontSize: 16, fontWeight: '400', lineHeight: 24 },
-    bodyMd: { fontSize: 14, fontWeight: '400', lineHeight: 20 },
-    bodySm: { fontSize: 12, fontWeight: '400', lineHeight: 16 },
-    bodyXs: { fontSize: 11, fontWeight: '400', lineHeight: 14 },
-    labelLg: { fontSize: 14, fontWeight: '600', lineHeight: 20 },
-    labelMd: { fontSize: 12, fontWeight: '600', lineHeight: 16 },
-    labelSm: { fontSize: 11, fontWeight: '600', lineHeight: 14 },
-  },
+  typography: buildTypography(),
 };
 
 export default UNIFIED_THEME;

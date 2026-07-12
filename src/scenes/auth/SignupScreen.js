@@ -108,7 +108,9 @@ export default function SignupScreen({ navigation }) {
 
           <View style={styles.formContainer}>
             <View style={[styles.inputWrapper, errors.name && styles.inputError]}>
-              <MaterialIcons name="person" size={20} color={C.text.secondary} style={styles.inputIcon} />
+              <View style={styles.inputIconSlot}>
+                <MaterialIcons name="person" size={20} color={C.text.secondary} />
+              </View>
               <TextInput
                 placeholder="Full Name"
                 placeholderTextColor={C.text.muted}
@@ -116,6 +118,9 @@ export default function SignupScreen({ navigation }) {
                 value={name}
                 onChangeText={v => { setName(v); clearError('name'); }}
                 editable={!loading}
+                autoCorrect
+                spellCheck
+                autoCapitalize="words"
                 cursorColor="#ffffff"
                 selectionColor={PURPLE_LINK}
                 selectionHandleColor="transparent"
@@ -125,7 +130,9 @@ export default function SignupScreen({ navigation }) {
             {errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
 
             <View style={[styles.inputWrapper, errors.email && styles.inputError]}>
-              <MaterialIcons name="email" size={20} color={C.text.secondary} style={styles.inputIcon} />
+              <View style={styles.inputIconSlot}>
+                <MaterialIcons name="email" size={20} color={C.text.secondary} />
+              </View>
               <TextInput
                 placeholder="Email Address"
                 placeholderTextColor={C.text.muted}
@@ -134,6 +141,8 @@ export default function SignupScreen({ navigation }) {
                 onChangeText={v => { setEmail(v); clearError('email'); }}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
                 editable={!loading}
                 cursorColor="#ffffff"
                 selectionColor={PURPLE_LINK}
@@ -144,7 +153,9 @@ export default function SignupScreen({ navigation }) {
             {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
 
             <View style={[styles.inputWrapper, errors.password && styles.inputError]}>
-              <MaterialIcons name="lock" size={20} color={C.text.secondary} style={styles.inputIcon} />
+              <View style={styles.inputIconSlot}>
+                <MaterialIcons name="lock" size={20} color={C.text.secondary} />
+              </View>
               <TextInput
                 placeholder="Password"
                 placeholderTextColor={C.text.muted}
@@ -152,6 +163,8 @@ export default function SignupScreen({ navigation }) {
                 value={password}
                 onChangeText={v => { setPassword(v); clearError('password'); }}
                 secureTextEntry={!showPassword}
+                autoCorrect={false}
+                spellCheck={false}
                 editable={!loading}
                 cursorColor="#ffffff"
                 selectionColor={PURPLE_LINK}
@@ -175,7 +188,9 @@ export default function SignupScreen({ navigation }) {
               : <Text style={styles.hintText}>Min 8 chars, one uppercase, one number</Text>}
 
             <View style={[styles.inputWrapper, errors.confirmPassword && styles.inputError]}>
-              <MaterialIcons name="lock-outline" size={20} color={C.text.secondary} style={styles.inputIcon} />
+              <View style={styles.inputIconSlot}>
+                <MaterialIcons name="lock-outline" size={20} color={C.text.secondary} />
+              </View>
               <TextInput
                 placeholder="Confirm Password"
                 placeholderTextColor={C.text.muted}
@@ -183,6 +198,8 @@ export default function SignupScreen({ navigation }) {
                 value={confirmPassword}
                 onChangeText={v => { setConfirmPassword(v); clearError('confirmPassword'); }}
                 secureTextEntry={!showConfirmPassword}
+                autoCorrect={false}
+                spellCheck={false}
                 editable={!loading}
                 cursorColor="#ffffff"
                 selectionColor={PURPLE_LINK}
@@ -262,7 +279,7 @@ const styles = StyleSheet.create({
     marginBottom: T.spacing.xxxl,
   },
   inputWrapper: AUTH_FORM_STYLES.inputWrapper,
-  inputIcon: AUTH_FORM_STYLES.inputIcon,
+  inputIconSlot: AUTH_FORM_STYLES.inputIconSlot,
   input: AUTH_FORM_STYLES.input,
   eyeIcon: AUTH_FORM_STYLES.eyeIcon,
   inputError: AUTH_FORM_STYLES.inputError,

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -117,7 +117,7 @@ export default function VideoCallScreen({ navigation, route }) {
         const audioReady = await ensureIosCallAudioSession();
         if (cancelled) return;
         if (!audioReady) {
-          Toast.show('Microphone permission required for video calls');
+          Toast.show('Camera and microphone permissions are required for video calls');
           navigation.goBack();
           return;
         }
@@ -186,7 +186,7 @@ export default function VideoCallScreen({ navigation, route }) {
         const { ensureIosCallAudioSession } = require('../../utils/iosCallAudioSession');
         const audioReady = await ensureIosCallAudioSession();
         if (!audioReady) {
-          Toast.show('Microphone permission required');
+          Toast.show('Camera and microphone permissions are required');
           return;
         }
       }
@@ -281,7 +281,7 @@ export default function VideoCallScreen({ navigation, route }) {
       const { ensureIosCallAudioSession } = require('../../utils/iosCallAudioSession');
       const audioReady = await ensureIosCallAudioSession();
       if (!audioReady) {
-        Toast.show('Microphone permission required');
+        Toast.show('Camera and microphone permissions are required');
         return;
       }
     }

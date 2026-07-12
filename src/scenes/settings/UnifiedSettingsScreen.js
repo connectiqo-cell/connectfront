@@ -20,7 +20,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import Button from '../../components/Button';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
@@ -703,31 +703,25 @@ export default function UnifiedSettingsScreen({ navigation }) {
     [navigation]
   );
 
-  const handlePickImage = () => {
-    launchImageLibrary(
-      { mediaType: 'photo', quality: 0.8, includeBase64: true },
-      async response => {
-        if (response.didCancel || response.errorCode) return;
-        const asset = response.assets?.[0];
-        if (!asset?.base64) return;
-        try {
-          setLoading(true);
-          const url = await profileApi.uploadAvatar({
-            userId: profile.id,
-            base64: asset.base64,
-            mimeType: asset.type || 'image/jpeg',
-            fileName: asset.fileName || 'avatar.jpg',
-          });
-          setAvatarUrl(url);
-          await refreshProfile();
-          Toast.show('Photo updated');
-        } catch {
-          Toast.show('Failed to upload photo');
-        } finally {
-          setLoading(false);
-        }
-      }
-    );
+  const handlePickImage = async () => {
+    try {
+      const picked = await pickProfileAvatar();
+      if (!picked) return;
+      setLoading(true);
+      const url = await profileApi.uploadAvatar({
+        userId: profile.id,
+        base64: picked.base64,
+        mimeType: picked.mimeType,
+        fileName: picked.fileName,
+      });
+      setAvatarUrl(url);
+      await refreshProfile();
+      Toast.show('Photo updated');
+    } catch {
+      Toast.show('Failed to upload photo');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleShareApp = async () => {

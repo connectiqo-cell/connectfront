@@ -17,6 +17,9 @@ const TextInputContainer = ({ placeholder, value, setValue }) => {
           setValue(text);
         }}
         value={value}
+        autoCorrect
+        spellCheck
+        autoCapitalize="sentences"
       />
     </View>
   );

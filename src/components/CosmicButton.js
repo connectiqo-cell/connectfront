@@ -452,14 +452,14 @@ const styles = StyleSheet.create({
   text: {
     fontSize: T.typography.labelLg.fontSize,
     fontWeight: '700',
-    lineHeight: Platform.OS === 'ios' ? 20 : T.typography.labelLg.lineHeight,
+    lineHeight: T.typography.labelLg.lineHeight,
     textAlign: 'center',
     ...(Platform.OS === 'ios' ? { letterSpacing: 0.2, flexShrink: 1, minWidth: 0 } : {}),
   },
   textCompact: {
     fontSize: T.typography.labelMd.fontSize,
     fontWeight: Platform.OS === 'ios' ? '700' : '800',
-    lineHeight: Platform.OS === 'ios' ? 18 : T.typography.labelMd.lineHeight,
+    lineHeight: T.typography.labelMd.lineHeight,
     textAlign: 'center',
     flexShrink: 1,
     ...(Platform.OS === 'ios' ? { minWidth: 0, letterSpacing: 0.15 } : {}),

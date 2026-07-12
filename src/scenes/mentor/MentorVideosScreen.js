@@ -698,6 +698,9 @@ function EditModal({ video, onClose, onSaved }) {
             placeholder="Video title"
             placeholderTextColor={C.text.muted}
             maxLength={80}
+            autoCorrect
+            spellCheck
+            autoCapitalize="sentences"
           />
 
           <Text style={styles.fieldLabel}>Description</Text>
@@ -709,6 +712,9 @@ function EditModal({ video, onClose, onSaved }) {
             placeholderTextColor={C.text.muted}
             multiline
             maxLength={200}
+            autoCorrect
+            spellCheck
+            autoCapitalize="sentences"
           />
 
           <View style={styles.switchRow}>
@@ -771,6 +777,8 @@ function UploadModal({ visible, onClose, onUploaded }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [formError, setFormError] = useState('');
+  const [previewPaused, setPreviewPaused] = useState(true);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const progressAnim = React.useRef(new Animated.Value(0)).current;
 
   const animateProgress = (toValue) => {
@@ -790,6 +798,8 @@ function UploadModal({ visible, onClose, onUploaded }) {
     setUploading(false);
     setProgress(0);
     setFormError('');
+    setPreviewPaused(true);
+    setPreviewLoading(false);
     progressAnim.setValue(0);
   };
 
@@ -814,6 +824,8 @@ function UploadModal({ visible, onClose, onUploaded }) {
           return;
         }
         setPickedFile(asset);
+        setPreviewPaused(false);
+        setPreviewLoading(true);
         setFormError('');
       },
     );
@@ -900,26 +912,72 @@ function UploadModal({ visible, onClose, onUploaded }) {
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <SectionLabel>Media</SectionLabel>
 
-            <TouchableOpacity
-              style={[styles.mediaZone, pickedFile && styles.mediaZoneFilled]}
-              onPress={pickVideo}
-              activeOpacity={0.85}
-              disabled={uploading}
-            >
-              <MaterialIcons
-                name={pickedFile ? 'check-circle' : 'video-library'}
-                size={28}
-                color={pickedFile ? C.accent.success : TEAL}
-              />
-              <Text style={styles.mediaZoneTitle}>
-                {pickedFile ? 'Video selected' : 'Choose video'}
-              </Text>
-              <Text style={styles.mediaZoneHint}>
-                {pickedFile
-                  ? `${pickedFile.fileName || 'Gallery video'} · ${formatFileSize(pickedFile.fileSize)}`
-                  : `MP4 or MOV · Max ${MAX_VIDEO_MB} MB`}
-              </Text>
-            </TouchableOpacity>
+            {pickedFile ? (
+              <View style={styles.videoPreviewCard}>
+                <View style={styles.videoPreviewFrame}>
+                  <Video
+                    source={{ uri: pickedFile.uri }}
+                    style={styles.videoPreviewPlayer}
+                    resizeMode="cover"
+                    paused={previewPaused || uploading}
+                    onLoadStart={() => setPreviewLoading(true)}
+                    onLoad={() => setPreviewLoading(false)}
+                    onError={() => setPreviewLoading(false)}
+                    repeat={false}
+                    controls={false}
+                  />
+                  {previewLoading && (
+                    <View style={styles.videoPreviewLoader}>
+                      <ActivityIndicator size="large" color={TEAL} />
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={styles.videoPreviewTap}
+                    onPress={() => !uploading && setPreviewPaused(p => !p)}
+                    activeOpacity={1}
+                    disabled={uploading}
+                  >
+                    {previewPaused && (
+                      <View style={styles.videoPreviewPlayBtn}>
+                        <MaterialIcons name="play-arrow" size={36} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.videoPreviewMeta}>
+                  <View style={styles.videoPreviewMetaText}>
+                    <Text style={styles.videoPreviewTitle} numberOfLines={1}>
+                      {pickedFile.fileName || 'Gallery video'}
+                    </Text>
+                    <Text style={styles.videoPreviewHint}>
+                      {formatFileSize(pickedFile.fileSize)} · Tap video to {previewPaused ? 'play' : 'pause'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.videoPreviewChangeBtn}
+                    onPress={pickVideo}
+                    disabled={uploading}
+                    activeOpacity={0.85}
+                  >
+                    <MaterialIcons name="swap-horiz" size={16} color={TEAL} />
+                    <Text style={styles.videoPreviewChangeText}>Change</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.mediaZone}
+                onPress={pickVideo}
+                activeOpacity={0.85}
+                disabled={uploading}
+              >
+                <MaterialIcons name="video-library" size={28} color={TEAL} />
+                <Text style={styles.mediaZoneTitle}>Choose video</Text>
+                <Text style={styles.mediaZoneHint}>
+                  {`MP4 or MOV · Max ${MAX_VIDEO_MB} MB`}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={[styles.thumbZone, pickedThumbnail && styles.thumbZoneFilled]}
@@ -956,6 +1014,9 @@ function UploadModal({ visible, onClose, onUploaded }) {
               onChangeText={t => { setTitle(t); setFormError(''); }}
               maxLength={TITLE_MAX}
               editable={!uploading}
+              autoCorrect
+              spellCheck
+              autoCapitalize="sentences"
             />
             <Text style={styles.charCount}>{title.length}/{TITLE_MAX}</Text>
 
@@ -970,6 +1031,9 @@ function UploadModal({ visible, onClose, onUploaded }) {
               numberOfLines={4}
               maxLength={DESC_MAX}
               editable={!uploading}
+              autoCorrect
+              spellCheck
+              autoCapitalize="sentences"
             />
             <Text style={styles.charCount}>{description.length}/{DESC_MAX}</Text>
 
@@ -1807,6 +1871,84 @@ const styles = StyleSheet.create({
     color: C.text.muted,
     fontSize: 12,
     textAlign: 'center',
+  },
+
+  videoPreviewCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(94,234,212,0.3)',
+    backgroundColor: PANEL_BG,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  videoPreviewFrame: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#000',
+    overflow: 'hidden',
+  },
+  videoPreviewPlayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  videoPreviewLoader: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  videoPreviewTap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoPreviewPlayBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  videoPreviewMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: GLASS_BORDER,
+  },
+  videoPreviewMetaText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  videoPreviewTitle: {
+    color: C.text.primary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  videoPreviewHint: {
+    color: C.text.muted,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  videoPreviewChangeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: S.accentTeal,
+    borderWidth: 1,
+    borderColor: 'rgba(94,234,212,0.25)',
+  },
+  videoPreviewChangeText: {
+    color: TEAL,
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   thumbZone: {

@@ -54,6 +54,32 @@ export async function startOneToOneRecordingViaAPI({ token, meetingId, mentorId 
   }
 }
 
+/** Stops an active cloud recording via VideoSDK REST API. */
+export async function stopOneToOneRecordingViaAPI({ token, meetingId }) {
+  if (!meetingId) throw new Error('meetingId is missing');
+  if (!token) throw new Error('token is missing');
+
+  const res = await fetch('https://api.videosdk.live/v2/recordings/end', {
+    method: 'POST',
+    headers: {
+      Authorization: token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ roomId: meetingId }),
+  });
+
+  const responseText = await res.text().catch(() => '');
+  if (!res.ok) {
+    throw new Error(`VideoSDK ${res.status}: ${responseText}`);
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    return responseText;
+  }
+}
+
 /** Fallback: SDK-native GRID layout (no custom template). */
 export function startOneToOneRecording(startRecording, activeParticipantCount = 2) {
   const count = Math.max(1, Math.min(activeParticipantCount, 4));

@@ -1,5 +1,10 @@
 import { supabase } from '../lib/supabase';
 import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
+import {
+  buildCategoryMatchOrFilter,
+  mentorHasCategory,
+  parseMentorCategories,
+} from '../utils/mentorCategories';
 
 export const mentorApi = {
   getMentorWithProfile: async (mentorId) => {
@@ -118,11 +123,14 @@ export const mentorApi = {
 
       const grouped = {};
       (data || []).forEach(mentor => {
-        const category = mentor.category || 'Others';
-        if (!grouped[category]) grouped[category] = [];
-        if (grouped[category].length < limitPerCategory) {
-          grouped[category].push(mentor);
-        }
+        const categories = parseMentorCategories(mentor.category);
+        const bucketNames = categories.length ? categories : ['Others'];
+        bucketNames.forEach(category => {
+          if (!grouped[category]) grouped[category] = [];
+          if (grouped[category].length < limitPerCategory) {
+            grouped[category].push(mentor);
+          }
+        });
       });
 
       return grouped;
@@ -214,12 +222,12 @@ export const mentorApi = {
           total_sessions,
           profiles:id (id, name, email, avatar_url)
         `)
-        .eq('category', category)
+        .or(buildCategoryMatchOrFilter(category))
         .order('rating', { ascending: false })
         .range(from, to);
 
       if (error) throw error;
-      return data || [];
+      return (data || []).filter(mentor => mentorHasCategory(mentor.category, category));
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }

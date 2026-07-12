@@ -18,6 +18,7 @@ import {
   useWindowDimensions,
   RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import RazorpayCheckout from 'react-native-razorpay';
@@ -34,7 +35,7 @@ import { profileApi } from '../../api/profileApi';
 import { videoApi } from '../../api/videoApi';
 import { bookingApi } from '../../api/bookingApi';
 import { useAuth } from '../../hooks/useAuth';
-import { SCREEN_NAMES } from '../../navigators/screenNames';
+import { parseMentorCategories } from '../../utils/mentorCategories';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -979,12 +980,41 @@ export default function MentorProfileScreen({ navigation, route }) {
     else setLoading(true);
     setError(null);
     try {
+      const isSelf = Boolean(user?.id && user.id === mentorId);
+
+      const fetchMentorRow = async () => {
+        try {
+          return await profileApi.getMentorProfile(mentorId);
+        } catch (err) {
+          // Own Profile tab: ensure a mentor_profiles row exists so full view works
+          // for accounts that signed up before mentor rows were always created.
+          if (!isSelf) throw err;
+          const msg = String(err?.message || '').toLowerCase();
+          if (msg.includes('not found') || msg.includes('no rows') || msg.includes('0 rows')) {
+            return profileApi.createMentorProfile(mentorId);
+          }
+          // Soft-fallback: still show identity from profiles even if mentor row is broken.
+          return {
+            id: mentorId,
+            specialization: '',
+            bio: '',
+            experience_years: 0,
+            price_per_hour: 0,
+            rating: 0,
+            total_sessions: 0,
+            unlock_price: 299,
+            category: '',
+            cover_image_url: null,
+          };
+        }
+      };
+
       const [mpRow, profRow, vids, bookingRows, subCount] = await Promise.all([
-        profileApi.getMentorProfile(mentorId),
+        fetchMentorRow(),
         profileApi.getProfile(mentorId).catch(() => null),
-        videoApi.getMentorVideos(mentorId),
+        videoApi.getMentorVideos(mentorId).catch(() => []),
         bookingApi.getCompletedSessionsForMentorProfile(mentorId).catch(() => []),
-        videoApi.getMentorActiveSubscriberCount(mentorId),
+        videoApi.getMentorActiveSubscriberCount(mentorId).catch(() => 0),
       ]);
 
       const merged = {
@@ -999,7 +1029,7 @@ export default function MentorProfileScreen({ navigation, route }) {
       let unlocked = false;
       if (user?.id && user.id !== mentorId) {
         unlocked = await videoApi.checkUnlocked({ learnerId: user.id, mentorId }).catch(() => false);
-      } else if (user?.id === mentorId) {
+      } else if (isSelf) {
         unlocked = true;
       }
       setIsUnlocked(unlocked);
@@ -1019,12 +1049,26 @@ export default function MentorProfileScreen({ navigation, route }) {
     loadData(false);
   }, [loadData]);
 
+  const ownTabFocusedOnce = useRef(false);
+  // Keep Me → Profile tab in sync after edits (iOS + Android).
+  useFocusEffect(
+    useCallback(() => {
+      if (!mentorId || !isOwnProfile) return undefined;
+      if (!ownTabFocusedOnce.current) {
+        ownTabFocusedOnce.current = true;
+        return undefined;
+      }
+      loadData(false);
+      return undefined;
+    }, [mentorId, isOwnProfile, loadData]),
+  );
+
   const allTags = useMemo(() => {
     if (Array.isArray(mentor?.tags) && mentor.tags.length) return mentor.tags;
-    const cat = mentor?.category?.trim();
+    const fromCategories = parseMentorCategories(mentor?.category);
     const raw = mentor?.specialization || '';
     const fromSpec = raw.split(',').map(s => s.trim()).filter(Boolean);
-    const merged = [...(cat ? [cat] : []), ...fromSpec];
+    const merged = [...fromCategories, ...fromSpec];
     return [...new Set(merged)];
   }, [mentor]);
 
@@ -1140,10 +1184,8 @@ export default function MentorProfileScreen({ navigation, route }) {
     return (
       <SafeScreen scrollable={false} {...safeScreenProps}>
         <View style={[styles.root, styles.centerFill]}>
-          <Text style={styles.errTxt}>Missing mentor.</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.retryTxt}>Go back</Text>
-          </TouchableOpacity>
+          <ActivityIndicator size="large" color={PURPLE_LINK} />
+          <Text style={[styles.errTxt, { marginTop: T.spacing.md }]}>Loading profile…</Text>
         </View>
       </SafeScreen>
     );
@@ -1168,9 +1210,11 @@ export default function MentorProfileScreen({ navigation, route }) {
           <TouchableOpacity style={styles.retryBtn} onPress={() => loadData(false)}>
             <Text style={styles.retryTxt}>Retry</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.retryBtn, { marginTop: 8 }]} onPress={() => navigation.goBack()}>
-            <Text style={styles.retryTxtMuted}>Go back</Text>
-          </TouchableOpacity>
+          {!isOwnProfile && (
+            <TouchableOpacity style={[styles.retryBtn, { marginTop: 8 }]} onPress={() => navigation.goBack()}>
+              <Text style={styles.retryTxtMuted}>Go back</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </SafeScreen>
     );
@@ -1225,7 +1269,7 @@ export default function MentorProfileScreen({ navigation, route }) {
               ]}
             >
               <View style={styles.heroBarActions}>
-                {!isOwnProfile && (
+                {!isOwnProfile ? (
                   <PressableScale
                     onPress={() => navigation.goBack()}
                     scaleTo={0.9}
@@ -1234,6 +1278,16 @@ export default function MentorProfileScreen({ navigation, route }) {
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
                     <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+                  </PressableScale>
+                ) : (
+                  <PressableScale
+                    onPress={() => navigation.navigate(SCREEN_NAMES.EditProfile)}
+                    scaleTo={0.9}
+                    showGlow={false}
+                    style={styles.heroCircleBtn}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <MaterialIcons name="edit" size={20} color={C.text.primary} />
                   </PressableScale>
                 )}
               </View>

@@ -42,9 +42,9 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Microphone access is required for live video mentoring sessions.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Save session recordings to your photo gallery</string>
+	<string>Save session recordings and update your profile photo</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Save session recordings to your photo gallery</string>
+	<string>Choose and crop a profile photo, and save session recordings</string>
 	<key>RTCAppGroupIdentifier</key>
 	<string>group.com.connectiqo.app</string>
 	<key>RTCScreenSharingExtension</key>

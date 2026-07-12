@@ -1,5 +1,8 @@
 import { Platform } from 'react-native';
 import { UNIFIED_THEME as T } from '../unifiedTheme';
+import { scaleUi } from './iosUiScale';
+
+export { scaleUi, IOS_UI_SCALE } from './iosUiScale';
 
 /**
  * Content padding below the status bar when SafeScreen includeTopInset is true.
@@ -29,23 +32,20 @@ export const STACK_OVERLAY_LAYOUT = {
 };
 
 /**
- * Bottom-tab Home screen — iOS applies one top inset via SafeScreen padding;
- * Android keeps the legacy ScrollView top offset so its UI is unchanged.
+ * Bottom-tab Home screen — edge-to-edge content; SafeScreen applies safe-area insets only.
  */
 export const HOME_TAB_LAYOUT = {
-  safeScreenPadding: Platform.OS === 'ios' ? T.spacing.lg : 0,
-  scrollPaddingTop: (insets) =>
-    Platform.OS === 'android' ? insets.top + T.spacing.lg : 0,
+  safeScreenPadding: 0,
+  scrollPaddingTop: () => 0,
 };
 
 /** Shared iOS/Android layout tokens for forms, buttons, and flex rows. */
 export const PLATFORM_LAYOUT = {
-  formFieldMinHeight: Platform.OS === 'ios' ? 52 : 50,
-  formIconSlotWidth: 22,
-  formInputPaddingVertical: Platform.OS === 'ios' ? 2 : 0,
-  formInputLineHeight: Platform.OS === 'ios' ? 20 : undefined,
-  buttonMinHeight: Platform.OS === 'ios' ? 52 : 50,
-  buttonCompactMinHeight: Platform.OS === 'ios' ? 42 : 40,
+  formFieldMinHeight: Platform.OS === 'ios' ? scaleUi(52) : 50,
+  formIconSlotWidth: Platform.OS === 'ios' ? scaleUi(24) : 22,
+  formInputPaddingVertical: 0,
+  buttonMinHeight: Platform.OS === 'ios' ? scaleUi(52) : 50,
+  buttonCompactMinHeight: Platform.OS === 'ios' ? scaleUi(42) : 40,
 };
 
 /** Flex child in a horizontal row — prevents iOS overflow/squash. */
@@ -102,6 +102,8 @@ export function iosAvatarImageStyle(size) {
 
 /** Auth / settings text fields — use with local chip/surface colors. */
 export function createFormFieldStyles({ chipBg, borderColor, textColor }) {
+  const isIos = Platform.OS === 'ios';
+
   return {
     inputWrapper: {
       flexDirection: 'row',
@@ -109,26 +111,47 @@ export function createFormFieldStyles({ chipBg, borderColor, textColor }) {
       backgroundColor: chipBg,
       borderColor,
       borderWidth: 1,
-      borderRadius: 12,
+      borderRadius: isIos ? scaleUi(12) : 12,
       paddingHorizontal: T.spacing.md,
       marginBottom: T.spacing.lg,
       minHeight: PLATFORM_LAYOUT.formFieldMinHeight,
     },
-    inputIcon: {
-      marginRight: T.spacing.md,
+    inputIconSlot: {
       width: PLATFORM_LAYOUT.formIconSlotWidth,
+      height: PLATFORM_LAYOUT.formIconSlotWidth,
+      marginRight: T.spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    inputIcon: {
       textAlign: 'center',
     },
     input: {
       flex: 1,
+      minWidth: 0,
+      alignSelf: 'stretch',
       color: textColor,
-      ...T.typography.bodySm,
+      fontSize: isIos ? T.typography.bodyMd.fontSize : T.typography.bodySm.fontSize,
+      fontWeight: T.typography.bodySm.fontWeight,
       padding: 0,
-      paddingVertical: PLATFORM_LAYOUT.formInputPaddingVertical,
-      lineHeight: PLATFORM_LAYOUT.formInputLineHeight,
+      margin: 0,
+      backgroundColor: 'transparent',
+      ...(isIos
+        ? {
+            paddingVertical: 0,
+          }
+        : {
+            paddingVertical: PLATFORM_LAYOUT.formInputPaddingVertical,
+            textAlignVertical: 'center',
+            includeFontPadding: false,
+          }),
     },
     eyeIcon: {
       padding: T.spacing.sm,
+      alignSelf: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
     },
     fullWidthButton: {
       width: '100%',

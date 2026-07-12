@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import Toast from 'react-native-simple-toast';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { pickProfileAvatar, pickProfileCover } from '../../utils/pickProfileAvatar';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
@@ -30,6 +30,12 @@ import { profileApi } from '../../api/profileApi';
 import { supabase } from '../../lib/supabase';
 import { MENTOR_CATEGORIES } from '../../constants/mentorCategories';
 import { fetchActiveCategoryNames } from '../../api/contentApi';
+import {
+  formatSelectedCategoriesLabel,
+  parseMentorCategories,
+  serializeMentorCategories,
+  toggleMentorCategory,
+} from '../../utils/mentorCategories';
 import { CelebrationScreenFx } from '../../components/CelebrationPayButton';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
 
@@ -59,7 +65,7 @@ function calcCompletion(fields) {
     !!fields.mentorBio?.trim(),
     !!fields.experienceYears?.trim(),
     !!fields.pricePerHour?.trim(),
-    !!fields.category?.trim(),
+    !!fields.categories?.length,
     !!fields.coverImageUrl?.trim(),
     !!fields.avatarUrl?.trim(),
   ];
@@ -231,7 +237,10 @@ function CategoryChip({ label, active, onPress, index }) {
   );
 }
 
-function CategoryDropdown({ category, open, onToggle, options, onSelect }) {
+function CategoryDropdown({ categories, open, onToggle, options, onToggleCategory }) {
+  const selected = parseMentorCategories(categories);
+  const summary = formatSelectedCategoriesLabel(selected);
+
   const chevron = useRef(new Animated.Value(0)).current;
   const hovered = useRef(false);
   const scale = useRef(new Animated.Value(1)).current;
@@ -259,8 +268,9 @@ function CategoryDropdown({ category, open, onToggle, options, onSelect }) {
       <View style={styles.fieldLabelRow}>
         <View style={styles.fieldLabelLeft}>
           <MaterialIcons name="category" size={14} color={C.text.muted} />
-          <Text style={styles.fieldLabel}>Category</Text>
+          <Text style={styles.fieldLabel}>Categories</Text>
         </View>
+        <Text style={styles.fieldHint}>Select all that apply</Text>
       </View>
       <Pressable
         onPress={onToggle}
@@ -276,8 +286,8 @@ function CategoryDropdown({ category, open, onToggle, options, onSelect }) {
         }}
       >
         <Animated.View style={[styles.dropdownTrigger, { transform: [{ scale }] }]}>
-          <Text style={category ? styles.dropdownValue : styles.dropdownPlaceholder}>
-            {category || 'Choose your mentoring category'}
+          <Text style={summary ? styles.dropdownValue : styles.dropdownPlaceholder}>
+            {summary || 'Choose your mentoring categories'}
           </Text>
           <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
             <MaterialIcons name="expand-more" size={22} color={C.text.muted} />
@@ -290,9 +300,9 @@ function CategoryDropdown({ category, open, onToggle, options, onSelect }) {
             <CategoryChip
               key={cat}
               label={cat}
-              active={category === cat}
+              active={selected.some(c => c.toLowerCase() === cat.toLowerCase())}
               index={index}
-              onPress={() => onSelect(cat)}
+              onPress={() => onToggleCategory(cat)}
             />
           ))}
         </View>
@@ -315,6 +325,8 @@ function Field({
   keyboardType,
   maxLength,
   required,
+  autoCorrect = true,
+  autoCapitalize = 'sentences',
 }) {
   const charCount = typeof value === 'string' ? value.length : 0;
 
@@ -349,6 +361,9 @@ function Field({
           multiline={multiline}
           numberOfLines={multiline ? 4 : 1}
           keyboardType={keyboardType || 'default'}
+          autoCorrect={autoCorrect}
+          spellCheck={autoCorrect}
+          autoCapitalize={autoCapitalize}
           textAlignVertical={multiline ? 'top' : 'center'}
           maxLength={maxLength}
         />
@@ -762,7 +777,7 @@ export default function EditProfileScreen({ navigation }) {
   const [mentorBio, setMentorBio] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
   const [pricePerHour, setPricePerHour] = useState('');
-  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState([]);
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [adminCategoryNames, setAdminCategoryNames] = useState([]);
@@ -785,7 +800,7 @@ export default function EditProfileScreen({ navigation }) {
         mentorBio,
         experienceYears,
         pricePerHour,
-        category,
+        categories,
         coverImageUrl,
         avatarUrl,
       }),
@@ -798,7 +813,7 @@ export default function EditProfileScreen({ navigation }) {
       mentorBio,
       experienceYears,
       pricePerHour,
-      category,
+      categories,
       coverImageUrl,
       avatarUrl,
     ],
@@ -815,7 +830,7 @@ export default function EditProfileScreen({ navigation }) {
         mentorBio: mentorBio.trim(),
         experienceYears: experienceYears.trim(),
         pricePerHour: pricePerHour.trim(),
-        category,
+        categories,
         coverImageUrl,
         avatarUrl,
       }),
@@ -828,7 +843,7 @@ export default function EditProfileScreen({ navigation }) {
       mentorBio,
       experienceYears,
       pricePerHour,
-      category,
+      categories,
       coverImageUrl,
       avatarUrl,
     ],
@@ -868,7 +883,7 @@ export default function EditProfileScreen({ navigation }) {
       let nextMentorBio = '';
       let nextExperienceYears = '';
       let nextPricePerHour = '';
-      let nextCategory = '';
+      let nextCategories = [];
       let nextCover = '';
       let nextLearnerBio = '';
       let nextInterests = '';
@@ -879,7 +894,7 @@ export default function EditProfileScreen({ navigation }) {
         nextMentorBio = m.bio || '';
         nextExperienceYears = m.experience_years ? String(m.experience_years) : '';
         nextPricePerHour = m.price_per_hour ? String(m.price_per_hour) : '';
-        nextCategory = m.category || '';
+        nextCategories = parseMentorCategories(m.category || '');
         nextCover = m.cover_image_url || '';
       }
       if (learnerData.status === 'fulfilled' && learnerData.value) {
@@ -895,7 +910,7 @@ export default function EditProfileScreen({ navigation }) {
       setMentorBio(nextMentorBio);
       setExperienceYears(nextExperienceYears);
       setPricePerHour(nextPricePerHour);
-      setCategory(nextCategory);
+      setCategories(nextCategories);
       setCoverImageUrl(nextCover);
       setLearnerBio(nextLearnerBio);
       setInterests(nextInterests);
@@ -909,7 +924,7 @@ export default function EditProfileScreen({ navigation }) {
         mentorBio: nextMentorBio.trim(),
         experienceYears: nextExperienceYears.trim(),
         pricePerHour: nextPricePerHour.trim(),
-        category: nextCategory,
+        categories: nextCategories,
         coverImageUrl: nextCover,
         avatarUrl: profile.avatar_url || '',
       });
@@ -945,57 +960,45 @@ export default function EditProfileScreen({ navigation }) {
     ]);
   };
 
-  const handlePickImage = () => {
-    launchImageLibrary(
-      { mediaType: 'photo', quality: 0.8, includeBase64: true },
-      async response => {
-        if (response.didCancel || response.errorCode) return;
-        const asset = response.assets?.[0];
-        if (!asset?.base64) return;
-        try {
-          setLoading(true);
-          const url = await profileApi.uploadAvatar({
-            userId,
-            base64: asset.base64,
-            mimeType: asset.type || 'image/jpeg',
-            fileName: asset.fileName || 'avatar.jpg',
-          });
-          setAvatarUrl(url);
-          await refreshProfile();
-          Toast.show('Photo updated');
-        } catch {
-          Toast.show('Failed to upload photo');
-        } finally {
-          setLoading(false);
-        }
-      },
-    );
+  const handlePickImage = async () => {
+    try {
+      const picked = await pickProfileAvatar();
+      if (!picked) return;
+      setLoading(true);
+      const url = await profileApi.uploadAvatar({
+        userId,
+        base64: picked.base64,
+        mimeType: picked.mimeType,
+        fileName: picked.fileName,
+      });
+      setAvatarUrl(url);
+      await refreshProfile();
+      Toast.show('Photo updated');
+    } catch {
+      Toast.show('Failed to upload photo');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePickCover = () => {
-    launchImageLibrary(
-      { mediaType: 'photo', quality: 0.85, includeBase64: true },
-      async response => {
-        if (response.didCancel || response.errorCode) return;
-        const asset = response.assets?.[0];
-        if (!asset?.base64) return;
-        try {
-          setLoading(true);
-          const url = await profileApi.uploadCoverImage({
-            userId,
-            base64: asset.base64,
-            mimeType: asset.type || 'image/jpeg',
-            fileName: asset.fileName || 'cover.jpg',
-          });
-          setCoverImageUrl(url);
-          Toast.show('Cover updated');
-        } catch (e) {
-          Toast.show(e?.message || 'Failed to upload cover', Toast.LONG);
-        } finally {
-          setLoading(false);
-        }
-      },
-    );
+  const handlePickCover = async () => {
+    try {
+      const picked = await pickProfileCover();
+      if (!picked) return;
+      setLoading(true);
+      const url = await profileApi.uploadCoverImage({
+        userId,
+        base64: picked.base64,
+        mimeType: picked.mimeType,
+        fileName: picked.fileName,
+      });
+      setCoverImageUrl(url);
+      Toast.show('Cover updated');
+    } catch (e) {
+      Toast.show(e?.message || 'Failed to upload cover', Toast.LONG);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const validateUsername = useCallback(
@@ -1112,7 +1115,7 @@ export default function EditProfileScreen({ navigation }) {
           experienceYears: parseInt(experienceYears, 10) || 0,
           pricePerHour: parseFloat(pricePerHour) || 0,
           coverImageUrl,
-          category,
+          category: serializeMentorCategories(categories),
         }),
         profileApi.updateLearnerProfile({
           userId,
@@ -1258,6 +1261,8 @@ export default function EditProfileScreen({ navigation }) {
               hint={usernameError || 'Unique handle for your public profile'}
               error={!!usernameError}
               maxLength={30}
+              autoCorrect={false}
+              autoCapitalize="none"
               required
             />
             <Field
@@ -1351,14 +1356,11 @@ export default function EditProfileScreen({ navigation }) {
             </View>
 
             <CategoryDropdown
-              category={category}
+              categories={categories}
               open={showCategoryPicker}
               onToggle={() => setShowCategoryPicker(v => !v)}
               options={mentorCategoryOptions}
-              onSelect={cat => {
-                setCategory(cat);
-                setShowCategoryPicker(false);
-              }}
+              onToggleCategory={cat => setCategories(prev => toggleMentorCategory(prev, cat))}
             />
           </SectionBlock>
 

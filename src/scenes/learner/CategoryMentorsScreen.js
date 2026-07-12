@@ -25,6 +25,7 @@ import { UNIFIED_THEME } from '../../unifiedTheme';
 import { mentorApi } from '../../api/mentorApi';
 import { useAuth } from '../../hooks/useAuth';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
+import { mentorHasCategory } from '../../utils/mentorCategories';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -330,7 +331,7 @@ export default function CategoryMentorsScreen({ route, navigation }) {
         const results = await mentorApi.searchMentors(term);
         const inCategory = (results || []).filter(m => {
           if (m.id === profile?.id) return false;
-          return (m.category || '').toLowerCase().trim() === category.toLowerCase().trim();
+          return mentorHasCategory(m.category, category);
         });
         setSearchResults(inCategory);
       } catch {

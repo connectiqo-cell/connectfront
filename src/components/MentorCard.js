@@ -6,6 +6,7 @@ import { formatPrice } from '../utils/formatCurrency';
 import { StarRating } from './StarRating';
 import CosmicButton from './CosmicButton';
 import { iosFlexChild } from '../utils/platformLayout';
+import { scaleUi } from '../utils/iosUiScale';
 
 export const MentorCard = ({ mentor, onPress }) => {
   const avatarUrl = mentor.profiles?.avatar_url;
@@ -153,6 +154,6 @@ const styles = StyleSheet.create({
     ...iosFlexChild(),
     flexShrink: 0,
     minWidth: 108,
-    maxWidth: Platform.OS === 'ios' ? 150 : 140,
+    maxWidth: Platform.OS === 'ios' ? scaleUi(150) : 140,
   },
 });

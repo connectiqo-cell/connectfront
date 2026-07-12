@@ -4,9 +4,23 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
 import { fetchActiveCategoryNames } from '../api/contentApi';
 import { MENTOR_CATEGORIES } from '../constants/mentorCategories';
+import {
+  formatSelectedCategoriesLabel,
+  parseMentorCategories,
+  toggleMentorCategory,
+} from '../utils/mentorCategories';
 
-export const CategoryPicker = ({ visible, selectedCategory, onSelect, onClose }) => {
+export const CategoryPicker = ({
+  visible,
+  selectedCategory,
+  selectedCategories,
+  onSelect,
+  onChange,
+  onClose,
+  multiple = false,
+}) => {
   const [adminCategories, setAdminCategories] = useState([]);
+  const [draft, setDraft] = useState([]);
 
   useEffect(() => {
     if (!visible) return;
@@ -19,10 +33,31 @@ export const CategoryPicker = ({ visible, selectedCategory, onSelect, onClose })
     };
   }, [visible]);
 
+  useEffect(() => {
+    if (!visible) return;
+    if (multiple) {
+      setDraft(parseMentorCategories(selectedCategories ?? selectedCategory));
+      return;
+    }
+    setDraft(parseMentorCategories(selectedCategory));
+  }, [visible, multiple, selectedCategories, selectedCategory]);
+
   const allCategories = useMemo(() => {
     if (adminCategories?.length) return adminCategories;
     return MENTOR_CATEGORIES;
   }, [adminCategories]);
+
+  const handleSingleSelect = (category) => {
+    onSelect?.(category);
+    onClose?.();
+  };
+
+  const handleDone = () => {
+    onChange?.(draft);
+    onClose?.();
+  };
+
+  const summary = formatSelectedCategoriesLabel(draft);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -31,40 +66,63 @@ export const CategoryPicker = ({ visible, selectedCategory, onSelect, onClose })
           <TouchableOpacity onPress={onClose}>
             <MaterialIcons name="close" size={24} color={UNIFIED_THEME.colors.text.primary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Select Your Category</Text>
-          <View style={{ width: 24 }} />
+          <Text style={styles.headerTitle}>
+            {multiple ? 'Select Categories' : 'Select Your Category'}
+          </Text>
+          {multiple ? (
+            <TouchableOpacity onPress={handleDone}>
+              <Text style={styles.doneText}>Done</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 24 }} />
+          )}
         </View>
 
+        {multiple ? (
+          <Text style={styles.subtitle}>
+            {summary ? `${summary} selected` : 'Choose all categories that apply'}
+          </Text>
+        ) : null}
+
         <ScrollView style={styles.categoryList} showsVerticalScrollIndicator={false}>
-          {allCategories.map((category) => (
-            <TouchableOpacity
-              key={category}
-              style={[
-                styles.categoryItem,
-                selectedCategory === category && styles.categoryItemSelected,
-              ]}
-              onPress={() => {
-                onSelect(category);
-                onClose();
-              }}
-            >
-              <Text
+          {allCategories.map((category) => {
+            const isSelected = multiple
+              ? draft.some(c => c.toLowerCase() === category.toLowerCase())
+              : selectedCategory === category;
+
+            return (
+              <TouchableOpacity
+                key={category}
                 style={[
-                  styles.categoryText,
-                  selectedCategory === category && styles.categoryTextSelected,
+                  styles.categoryItem,
+                  isSelected && styles.categoryItemSelected,
                 ]}
+                onPress={() => {
+                  if (multiple) {
+                    setDraft(prev => toggleMentorCategory(prev, category));
+                    return;
+                  }
+                  handleSingleSelect(category);
+                }}
               >
-                {category}
-              </Text>
-              {selectedCategory === category && (
-                <MaterialIcons
-                  name="check"
-                  size={20}
-                  color={UNIFIED_THEME.colors.primary.light}
-                />
-              )}
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.categoryText,
+                    isSelected && styles.categoryTextSelected,
+                  ]}
+                >
+                  {category}
+                </Text>
+                {isSelected && (
+                  <MaterialIcons
+                    name="check"
+                    size={20}
+                    color={UNIFIED_THEME.colors.primary.light}
+                  />
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
     </Modal>
@@ -86,6 +144,17 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...UNIFIED_THEME.typography.headingMd,
     color: UNIFIED_THEME.colors.text.primary,
+  },
+  doneText: {
+    ...UNIFIED_THEME.typography.labelMd,
+    color: UNIFIED_THEME.colors.accent.secondary,
+    fontWeight: '700',
+  },
+  subtitle: {
+    ...UNIFIED_THEME.typography.bodySm,
+    color: UNIFIED_THEME.colors.text.muted,
+    paddingHorizontal: UNIFIED_THEME.spacing.lg,
+    marginBottom: UNIFIED_THEME.spacing.sm,
   },
   categoryList: {
     flex: 1,

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { scaleUi } from '../utils/iosUiScale';
 
 const T = UNIFIED_THEME;
 
@@ -27,7 +28,7 @@ export const SearchBar = ({
     <View style={[styles.wrapper, focused && styles.wrapperFocused, containerStyle]}>
       <MaterialIcons
         name="search"
-        size={20}
+        size={scaleUi(20)}
         color={focused ? '#A78BFA' : '#8888a8'}
         style={styles.icon}
       />
@@ -54,7 +55,7 @@ export const SearchBar = ({
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={styles.clearBtn}
         >
-          <MaterialIcons name="cancel" size={18} color="#666680" />
+          <MaterialIcons name="cancel" size={scaleUi(18)} color="#666680" />
         </TouchableOpacity>
       )}
     </View>
@@ -66,11 +67,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 14,
+    borderRadius: scaleUi(14),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 14,
-    height: 52,
+    paddingHorizontal: scaleUi(14),
+    height: scaleUi(52),
     ...Platform.select({
       android: { elevation: 0 },
     }),
@@ -85,7 +86,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: scaleUi(14),
     fontWeight: '400',
     backgroundColor: 'transparent',
     paddingVertical: 0,

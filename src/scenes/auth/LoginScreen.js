@@ -96,7 +96,9 @@ export default function LoginScreen({ navigation }) {
             )}
 
             <View style={styles.inputWrapper}>
-              <MaterialIcons name="email" size={20} color={C.text.secondary} style={styles.inputIcon} />
+              <View style={styles.inputIconSlot}>
+                <MaterialIcons name="email" size={20} color={C.text.secondary} />
+              </View>
               <TextInput
                 placeholder="Email Address"
                 placeholderTextColor={C.text.muted}
@@ -114,7 +116,9 @@ export default function LoginScreen({ navigation }) {
             </View>
 
             <View style={styles.inputWrapper}>
-              <MaterialIcons name="lock" size={20} color={C.text.secondary} style={styles.inputIcon} />
+              <View style={styles.inputIconSlot}>
+                <MaterialIcons name="lock" size={20} color={C.text.secondary} />
+              </View>
               <TextInput
                 placeholder="Password"
                 placeholderTextColor={C.text.muted}
@@ -236,7 +240,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   inputWrapper: AUTH_FORM_STYLES.inputWrapper,
-  inputIcon: AUTH_FORM_STYLES.inputIcon,
+  inputIconSlot: AUTH_FORM_STYLES.inputIconSlot,
   input: AUTH_FORM_STYLES.input,
   eyeIcon: AUTH_FORM_STYLES.eyeIcon,
   forgotWrap: {

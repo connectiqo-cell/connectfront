@@ -31,6 +31,7 @@ import { UNIFIED_THEME } from '../../unifiedTheme';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { iosFlexChild, HOME_TAB_LAYOUT } from '../../utils/platformLayout';
+import { scaleUi } from '../../utils/iosUiScale';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -195,7 +196,7 @@ function IntroPlayButton({ playGlowOpacity, playGlowScale }) {
         />
         <MaterialIcons
           name="play-arrow"
-          size={Platform.OS === 'ios' ? 20 : 18}
+          size={Platform.OS === 'ios' ? scaleUi(20) : 18}
           color={B.nebulaText}
           style={styles.howItWorksPlayIcon}
         />
@@ -414,8 +415,8 @@ function SessionOverlayCard({ item, onPress }) {
   );
 }
 const SLIDE_H = 200;
-const SLIDE_GAP = T.spacing.md;
-const SLIDE_SIDE = T.spacing.lg;
+const SLIDE_GAP = 0;
+const SLIDE_SIDE = 0;
 const AUTO_PLAY_MS = 5000;
 
 const FALLBACK_SLIDES = [
@@ -467,14 +468,13 @@ function HomeSkeleton({ screenWidth }) {
     <>
       <SkeletonBox
         style={{
-          width: screenWidth - SLIDE_SIDE * 2,
+          width: screenWidth,
           height: SLIDE_H,
-          borderRadius: T.borderRadius.lg,
-          marginHorizontal: SLIDE_SIDE,
+          borderRadius: 0,
           marginBottom: T.spacing.md,
         }}
       />
-      <View style={{ paddingHorizontal: T.spacing.lg }}>
+      <View style={styles.skeletonBelowHero}>
         <SkeletonBox
           style={{
             height: 64,
@@ -814,6 +814,7 @@ export default function HomeScreen() {
   const { unreadCount, syncUnreadCount } = useNotification();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const contentWidth = width - insets.left - insets.right;
   const [playerVisible, setPlayerVisible] = useState(false);
   const [playerError, setPlayerError] = useState(false);
   const [urlPlayback, setUrlPlayback] = useState(null);
@@ -947,7 +948,6 @@ export default function HomeScreen() {
         contentContainerStyle={[
           styles.page,
           {
-            paddingTop: HOME_TAB_LAYOUT.scrollPaddingTop(insets),
             paddingBottom: insets.bottom + 52,
           },
         ]}
@@ -998,15 +998,13 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
 
-        {!dataLoaded ? <HomeSkeleton screenWidth={width} /> : (
+        {!dataLoaded ? <HomeSkeleton screenWidth={contentWidth} /> : (
         <>
         {/* ── HERO SLIDER ── */}
         <Animated.View style={[s1.style, styles.heroSection]}>
-          <HeroSlider screenWidth={width} slides={heroSlides} />
+          <HeroSlider screenWidth={contentWidth} slides={heroSlides} />
         </Animated.View>
 
-        {/* ── padded wrapper for all content below the slider ── */}
-        <View style={{ paddingHorizontal: T.spacing.lg }}>
         {/* ── WATCH HOW IT WORKS ── */}
         {introVideo && (
         <Animated.View style={[styles.introSection, s2.style]}>
@@ -1074,7 +1072,6 @@ export default function HomeScreen() {
           ))}
         </Animated.View>
 
-        </View>{/* end padded wrapper */}
         </>
         )}{/* end dataLoaded conditional */}
 
@@ -1143,7 +1140,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 60,
-    paddingHorizontal: T.spacing.lg,
     marginBottom: T.spacing.sm,
     gap: T.spacing.sm + 2,
   },
@@ -1242,14 +1238,16 @@ const styles = StyleSheet.create({
   heroSlideEmpty: {
     alignSelf: 'center',
   },
+  skeletonBelowHero: {
+    width: '100%',
+  },
+
   heroSlide: {
     height: SLIDE_H,
-    borderRadius: 16,
+    borderRadius: 0,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderWidth: 0,
     backgroundColor: C.primary.dark,
-    ...Platform.select({ ios: T.shadows.medium, android: { elevation: 8 } }),
   },
   heroSlideImage: {
     ...StyleSheet.absoluteFillObject,
@@ -1399,7 +1397,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     ...Platform.select({
-      ios: { minHeight: 80 },
+      ios: { minHeight: scaleUi(80) },
       default: {},
     }),
   },
@@ -1407,16 +1405,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    paddingVertical: Platform.OS === 'ios' ? 14 : 10,
+    paddingVertical: Platform.OS === 'ios' ? scaleUi(14) : 10,
     paddingHorizontal: Platform.OS === 'ios' ? T.spacing.md : T.spacing.sm + 2,
     ...Platform.select({
-      ios: { minHeight: 80 },
+      ios: { minHeight: scaleUi(80) },
       default: { gap: T.spacing.sm + 2 },
     }),
   },
   howItWorksPlayWrap: {
-    width: Platform.OS === 'ios' ? 40 : 36,
-    height: Platform.OS === 'ios' ? 40 : 36,
+    width: Platform.OS === 'ios' ? scaleUi(40) : 36,
+    height: Platform.OS === 'ios' ? scaleUi(40) : 36,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -1427,9 +1425,9 @@ const styles = StyleSheet.create({
   },
   howItWorksPlayGlow: {
     position: 'absolute',
-    width: Platform.OS === 'ios' ? 40 : 36,
-    height: Platform.OS === 'ios' ? 40 : 36,
-    borderRadius: Platform.OS === 'ios' ? 20 : 18,
+    width: Platform.OS === 'ios' ? scaleUi(40) : 36,
+    height: Platform.OS === 'ios' ? scaleUi(40) : 36,
+    borderRadius: Platform.OS === 'ios' ? scaleUi(20) : 18,
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -1443,12 +1441,12 @@ const styles = StyleSheet.create({
   },
   howItWorksPlayGlowGrad: {
     flex: 1,
-    borderRadius: Platform.OS === 'ios' ? 20 : 18,
+    borderRadius: Platform.OS === 'ios' ? scaleUi(20) : 18,
   },
   howItWorksPlay: {
-    width: Platform.OS === 'ios' ? 38 : 34,
-    height: Platform.OS === 'ios' ? 38 : 34,
-    borderRadius: Platform.OS === 'ios' ? 19 : 17,
+    width: Platform.OS === 'ios' ? scaleUi(38) : 34,
+    height: Platform.OS === 'ios' ? scaleUi(38) : 34,
+    borderRadius: Platform.OS === 'ios' ? scaleUi(19) : 17,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1474,26 +1472,26 @@ const styles = StyleSheet.create({
     }),
   },
   howItWorksEyebrowTxt: {
-    fontSize: Platform.OS === 'ios' ? 11 : 9,
+    fontSize: Platform.OS === 'ios' ? scaleUi(11) : 9,
     fontWeight: '700',
     color: GOLD,
     letterSpacing: 0.35,
     textTransform: 'uppercase',
-    marginBottom: Platform.OS === 'ios' ? 3 : 0,
+    marginBottom: Platform.OS === 'ios' ? scaleUi(3) : 0,
   },
   howItWorksTitle: {
-    fontSize: Platform.OS === 'ios' ? 15 : 13,
+    fontSize: Platform.OS === 'ios' ? scaleUi(15) : 13,
     fontWeight: '800',
     color: C.text.primary,
-    lineHeight: Platform.OS === 'ios' ? 20 : 17,
-    marginBottom: Platform.OS === 'ios' ? 2 : 0,
+    lineHeight: Platform.OS === 'ios' ? scaleUi(20) : 17,
+    marginBottom: Platform.OS === 'ios' ? scaleUi(2) : 0,
   },
   howItWorksStepsLine: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: Platform.OS === 'ios' ? scaleUi(12) : 10,
     fontWeight: '600',
     color: C.text.muted,
     marginTop: 1,
-    lineHeight: Platform.OS === 'ios' ? 16 : 14,
+    lineHeight: Platform.OS === 'ios' ? scaleUi(16) : 14,
   },
 
   catSection: {

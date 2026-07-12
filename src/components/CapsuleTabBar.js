@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { scaleUi } from '../utils/iosUiScale';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -318,7 +319,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: T.spacing.sm,
     paddingHorizontal: T.spacing.xs,
-    minHeight: 52,
+    minHeight: Platform.OS === 'ios' ? scaleUi(52) : 52,
     zIndex: 1,
   },
   tabContent: {

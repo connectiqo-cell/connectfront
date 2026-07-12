@@ -44,6 +44,9 @@ export default function TextInputContainer({
             }}
             numberOfLines={2}
             onChangeText={setMessage}
+            autoCorrect
+            spellCheck
+            autoCapitalize="sentences"
             selectionColor={"white"}
             placeholderTextColor={"#9FA0A7"}
           />

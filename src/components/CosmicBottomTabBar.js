@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { scaleUi } from '../utils/iosUiScale';
 
 const C = UNIFIED_THEME.colors;
 const S = UNIFIED_THEME.spacing;
@@ -31,12 +32,12 @@ const FAB_SPIN_COLORS = [
 ];
 
 /** Fixed row geometry — all tabs share the same slots */
-const INDICATOR_H = 6;
-const ICON_FRAME = 28;
-const ICON_SIZE = 24;
+const INDICATOR_H = scaleUi(6);
+const ICON_FRAME = scaleUi(28);
+const ICON_SIZE = scaleUi(24);
 const ICON_SLOT_H = ICON_FRAME;
-const LABEL_H = 14;
-const TAB_ROW_H = INDICATOR_H + ICON_SLOT_H + LABEL_H + 8;
+const LABEL_H = scaleUi(14);
+const TAB_ROW_H = INDICATOR_H + ICON_SLOT_H + LABEL_H + scaleUi(8);
 const TAB_BAR_PADDING_TOP = S.sm;
 
 /** Total height of the floating bottom tab bar (matches barWrap layout). */
@@ -220,7 +221,7 @@ function UploadFabVisual() {
           end={{ x: 1, y: 1 }}
           style={styles.fabCircle}
         >
-          <MaterialIcons name="file-upload" size={22} color={C.text.onAccent} />
+          <MaterialIcons name="file-upload" size={scaleUi(22)} color={C.text.onAccent} />
         </LinearGradient>
       </View>
     </Animated.View>
@@ -483,8 +484,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   activeIndicator: {
-    width: 24,
-    height: 3,
+    width: scaleUi(24),
+    height: scaleUi(3),
     borderRadius: 2,
   },
   iconSlot: {

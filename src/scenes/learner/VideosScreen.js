@@ -239,6 +239,11 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
 
   const handleUnlock = async () => {
     if (!user) { Toast.show('Please log in'); return; }
+    if (user.id === video?.mentor_id) {
+      onUnlocked(video.mentor_id);
+      onClose();
+      return;
+    }
     setLoading(true);
     try {
       const order = await videoApi.createVideoOrder({
@@ -605,6 +610,11 @@ export default function VideosScreen({ navigation, route }) {
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   const allowPlayback = (isFocused || tabFocused) && appActive && lockSheetVideo === null;
 
+  const isOwnMentorVideo = useCallback(
+    mentorId => Boolean(user?.id && mentorId && user.id === mentorId),
+    [user?.id],
+  );
+
   useFocusEffect(
     useCallback(() => {
       setTabFocused(true);
@@ -761,7 +771,7 @@ export default function VideosScreen({ navigation, route }) {
                 item={item}
                 height={reelPageHeight}
                 isActive={index === activeIndex}
-                isUnlocked={unlocksMap.has(item.mentor_id)}
+                isUnlocked={unlocksMap.has(item.mentor_id) || isOwnMentorVideo(item.mentor_id)}
                 onLockPress={setLockSheetVideo}
                 onViewProfile={handleViewProfile}
                 forcePaused={lockSheetVideo !== null}

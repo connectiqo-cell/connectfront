@@ -466,6 +466,8 @@ function Field({ icon, label, value, onChangeText, placeholder, keyboardType, au
           placeholderTextColor={C.text.muted}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize || 'sentences'}
+          autoCorrect={!keyboardType || keyboardType === 'default'}
+          spellCheck={!keyboardType || keyboardType === 'default'}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />

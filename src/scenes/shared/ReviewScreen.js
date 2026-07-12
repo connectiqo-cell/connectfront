@@ -733,6 +733,9 @@ export default function ReviewScreen({ navigation, route }) {
                   multiline
                   maxLength={300}
                   editable={!isReadOnly}
+                  autoCorrect
+                  spellCheck
+                  autoCapitalize="sentences"
                   textAlignVertical="top"
                   onFocus={() => setInputFocused(true)}
                   onBlur={() => setInputFocused(false)}

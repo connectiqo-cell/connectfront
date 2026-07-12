@@ -25,7 +25,10 @@ export async function ensureIosCallAudioSession() {
     return false;
   }
 
-  await InCallManager.requestCameraPermission();
+  const camera = await InCallManager.requestCameraPermission();
+  if (camera !== 'granted') {
+    return false;
+  }
 
   InCallManager.start({ media: 'video' });
   InCallManager.setForceSpeakerphoneOn(true);

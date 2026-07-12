@@ -1,7 +1,9 @@
-﻿import { useMeeting } from '@videosdk.live/react-native-sdk';
+import { useMeeting } from '@videosdk.live/react-native-sdk';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { Platform } from 'react-native';
 import React from 'react';
 import Toast from 'react-native-simple-toast';
+import { ensureIosCallAudioSession } from '../../utils/iosCallAudioSession';
 import OneToOneMeetingViewer from './OneToOne';
 import ConferenceMeetingViewer from './Conference/ConferenceMeetingViewer';
 import SessionLobbyView from './Components/SessionLobbyView';
@@ -44,13 +46,20 @@ export default function MeetingContainer({
     if (joinRequestedRef.current) return undefined;
     joinRequestedRef.current = true;
 
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       try {
+        if (Platform.OS === 'ios') {
+          const ready = await ensureIosCallAudioSession();
+          if (!ready) {
+            Toast.show('Camera and microphone permissions are required');
+            return;
+          }
+        }
         join();
       } catch (err) {
         Toast.show(err?.message || 'Could not join session');
       }
-    }, 400);
+    }, Platform.OS === 'ios' ? 600 : 400);
 
     return () => {
       clearTimeout(timer);

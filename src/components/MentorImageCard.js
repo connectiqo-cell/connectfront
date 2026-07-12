@@ -12,6 +12,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
 import { iosGradientTextBlock } from '../utils/platformLayout';
+import { scaleUi } from '../utils/iosUiScale';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -139,8 +140,8 @@ export function MentorImageCard({ mentor, onPress, style, entranceDelay }) {
 
 const styles = StyleSheet.create({
   defaultSize: {
-    width: Platform.OS === 'ios' ? 128 : 120,
-    height: Platform.OS === 'ios' ? 180 : 172,
+    width: Platform.OS === 'ios' ? scaleUi(128) : 120,
+    height: Platform.OS === 'ios' ? scaleUi(180) : 172,
   },
   cardFill: {
     width: '100%',

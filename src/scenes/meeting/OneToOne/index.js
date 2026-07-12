@@ -49,7 +49,7 @@ import ChatViewer from "../Components/ChatViewer";
 import Blink from "../../../components/Blink";
 import VideosdkRPK from "../../../../VideosdkRPK";
 import ParticipantStatsViewer from "../Components/ParticipantStatsViewer";
-import { startOneToOneRecordingViaAPI } from "../../../utils/recordingConfig";
+import { startOneToOneRecordingViaAPI, startOneToOneRecording } from "../../../utils/recordingConfig";
 import { getToken } from "../../../api/api";
 import { computeSessionTiming, formatCountdown } from "../../../utils/sessionSlotTimer";
 
@@ -78,6 +78,12 @@ function resolveCameras(cams) {
   return { front, back };
 }
 
+// MeetingProvider already joins with defaultCamera: 'front'. On iOS, calling
+// changeWebcam() right after join restarts capture and often shows a black preview.
+function shouldSelectFrontCameraOnInit() {
+  return Platform.OS !== "ios";
+}
+
 export default function OneToOneMeetingViewer({ isHost, booking }) {
   const onMeetingError = useCallback((data) => {
     const { code, message } = data;
@@ -100,6 +106,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     toggleScreenShare,
     meetingId,
     stopRecording,
+    startRecording,
     meeting,
     recordingState,
     enableScreenShare,
@@ -172,11 +179,13 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
           backCameraIdRef.current = back?.deviceId ?? null;
           console.warn('[Camera] front:', front?.deviceId, front?.facingMode, '| back:', back?.deviceId, back?.facingMode);
 
-          if (localWebcamOnRef.current && front?.deviceId && !cameraInitializedRef.current) {
+          if (localWebcamOnRef.current && !cameraInitializedRef.current) {
             cameraInitializedRef.current = true;
-            setTimeout(() => {
-              if (!cancelled) changeWebcam(front.deviceId);
-            }, 300);
+            if (shouldSelectFrontCameraOnInit() && front?.deviceId) {
+              setTimeout(() => {
+                if (!cancelled) changeWebcam(front.deviceId);
+              }, 300);
+            }
           }
         } else if (attempt < 4) {
           setTimeout(() => fetchCameras(attempt + 1), 1000);
@@ -190,7 +199,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
     };
     // iOS needs a longer delay — camera permission dialog can still be
     // showing at 800ms and getWebcams() returns empty until dismissed.
-    const delay = Platform.OS === 'ios' ? 1500 : 800;
+    const delay = Platform.OS === 'ios' ? 2500 : 800;
     const t = setTimeout(() => fetchCameras(), delay);
     return () => { cancelled = true; clearTimeout(t); };
   }, []);
@@ -236,7 +245,9 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
 
     if (frontCameraIdRef.current) {
       cameraInitializedRef.current = true;
-      setTimeout(() => changeWebcam(frontCameraIdRef.current), 400);
+      if (shouldSelectFrontCameraOnInit()) {
+        setTimeout(() => changeWebcam(frontCameraIdRef.current), 400);
+      }
       return;
     }
 
@@ -250,7 +261,9 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         backCameraIdRef.current = back?.deviceId ?? null;
         if (front?.deviceId) {
           cameraInitializedRef.current = true;
-          setTimeout(() => changeWebcam(front.deviceId), 400);
+          if (shouldSelectFrontCameraOnInit()) {
+            setTimeout(() => changeWebcam(front.deviceId), 400);
+          }
         }
       })
       ?.catch(() => {});
@@ -374,8 +387,14 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
             .then(token => startOneToOneRecordingViaAPI({ token, meetingId, mentorId: localParticipantIdRef.current }))
             .then(() => Toast.show("Recording started."))
             .catch(err => {
-              console.error('[Recording] start failed:', err);
-              Toast.show('Rec error: ' + (err?.message || String(err)));
+              console.error('[Recording] REST start failed, trying SDK fallback:', err);
+              try {
+                startOneToOneRecording(startRecording, participantCount || 2);
+                Toast.show('Recording started.');
+              } catch (fallbackErr) {
+                console.error('[Recording] start failed:', fallbackErr);
+                Toast.show('Rec error: ' + (fallbackErr?.message || String(fallbackErr)));
+              }
             });
         }
         return;
@@ -413,11 +432,11 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         return;
       }
     });
-  }, [recordingConsentPubSub.messages, isHost, recordingState, meetingId, participantCount]);
+  }, [recordingConsentPubSub.messages, isHost, recordingState, meetingId, participantCount, startRecording]);
 
   useEffect(() => {
     if (Platform.OS === "ios") {
-      VideosdkRPK.addListener("onScreenShare", (event) => {
+      const subscription = VideosdkRPK.addListener("onScreenShare", (event) => {
         if (event === "START_BROADCAST") {
           enableScreenShare();
         } else if (event === "STOP_BROADCAST") {
@@ -426,10 +445,10 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
       });
 
       return () => {
-        VideosdkRPK.removeSubscription("onScreenShare");
+        subscription?.remove?.();
       };
     }
-  }, []);
+  }, [enableScreenShare, disableScreenShare]);
 
   useEffect(() => {
     if (recordingRef.current) {
@@ -605,7 +624,7 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
         if (webcamWasOnRef.current) {
           setTimeout(() => {
             toggleWebcam();
-            if (frontCameraIdRef.current) {
+            if (shouldSelectFrontCameraOnInit() && frontCameraIdRef.current) {
               setTimeout(() => changeWebcam(frontCameraIdRef.current), 400);
             }
           }, 300);
@@ -992,11 +1011,13 @@ export default function OneToOneMeetingViewer({ isHost, booking }) {
           onPress={() => {
             if (!localWebcamOn) {
               toggleWebcam();
-              setTimeout(() => {
-                const id = frontCameraIdRef.current;
-                if (id) changeWebcam(id);
-                else changeWebcam();
-              }, 400);
+              if (shouldSelectFrontCameraOnInit()) {
+                setTimeout(() => {
+                  const id = frontCameraIdRef.current;
+                  if (id) changeWebcam(id);
+                  else changeWebcam();
+                }, 400);
+              }
             } else {
               toggleWebcam();
             }

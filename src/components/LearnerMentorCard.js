@@ -11,6 +11,7 @@ import CosmicButton from './CosmicButton';
 import { CircularProfileImage } from './CircularGradientFrame';
 import { UNIFIED_THEME } from '../unifiedTheme';
 import { iosFlexChild } from '../utils/platformLayout';
+import { scaleUi } from '../utils/iosUiScale';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -46,7 +47,7 @@ export function LearnerMentorCard({
       <View style={styles.topRow}>
         <View style={styles.avatarRingWrap}>
           <CircularProfileImage
-            size={48}
+            size={Platform.OS === 'ios' ? scaleUi(48) : 48}
             ringWidth={2}
             colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
             innerBg={C.primary.void}
@@ -133,7 +134,7 @@ export function LearnerMentorCard({
 
 const styles = StyleSheet.create({
   card: {
-    width: Platform.OS === 'ios' ? 192 : 176,
+    width: Platform.OS === 'ios' ? scaleUi(192) : 176,
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16,
     padding: T.spacing.md,
@@ -196,11 +197,11 @@ const styles = StyleSheet.create({
   },
   headMain: iosFlexChild(),
   name: {
-    fontSize: Platform.OS === 'ios' ? 15 : 13,
+    fontSize: Platform.OS === 'ios' ? scaleUi(15) : 13,
     color: C.text.primary,
     fontWeight: Platform.OS === 'ios' ? '700' : '800',
     marginBottom: 5,
-    lineHeight: Platform.OS === 'ios' ? 20 : 17,
+    lineHeight: Platform.OS === 'ios' ? scaleUi(20) : 17,
     letterSpacing: Platform.OS === 'ios' ? 0 : -0.2,
     flexShrink: 1,
     ...(Platform.OS === 'ios'
@@ -249,8 +250,8 @@ const styles = StyleSheet.create({
     color: GOLD,
     fontWeight: '700',
     marginBottom: T.spacing.sm,
-    minHeight: Platform.OS === 'ios' ? 32 : 26,
-    lineHeight: Platform.OS === 'ios' ? 18 : 16,
+    minHeight: Platform.OS === 'ios' ? scaleUi(32) : 26,
+    lineHeight: Platform.OS === 'ios' ? scaleUi(18) : 16,
   },
   priceRow: {
     flexDirection: 'row',

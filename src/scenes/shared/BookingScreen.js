@@ -1221,6 +1221,9 @@ export default function BookingScreen({ navigation, route }) {
                 multiline
                 numberOfLines={4}
                 maxLength={500}
+                autoCorrect
+                spellCheck
+                autoCapitalize="sentences"
               />
               <View style={styles.charRow}>
                 <MaterialIcons name="tips-and-updates" size={14} color={T.colors.text.muted} />

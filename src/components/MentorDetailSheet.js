@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicButton from './CosmicButton';
 import { CircularProfileImage } from './CircularGradientFrame';
+import { useAvatarPreview } from '../contexts/AvatarPreviewContext';
 import { UNIFIED_THEME } from '../unifiedTheme';
 import { iosFlexChild } from '../utils/platformLayout';
 
@@ -158,6 +159,7 @@ function AvatarReveal({ visible, mentorKey, children }) {
 }
 
 export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProfile }) {
+  const { showAvatarPreview } = useAvatarPreview();
   const insets = useSafeAreaInsets();
   const actionsBottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 8) + T.spacing.md;
   const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
@@ -264,11 +266,8 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
           <View style={styles.header}>
             <AvatarReveal visible={visible} mentorKey={mentor.id} key={`avatar-${mentor.id}`}>
               <PressScale
-                onPress={() => {
-                  onClose();
-                  onViewProfile(mentor);
-                }}
-                accessibilityLabel={`View ${name} full profile`}
+                onPress={() => showAvatarPreview({ uri: avatarUrl, name })}
+                accessibilityLabel={`View ${name} profile photo`}
               >
                 <CircularProfileImage
                   size={76}
@@ -276,6 +275,8 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
                   colors={B.premiumGradient}
                   innerBg={C.primary.void}
                   uri={avatarUrl}
+                  previewName={name}
+                  pressable={false}
                   fallback={
                     <View style={styles.avatarFallback}>
                       <Text style={styles.avatarInitial}>{initial}</Text>

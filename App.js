@@ -21,6 +21,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
 
 import { AuthProvider } from "./src/contexts/AuthContext";
+import { AvatarPreviewProvider } from "./src/contexts/AvatarPreviewContext";
 
 import { NotificationProvider } from "./src/contexts/NotificationContext";
 
@@ -182,6 +183,8 @@ export default function App() {
 
         <AuthProvider>
 
+          <AvatarPreviewProvider>
+
           <NotificationProvider>
 
             <View style={styles.appRoot}>
@@ -211,6 +214,8 @@ export default function App() {
             </View>
 
           </NotificationProvider>
+
+          </AvatarPreviewProvider>
 
         </AuthProvider>
 

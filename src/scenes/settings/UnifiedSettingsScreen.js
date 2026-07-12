@@ -32,6 +32,7 @@ import { paymentApi } from '../../api/paymentApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { formatDate } from '../../utils/dateHelpers';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
+import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -585,6 +586,7 @@ function FloatingEmptyIcon() {
 }
 
 export default function UnifiedSettingsScreen({ navigation }) {
+  const { showAvatarPreview } = useAvatarPreview();
   const { profile, signOut, refreshProfile } = useAuth();
   const { unreadCount } = useNotification();
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
@@ -825,12 +827,25 @@ export default function UnifiedSettingsScreen({ navigation }) {
             <View style={styles.avatarRow}>
               <View style={styles.avatarWrapper}>
                 <AvatarGlowRing />
-                <CircularProfileImage
-                  size={76}
-                  ringWidth={2}
-                  colors={B.premiumGradient}
-                  innerBg={C.primary.void}
-                  uri={avatarUrl}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    if (avatarUrl) {
+                      showAvatarPreview({ uri: avatarUrl, name: profile?.name || 'User' });
+                    } else {
+                      handlePickImage();
+                    }
+                  }}
+                  disabled={loading}
+                >
+                  <CircularProfileImage
+                    size={76}
+                    ringWidth={2}
+                    colors={B.premiumGradient}
+                    innerBg={C.primary.void}
+                    uri={avatarUrl}
+                    previewName={profile?.name || 'User'}
+                    pressable={false}
                   imageProps={{ key: avatarUrl, cache: 'reload' }}
                   fallback={
                     <View style={[styles.avatarPlaceholder, styles.avatarFallback]}>
@@ -838,6 +853,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
                     </View>
                   }
                 />
+                </TouchableOpacity>
                 <AnimatedPressable
                   style={styles.cameraBtn}
                   onPress={handlePickImage}

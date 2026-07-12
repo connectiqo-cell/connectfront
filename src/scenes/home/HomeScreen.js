@@ -415,8 +415,8 @@ function SessionOverlayCard({ item, onPress }) {
   );
 }
 const SLIDE_H = 200;
-const SLIDE_GAP = 0;
-const SLIDE_SIDE = 0;
+const SLIDE_GAP = T.spacing.md;
+const SLIDE_SIDE = T.spacing.lg;
 const AUTO_PLAY_MS = 5000;
 
 const FALLBACK_SLIDES = [
@@ -468,13 +468,14 @@ function HomeSkeleton({ screenWidth }) {
     <>
       <SkeletonBox
         style={{
-          width: screenWidth,
+          width: screenWidth - SLIDE_SIDE * 2,
           height: SLIDE_H,
-          borderRadius: 0,
+          borderRadius: T.borderRadius.lg,
+          marginHorizontal: SLIDE_SIDE,
           marginBottom: T.spacing.md,
         }}
       />
-      <View style={styles.skeletonBelowHero}>
+      <View style={[styles.skeletonBelowHero, { paddingHorizontal: T.spacing.lg }]}>
         <SkeletonBox
           style={{
             height: 64,
@@ -814,7 +815,6 @@ export default function HomeScreen() {
   const { unreadCount, syncUnreadCount } = useNotification();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const contentWidth = width - insets.left - insets.right;
   const [playerVisible, setPlayerVisible] = useState(false);
   const [playerError, setPlayerError] = useState(false);
   const [urlPlayback, setUrlPlayback] = useState(null);
@@ -998,13 +998,15 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
 
-        {!dataLoaded ? <HomeSkeleton screenWidth={contentWidth} /> : (
+        {!dataLoaded ? <HomeSkeleton screenWidth={width} /> : (
         <>
         {/* ── HERO SLIDER ── */}
         <Animated.View style={[s1.style, styles.heroSection]}>
-          <HeroSlider screenWidth={contentWidth} slides={heroSlides} />
+          <HeroSlider screenWidth={width} slides={heroSlides} />
         </Animated.View>
 
+        {/* ── padded wrapper for all content below the slider ── */}
+        <View style={styles.belowHeroPad}>
         {/* ── WATCH HOW IT WORKS ── */}
         {introVideo && (
         <Animated.View style={[styles.introSection, s2.style]}>
@@ -1072,6 +1074,7 @@ export default function HomeScreen() {
           ))}
         </Animated.View>
 
+        </View>{/* end padded wrapper */}
         </>
         )}{/* end dataLoaded conditional */}
 
@@ -1140,6 +1143,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 60,
+    paddingHorizontal: T.spacing.lg,
     marginBottom: T.spacing.sm,
     gap: T.spacing.sm + 2,
   },
@@ -1241,13 +1245,18 @@ const styles = StyleSheet.create({
   skeletonBelowHero: {
     width: '100%',
   },
+  belowHeroPad: {
+    paddingHorizontal: T.spacing.lg,
+  },
 
   heroSlide: {
     height: SLIDE_H,
-    borderRadius: 0,
+    borderRadius: T.borderRadius.lg,
     overflow: 'hidden',
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.22)',
     backgroundColor: C.primary.dark,
+    ...Platform.select({ ios: T.shadows.medium, android: { elevation: 8 } }),
   },
   heroSlideImage: {
     ...StyleSheet.absoluteFillObject,

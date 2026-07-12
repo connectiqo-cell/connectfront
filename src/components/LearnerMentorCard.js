@@ -52,6 +52,7 @@ export function LearnerMentorCard({
             colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
             innerBg={C.primary.void}
             uri={mentor.profiles?.avatar_url}
+            previewName={name}
             fallback={
               <View style={[styles.avatarPh, styles.avatarFallbackSmall]}>
                 <Text style={styles.avatarLetter}>{initial}</Text>

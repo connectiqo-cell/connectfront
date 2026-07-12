@@ -13,6 +13,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
 import { iosGradientTextBlock } from '../utils/platformLayout';
 import { scaleUi } from '../utils/iosUiScale';
+import { useAvatarPreview } from '../contexts/AvatarPreviewContext';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -23,6 +24,7 @@ const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 
 export function MentorImageCard({ mentor, onPress, style, entranceDelay }) {
+  const { showAvatarPreview } = useAvatarPreview();
   const name       = mentor.profiles?.name || 'Unknown';
   const initial    = name.charAt(0).toUpperCase();
   const avatarUrl  = mentor.profiles?.avatar_url;
@@ -86,6 +88,10 @@ export function MentorImageCard({ mentor, onPress, style, entranceDelay }) {
       <Pressable
         style={[styles.card, styles.cardFill]}
         onPress={() => onPress(mentor)}
+        onLongPress={() => {
+          if (avatarUrl) showAvatarPreview({ uri: avatarUrl, name });
+        }}
+        delayLongPress={250}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         accessibilityRole="button"

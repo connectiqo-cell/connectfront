@@ -38,6 +38,7 @@ import {
 } from '../../utils/mentorCategories';
 import { CelebrationScreenFx } from '../../components/CelebrationPayButton';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
+import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -755,6 +756,7 @@ function AnimatedSaveButton({ saving, saveSuccess, disabled, onPress, onSuccessC
 }
 
 export default function EditProfileScreen({ navigation }) {
+  const { showAvatarPreview } = useAvatarPreview();
   const insets = useSafeAreaInsets();
   const { profile, user, refreshProfile } = useAuth();
   const userId = profile?.id ?? user?.id;
@@ -1191,7 +1193,13 @@ export default function EditProfileScreen({ navigation }) {
 
             <View style={styles.heroBody}>
               <AnimatedPressable
-                onPress={handlePickImage}
+                onPress={() => {
+                  if (avatarUrl) {
+                    showAvatarPreview({ uri: avatarUrl, name: name.trim() || 'Your profile' });
+                  } else {
+                    handlePickImage();
+                  }
+                }}
                 disabled={loading}
                 style={styles.avatarTouchable}
                 hoverScale={1.05}
@@ -1204,6 +1212,8 @@ export default function EditProfileScreen({ navigation }) {
                   colors={B.premiumGradient}
                   innerBg={C.primary.void}
                   uri={avatarUrl}
+                  previewName={name.trim() || 'Your profile'}
+                  pressable={false}
                   imageProps={{ key: avatarUrl, cache: 'reload' }}
                   fallback={
                     <View style={[styles.avatarPlaceholder, styles.avatarFallbackEdit]}>
@@ -1211,9 +1221,15 @@ export default function EditProfileScreen({ navigation }) {
                     </View>
                   }
                 />
-                <View style={styles.avatarCamera}>
+                <TouchableOpacity
+                  style={styles.avatarCamera}
+                  onPress={handlePickImage}
+                  disabled={loading}
+                  activeOpacity={0.85}
+                  accessibilityLabel="Change profile photo"
+                >
                   <MaterialIcons name="camera-alt" size={14} color={C.text.primary} />
-                </View>
+                </TouchableOpacity>
               </AnimatedPressable>
 
               <Text style={styles.heroName} numberOfLines={1}>

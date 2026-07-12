@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { View, Image, StyleSheet, Pressable } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useAvatarPreviewOptional } from '../contexts/AvatarPreviewContext';
 
 /**
  * Gradient ring with a circular inner clip.
@@ -60,7 +61,7 @@ export function CircularGradientFrame({
   );
 }
 
-/** Profile / avatar photo inside a gradient ring. */
+/** Profile / avatar photo inside a gradient ring. Tap to preview when uri or previewName is set. */
 export function CircularProfileImage({
   size,
   ringWidth = 2,
@@ -74,10 +75,14 @@ export function CircularProfileImage({
   fallback,
   imageStyle,
   imageProps,
+  onPress,
+  previewName,
+  pressable,
 }) {
   const innerSize = size - ringWidth * 2;
+  const avatarPreview = useAvatarPreviewOptional();
 
-  return (
+  const content = (
     <CircularGradientFrame
       size={size}
       ringWidth={ringWidth}
@@ -99,6 +104,23 @@ export function CircularProfileImage({
         fallback
       )}
     </CircularGradientFrame>
+  );
+
+  const shouldPress = pressable !== false && Boolean(onPress || previewName || uri);
+  const handlePress = onPress ?? (shouldPress && avatarPreview
+    ? () => avatarPreview.showAvatarPreview({ uri, name: previewName || '' })
+    : undefined);
+
+  if (!handlePress) return content;
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      accessibilityRole="button"
+      accessibilityLabel={previewName ? `View ${previewName}'s profile photo` : 'View profile photo'}
+    >
+      {content}
+    </Pressable>
   );
 }
 

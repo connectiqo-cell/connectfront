@@ -26,6 +26,7 @@ import { reviewsApi } from '../../api/reviewsApi';
 import { bookingApi } from '../../api/bookingApi';
 import { profileApi } from '../../api/profileApi';
 import { useAuth } from '../../hooks/useAuth';
+import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -534,6 +535,7 @@ export default function ReviewScreen({ navigation, route }) {
   const paramMentorId = route.params?.mentorId;
   const paramMentorName = route.params?.mentorName?.trim?.() || '';
   const { profile } = useAuth();
+  const { showAvatarPreview } = useAvatarPreview();
 
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -679,7 +681,12 @@ export default function ReviewScreen({ navigation, route }) {
               <View style={styles.mentorCardInner}>
                 <AvatarPulseRing>
                   {mentorAvatar ? (
-                    <Image source={{ uri: mentorAvatar }} style={styles.avatar} />
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => showAvatarPreview({ uri: mentorAvatar, name: mentorName })}
+                    >
+                      <Image source={{ uri: mentorAvatar }} style={styles.avatar} />
+                    </TouchableOpacity>
                   ) : (
                     <View style={[styles.avatar, styles.avatarPh]}>
                       <MaterialIcons name="person" size={28} color={PURPLE_LINK} />

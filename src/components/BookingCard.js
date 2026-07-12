@@ -13,6 +13,7 @@ import { UNIFIED_THEME } from '../unifiedTheme';
 import { PLATFORM_LAYOUT } from '../utils/platformLayout';
 import { formatDate, formatTime, formatDateForDisplay } from '../utils/dateHelpers';
 import CosmicButton from './CosmicButton';
+import { useAvatarPreview } from '../contexts/AvatarPreviewContext';
 
 const T = UNIFIED_THEME.colors;
 const S = UNIFIED_THEME.colors.surface;
@@ -60,6 +61,7 @@ export const BookingCard = ({
   entranceDelay = null,
   pressScale = false,
 }) => {
+  const { showAvatarPreview } = useAvatarPreview();
   const showLearnerDetails = isMentor || showLearnerInfo;
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(entranceDelay != null ? 0 : 1)).current;
@@ -162,10 +164,16 @@ export const BookingCard = ({
     >
       <View style={styles.topRow}>
         {avatarUrl ? (
-          <Image
-            source={{ uri: avatarUrl }}
-            style={[styles.avatar, compact && styles.avatarCompact]}
-          />
+          <Pressable
+            onPress={() => showAvatarPreview({ uri: avatarUrl, name })}
+            accessibilityRole="button"
+            accessibilityLabel={`View ${name}'s profile photo`}
+          >
+            <Image
+              source={{ uri: avatarUrl }}
+              style={[styles.avatar, compact && styles.avatarCompact]}
+            />
+          </Pressable>
         ) : (
           <View
             style={[

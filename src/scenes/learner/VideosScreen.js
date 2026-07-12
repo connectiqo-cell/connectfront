@@ -26,9 +26,11 @@ import {
 } from '../../components/CosmicBottomTabBar';
 import CosmicButton from '../../components/CosmicButton';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
+import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 import { videoApi } from '../../api/videoApi';
 import { homeApi } from '../../api/homeApi';
 import { useAuth } from '../../hooks/useAuth';
+import { isSameUserId } from '../../utils/mentorOwnership';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
@@ -81,6 +83,7 @@ function VideosSkeleton() {
 }
 
 function ReelProfileRail({ item, onViewProfile }) {
+  const { showAvatarPreview } = useAvatarPreview();
   const name = item.profiles?.name || 'Connectiqo';
   const canPress = !!item.mentor_id && onViewProfile;
 
@@ -93,6 +96,12 @@ function ReelProfileRail({ item, onViewProfile }) {
       borderColor="#fff"
       style={s.railAvatarFrame}
       uri={item.profiles?.avatar_url}
+      previewName={name}
+      onPress={() => showAvatarPreview({
+        uri: item.profiles?.avatar_url,
+        name,
+      })}
+      pressable={false}
       fallback={
         <View style={s.railAvatarFallback}>
           <MaterialIcons name="person" size={22} color="#fff" />
@@ -106,9 +115,12 @@ function ReelProfileRail({ item, onViewProfile }) {
       {canPress ? (
         <TouchableOpacity
           style={s.railBtn}
-          onPress={() => onViewProfile(item.mentor_id)}
+          onPress={() => showAvatarPreview({
+            uri: item.profiles?.avatar_url,
+            name,
+          })}
           activeOpacity={0.85}
-          accessibilityLabel={`View ${name}'s profile`}
+          accessibilityLabel={`View ${name}'s profile photo`}
         >
           {avatar}
         </TouchableOpacity>
@@ -137,6 +149,7 @@ function ReelInfoDock({
   item,
   onViewProfile,
 }) {
+  const { showAvatarPreview } = useAvatarPreview();
   const [descExpanded, setDescExpanded] = useState(false);
   const [needsMore, setNeedsMore] = useState(false);
   const name = item.profiles?.name || 'Connectiqo';
@@ -169,27 +182,39 @@ function ReelInfoDock({
     >
       <View style={s.reelMetaRow}>
         {canPressProfile ? (
-          <TouchableOpacity
-            onPress={() => onViewProfile(item.mentor_id)}
-            activeOpacity={0.85}
-            style={s.reelMentorTap}
-          >
-            <CircularProfileImage
-              size={26}
-              ringWidth={1}
-              colors={B.premiumGradient}
-              innerBg={C.primary.void}
-              borderColor="#fff"
-              style={s.reelInlineAvatarFrame}
-              uri={item.profiles?.avatar_url}
-              fallback={
-                <View style={s.reelInlineAvatarFallback}>
-                  <MaterialIcons name="person" size={14} color="#fff" />
-                </View>
-              }
-            />
-            <Text style={s.reelMentorName} numberOfLines={1}>@{name}</Text>
-          </TouchableOpacity>
+          <View style={s.reelMentorTap}>
+            <TouchableOpacity
+              onPress={() => showAvatarPreview({
+                uri: item.profiles?.avatar_url,
+                name,
+              })}
+              activeOpacity={0.85}
+              accessibilityLabel={`View ${name}'s profile photo`}
+            >
+              <CircularProfileImage
+                size={26}
+                ringWidth={1}
+                colors={B.premiumGradient}
+                innerBg={C.primary.void}
+                borderColor="#fff"
+                style={s.reelInlineAvatarFrame}
+                uri={item.profiles?.avatar_url}
+                previewName={name}
+                pressable={false}
+                fallback={
+                  <View style={s.reelInlineAvatarFallback}>
+                    <MaterialIcons name="person" size={14} color="#fff" />
+                  </View>
+                }
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onViewProfile(item.mentor_id)}
+              activeOpacity={0.85}
+            >
+              <Text style={s.reelMentorName} numberOfLines={1}>@{name}</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <Text style={s.reelMentorName} numberOfLines={1}>@{name}</Text>
         )}
@@ -232,14 +257,14 @@ function ReelInfoDock({
 
 // ─── Unlock bottom sheet ──────────────────────────────────────────────────────
 function UnlockSheet({ video, onClose, onUnlocked }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const price = video?.mentor_profiles?.unlock_price || 299;
   const mentorName = video?.profiles?.name || 'this mentor';
 
   const handleUnlock = async () => {
     if (!user) { Toast.show('Please log in'); return; }
-    if (user.id === video?.mentor_id) {
+    if (isSameUserId(video?.mentor_id, user, profile)) {
       onUnlocked(video.mentor_id);
       onClose();
       return;
@@ -298,6 +323,7 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
             colors={B.premiumGradient}
             innerBg={C.primary.void}
             uri={video.profiles?.avatar_url}
+            previewName={mentorName}
             fallback={
               <View style={u.avatarFallback}>
                 <MaterialIcons name="person" size={20} color={PURPLE_LINK} />
@@ -589,7 +615,7 @@ function ShortCard({
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function VideosScreen({ navigation, route }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const insets = useSafeAreaInsets();
   const [viewportHeight, setViewportHeight] = useState(0);
   const metadataBottomInset = getFloatingTabBarContentInset(insets);
@@ -611,9 +637,20 @@ export default function VideosScreen({ navigation, route }) {
   const allowPlayback = (isFocused || tabFocused) && appActive && lockSheetVideo === null;
 
   const isOwnMentorVideo = useCallback(
-    mentorId => Boolean(user?.id && mentorId && user.id === mentorId),
-    [user?.id],
+    videoMentorId => isSameUserId(videoMentorId, user, profile),
+    [user?.id, profile?.id],
   );
+
+  const scrollToVideoIndex = useCallback((index) => {
+    if (index < 0 || reelPageHeight <= 0) return;
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToOffset({
+        offset: reelPageHeight * index,
+        animated: false,
+      });
+      setActiveIndex(index);
+    });
+  }, [reelPageHeight]);
 
   useFocusEffect(
     useCallback(() => {
@@ -668,18 +705,16 @@ export default function VideosScreen({ navigation, route }) {
     loadFeed(false, user?.id);
   }, [user?.id, filterMentorId]);
 
-  // Scroll to startVideoId when navigated from HomeScreen
   useEffect(() => {
     if (!startVideoId || loading || videos.length === 0) return;
     const idx = videos.findIndex(v => v.id === startVideoId);
     if (idx >= 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToIndex({ index: idx, animated: false });
-        setActiveIndex(idx);
-      }, 150);
+      const timer = setTimeout(() => scrollToVideoIndex(idx), 150);
+      navigation?.setParams?.({ startVideoId: undefined });
+      return () => clearTimeout(timer);
     }
-    navigation?.setParams({ startVideoId: undefined });
-  }, [startVideoId, loading, videos]);
+    navigation?.setParams?.({ startVideoId: undefined });
+  }, [startVideoId, loading, videos, scrollToVideoIndex, navigation]);
 
   const loadFeed = async (isRefresh = false, userId = user?.id) => {
     if (isRefresh) setRefreshing(true);
@@ -701,9 +736,13 @@ export default function VideosScreen({ navigation, route }) {
       }));
 
       const allVids = [...adminVids, ...vids];
+      const filterId = filterMentorId ? String(filterMentorId) : null;
 
-      setVideos(filterMentorId
-        ? [...allVids.filter(v => v.mentor_id === filterMentorId), ...allVids.filter(v => v.mentor_id !== filterMentorId)]
+      setVideos(filterId
+        ? [
+          ...allVids.filter(v => v.mentor_id != null && String(v.mentor_id) === filterId),
+          ...allVids.filter(v => v.mentor_id == null || String(v.mentor_id) !== filterId),
+        ]
         : allVids);
       setUnlocksMap(unlocks);
     } catch (e) {
@@ -766,13 +805,17 @@ export default function VideosScreen({ navigation, route }) {
             removeClippedSubviews={Platform.OS === 'android'}
             onMomentumScrollEnd={e => syncActiveIndexFromOffset(e.nativeEvent.contentOffset.y)}
             onScrollEndDrag={e => syncActiveIndexFromOffset(e.nativeEvent.contentOffset.y)}
+            onScrollToIndexFailed={({ index }) => scrollToVideoIndex(index)}
             renderItem={({ item, index }) => (
               <ShortCard
                 item={item}
                 height={reelPageHeight}
                 isActive={index === activeIndex}
                 isUnlocked={unlocksMap.has(item.mentor_id) || isOwnMentorVideo(item.mentor_id)}
-                onLockPress={setLockSheetVideo}
+                onLockPress={item => {
+                  if (isOwnMentorVideo(item.mentor_id)) return;
+                  setLockSheetVideo(item);
+                }}
                 onViewProfile={handleViewProfile}
                 forcePaused={lockSheetVideo !== null}
                 allowPlayback={allowPlayback}

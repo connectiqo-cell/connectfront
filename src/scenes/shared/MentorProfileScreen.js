@@ -28,6 +28,7 @@ import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
 import { getFloatingTabBarContentInset } from '../../components/CosmicBottomTabBar';
 import CosmicButton from '../../components/CosmicButton';
+import { AvatarPreviewModal } from '../../components/AvatarPreviewModal';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { iosFlexChild } from '../../utils/platformLayout';
@@ -35,7 +36,11 @@ import { profileApi } from '../../api/profileApi';
 import { videoApi } from '../../api/videoApi';
 import { bookingApi } from '../../api/bookingApi';
 import { useAuth } from '../../hooks/useAuth';
+import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { parseMentorCategories } from '../../utils/mentorCategories';
+import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
+import { isSameUserId } from '../../utils/mentorOwnership';
+import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -405,21 +410,37 @@ function VideoPlayerModal({ video, onClose }) {
   const [buffering, setBuffering] = useState(true);
   const [error, setError] = useState(false);
 
-  if (!video) return null;
+  const handleClose = () => {
+    setPaused(true);
+    onClose();
+  };
+
+  if (!video?.video_url) return null;
 
   return (
-    <Modal visible animationType="fade" transparent={false} onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      visible
+      animationType="fade"
+      transparent={false}
+      onRequestClose={handleClose}
+      statusBarTranslucent
+    >
       <StatusBar hidden />
       <View style={vStyles.container}>
         <Video
+          key={video.id}
           source={{ uri: video.video_url }}
           style={vStyles.video}
           resizeMode="contain"
           paused={paused}
+          repeat={false}
+          controls={false}
+          ignoreSilentSwitch="obey"
+          playInBackground={false}
+          playWhenInactive={false}
           onLoadStart={() => { setBuffering(true); setError(false); }}
           onLoad={() => setBuffering(false)}
           onError={() => { setBuffering(false); setError(true); }}
-          repeat={false}
         />
         {buffering && !error && (
           <ActivityIndicator style={vStyles.loader} size="large" color={C.accent.secondary} />
@@ -431,10 +452,10 @@ function VideoPlayerModal({ video, onClose }) {
           </View>
         )}
         <View style={[vStyles.topBar, { paddingTop: insets.top + 8 }]}>
-          <TouchableOpacity onPress={onClose} style={vStyles.closeBtn}>
+          <TouchableOpacity onPress={handleClose} style={vStyles.closeBtn}>
             <MaterialIcons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={vStyles.titleText} numberOfLines={1}>{video.title}</Text>
+          <Text style={vStyles.titleText} numberOfLines={1}>{video.title || 'Video'}</Text>
           <View style={{ width: 40 }} />
         </View>
         <TouchableOpacity style={vStyles.playArea} onPress={() => setPaused(p => !p)} activeOpacity={1}>
@@ -708,12 +729,14 @@ function PortraitVideoCard({
   isUnlocked,
   onPlay,
   locked,
+  isOwnChannel = false,
   cardWidth = RAIL_CARD_W,
   thumbAspect = 1.38,
   animDelay = 0,
 }) {
   const isPrev = isPreviewSlot(video, index);
-  const canPlay = isPrev || isUnlocked;
+  const canPlay = isOwnChannel || isPrev || isUnlocked;
+  const showLocked = !isOwnChannel && locked && !isPrev && !isUnlocked;
   const durationLabel = formatDurationSec(video.duration_sec);
   const thumbH = Math.round(cardWidth * thumbAspect);
   const iconSize = Math.round(Math.min(34, cardWidth * 0.26));
@@ -736,9 +759,9 @@ function PortraitVideoCard({
           {video.thumbnail_url ? (
             <Image
               source={{ uri: video.thumbnail_url }}
-              style={[railCard.thumbImg, locked ? { opacity: Platform.OS === 'ios' ? 0.5 : 0.42 } : null]}
+              style={[railCard.thumbImg, showLocked ? { opacity: Platform.OS === 'ios' ? 0.5 : 0.42 } : null]}
               resizeMode="cover"
-              blurRadius={locked && Platform.OS === 'ios' ? 14 : 0}
+              blurRadius={showLocked && Platform.OS === 'ios' ? 14 : 0}
             />
           ) : (
             <LinearGradient
@@ -750,7 +773,7 @@ function PortraitVideoCard({
               <MaterialIcons name="videocam" size={Math.round(Math.min(36, cardWidth * 0.32))} color="rgba(255,255,255,0.38)" />
             </LinearGradient>
           )}
-          {locked ? (
+          {showLocked ? (
             <>
               <LinearGradient
                 colors={['rgba(8,6,24,0.55)', 'rgba(3,2,12,0.92)']}
@@ -852,13 +875,22 @@ const railCard = StyleSheet.create({
 });
 
 function PastSessionRow({ session, onWatchRecap }) {
+  const { showAvatarPreview } = useAvatarPreview();
   const hasRecap = Boolean(session.recap_url);
   const hasRating = session.rating != null && !Number.isNaN(session.rating);
 
   return (
     <View style={past.card}>
       {session.student_avatar_url ? (
-        <Image source={{ uri: session.student_avatar_url }} style={past.avatar} />
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => showAvatarPreview({
+            uri: session.student_avatar_url,
+            name: session.student_name || 'Learner',
+          })}
+        >
+          <Image source={{ uri: session.student_avatar_url }} style={past.avatar} />
+        </TouchableOpacity>
       ) : (
         <View style={[past.avatar, past.avatarPh]}>
           <MaterialIcons name="person" size={22} color={C.text.muted} />
@@ -933,7 +965,7 @@ const past = StyleSheet.create({
 export default function MentorProfileScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { height: winH, width: winW } = useWindowDimensions();
-  const { user } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const mentorId = route.params?.mentorId ?? null;
   const paramMentorName = route.params?.mentorName?.trim?.() || '';
   const coverFromParams = route.params?.coverImageUrl?.trim?.() || '';
@@ -948,8 +980,14 @@ export default function MentorProfileScreen({ navigation, route }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [showSubSheet, setShowSubSheet] = useState(false);
+  const [showAvatarPreview, setShowAvatarPreview] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [playingVideo, setPlayingVideo] = useState(null);
 
-  const isOwnProfile = Boolean(user?.id && mentorId && user.id === mentorId);
+  const isOwnProfile = useMemo(
+    () => isSameUserId(mentorId, user, profile),
+    [mentorId, profile?.id, user?.id],
+  );
   const libraryUnlocked = isUnlocked || isOwnProfile;
   const bottomTabInset = isOwnProfile ? getFloatingTabBarContentInset(insets) : 0;
   const safeScreenProps = {
@@ -980,7 +1018,7 @@ export default function MentorProfileScreen({ navigation, route }) {
     else setLoading(true);
     setError(null);
     try {
-      const isSelf = Boolean(user?.id && user.id === mentorId);
+      const isSelf = isSameUserId(mentorId, user, profile);
 
       const fetchMentorRow = async () => {
         try {
@@ -1027,10 +1065,13 @@ export default function MentorProfileScreen({ navigation, route }) {
       setSubscriberCount(Number.isFinite(Number(subCount)) ? Math.max(0, Math.floor(Number(subCount))) : 0);
 
       let unlocked = false;
-      if (user?.id && user.id !== mentorId) {
-        unlocked = await videoApi.checkUnlocked({ learnerId: user.id, mentorId }).catch(() => false);
-      } else if (isSelf) {
+      if (isSelf) {
         unlocked = true;
+      } else if (user?.id) {
+        unlocked = await videoApi.checkUnlocked({
+          learnerId: user.id,
+          mentorId,
+        }).catch(() => false);
       }
       setIsUnlocked(unlocked);
     } catch (e) {
@@ -1043,7 +1084,11 @@ export default function MentorProfileScreen({ navigation, route }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [mentorId, paramMentorName, user?.id]);
+  }, [mentorId, paramMentorName, user?.id, profile?.id]);
+
+  useEffect(() => {
+    if (isOwnProfile) setIsUnlocked(true);
+  }, [isOwnProfile]);
 
   useEffect(() => {
     loadData(false);
@@ -1089,7 +1134,7 @@ export default function MentorProfileScreen({ navigation, route }) {
       Toast.show('Please log in to subscribe.', Toast.SHORT);
       return;
     }
-    if (user.id === mentorId) {
+    if (isSameUserId(mentorId, user, profile)) {
       Toast.show('This is your channel.', Toast.SHORT);
       return;
     }
@@ -1139,18 +1184,29 @@ export default function MentorProfileScreen({ navigation, route }) {
   };
 
   const seeAll = () => {
-    navigation.navigate(SCREEN_NAMES.RootUnifiedTabs, {
-      screen: SCREEN_NAMES.LearnerSection,
-      params: { screen: SCREEN_NAMES.LearnerVideos, params: { filterMentorId: mentorId } },
+    if (isOwnProfile) {
+      navigation.navigate(SCREEN_NAMES.MentorVideos);
+      return;
+    }
+    navigation.navigate(SCREEN_NAMES.MentorVideoFeed, {
+      filterMentorId: mentorId,
     });
   };
 
-  const handlePlayVideo = (video) => {
-    navigation.navigate(SCREEN_NAMES.RootUnifiedTabs, {
-      screen: SCREEN_NAMES.LearnerSection,
-      params: { screen: SCREEN_NAMES.LearnerVideos, params: { filterMentorId: mentorId, startVideoId: video.id } },
+  const handlePlayVideo = useCallback((video) => {
+    if (!video?.video_url) {
+      Toast.show('Video unavailable', Toast.SHORT);
+      return;
+    }
+    if (isOwnProfile) {
+      setPlayingVideo(video);
+      return;
+    }
+    navigation.navigate(SCREEN_NAMES.MentorVideoFeed, {
+      filterMentorId: mentorId,
+      startVideoId: video.id,
     });
-  };
+  }, [isOwnProfile, mentorId, navigation]);
 
   const openRecap = (session) => {
     if (!session?.recap_url) {
@@ -1168,6 +1224,34 @@ export default function MentorProfileScreen({ navigation, route }) {
     });
   };
 
+  const handleChangeAvatar = useCallback(async () => {
+    if (!isOwnProfile || !mentorId || avatarUploading) return;
+    try {
+      const picked = await pickProfileAvatar();
+      if (!picked) return;
+      setAvatarUploading(true);
+      const url = await profileApi.uploadAvatar({
+        userId: mentorId,
+        base64: picked.base64,
+        mimeType: picked.mimeType,
+        fileName: picked.fileName,
+      });
+      setMentor(prev => (
+        prev
+          ? { ...prev, profiles: { ...(prev.profiles || {}), avatar_url: url } }
+          : prev
+      ));
+      await refreshProfile?.();
+      await loadData(true);
+      setShowAvatarPreview(true);
+      Toast.show('Photo updated');
+    } catch {
+      Toast.show('Failed to update photo');
+    } finally {
+      setAvatarUploading(false);
+    }
+  }, [avatarUploading, isOwnProfile, loadData, mentorId, refreshProfile]);
+
   const avatarUrl = mentor?.profiles?.avatar_url;
   const name = mentor?.profiles?.name || paramMentorName || 'Mentor';
   const username = mentor?.profiles?.username || null;
@@ -1179,6 +1263,16 @@ export default function MentorProfileScreen({ navigation, route }) {
   const unlockPrice = mentor?.unlock_price || 299;
   const showSubscribeCta = hasLockedVideos && !libraryUnlocked && !isOwnProfile;
   const heroCoverUri = (coverFromParams || mentor?.cover_image_url || '').trim() || null;
+
+  const handleAvatarPress = useCallback(() => {
+    if (isOwnProfile && !avatarUrl) {
+      handleChangeAvatar();
+      return;
+    }
+    if (avatarUrl || isOwnProfile) {
+      setShowAvatarPreview(true);
+    }
+  }, [avatarUrl, handleChangeAvatar, isOwnProfile]);
 
   if (!mentorId) {
     return (
@@ -1296,7 +1390,7 @@ export default function MentorProfileScreen({ navigation, route }) {
 
           {/* ── Identity Block ── */}
           <ProfileFadeIn delayIndex={1} style={styles.identityBlock}>
-            <View style={styles.avatarRingWrap}>
+            <PressableScale onPress={handleAvatarPress} scaleTo={0.94} style={styles.avatarRingWrap}>
               <AvatarPulseRing>
                 <CircularProfileImage
                   size={94}
@@ -1304,6 +1398,9 @@ export default function MentorProfileScreen({ navigation, route }) {
                   colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
                   innerBg={SCREEN_BG}
                   uri={avatarUrl}
+                  previewName={name}
+                  onPress={handleAvatarPress}
+                  pressable={false}
                   style={Platform.select({ ios: T.shadows.medium, android: { elevation: 8 } })}
                   fallback={
                     <View style={[styles.avatarPlaceholder, styles.avatarFallbackLarge]}>
@@ -1313,7 +1410,12 @@ export default function MentorProfileScreen({ navigation, route }) {
                 />
               </AvatarPulseRing>
               <PulseOnlineDot />
-            </View>
+              {isOwnProfile ? (
+                <View style={styles.avatarCameraBadge}>
+                  <MaterialIcons name="photo-camera" size={14} color={C.text.primary} />
+                </View>
+              ) : null}
+            </PressableScale>
 
             {/* Name + specialization + verified */}
             <View style={styles.nameRow}>
@@ -1420,6 +1522,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                           video={v}
                           index={globIdx >= 0 ? globIdx : 0}
                           isUnlocked={libraryUnlocked}
+                          isOwnChannel={isOwnProfile}
                           onPlay={handlePlayVideo}
                           locked={!libraryUnlocked}
                           cardWidth={compactRailW}
@@ -1450,6 +1553,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                           video={v}
                           index={globIdx >= 0 ? globIdx : 0}
                           isUnlocked={libraryUnlocked}
+                          isOwnChannel={isOwnProfile}
                           onPlay={handlePlayVideo}
                           locked={false}
                           cardWidth={compactRailW}
@@ -1553,6 +1657,23 @@ export default function MentorProfileScreen({ navigation, route }) {
         </View>
       </Modal>
 
+      <AvatarPreviewModal
+        visible={showAvatarPreview}
+        uri={avatarUrl}
+        name={name}
+        isOwnProfile={isOwnProfile}
+        uploading={avatarUploading}
+        onClose={() => setShowAvatarPreview(false)}
+        onChangePhoto={handleChangeAvatar}
+      />
+
+      {playingVideo ? (
+        <VideoPlayerModal
+          video={playingVideo}
+          onClose={() => setPlayingVideo(null)}
+        />
+      ) : null}
+
     </SafeScreen>
   );
 }
@@ -1629,6 +1750,19 @@ const styles = StyleSheet.create({
   avatarRingWrap: {
     position: 'relative',
     alignItems: 'center',
+  },
+  avatarCameraBadge: {
+    position: 'absolute',
+    right: 2,
+    bottom: 2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,14,42,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,234,212,0.45)',
   },
   avatarRingGrad: {
     padding: 3,

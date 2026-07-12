@@ -1044,7 +1044,7 @@ export default function BookingScreen({ navigation, route }) {
               {pricePerHour > 0 ? (
                 <View style={scheduleStyles.metaPill}>
                   <MaterialIcons name="payments" size={12} color={T.colors.accent.primary} />
-                  <Text style={scheduleStyles.metaPillText}>₹{pricePerHour}/hr</Text>
+                  <Text style={scheduleStyles.metaPillText}>₹{pricePerHour}/session</Text>
                 </View>
               ) : null}
             </View>

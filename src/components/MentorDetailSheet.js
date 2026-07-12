@@ -307,7 +307,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
               <View style={styles.statDivider} />
               <StatSegment icon="workspace-premium" iconColor={PURPLE_LINK} value={expYears} label="Exp" />
               <View style={styles.statDivider} />
-              <StatSegment icon="payments" iconColor={GOLD} value={priceLabel} label="Rate" />
+              <StatSegment icon="payments" iconColor={GOLD} value={priceLabel} label="Per session" />
             </View>
           </SheetReveal>
 

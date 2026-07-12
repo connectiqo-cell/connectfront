@@ -2,7 +2,7 @@
  * Fee calculator for Connectiqo sessions.
  *
  * Breakdown:
- *   mentor_amount      = mentor's price_per_hour   (what mentor earns)
+ *   mentor_amount      = mentor's session rate (stored as price_per_hour)   (what mentor earns)
  *   platform_base_fee  = 5% of mentor_amount       (platform revenue)
  *   gst_on_fee         = 18% of platform_base_fee  (GST on the service fee)
  *   convenience_fee    = platform_base_fee + gst   (extra charged to learner)
@@ -13,7 +13,7 @@ export const DEFAULT_PLATFORM_FEE_PERCENT = 5;
 export const DEFAULT_GST_PERCENT = 18;
 
 /**
- * @param {number} pricePerHour - Mentor's price in ₹ (e.g. 500)
+ * @param {number} pricePerHour - Mentor's per-session price in ₹ (e.g. 500)
  * @returns {{
  *   mentorAmount: number,
  *   platformBaseFee: number,

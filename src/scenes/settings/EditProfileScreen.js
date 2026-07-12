@@ -1360,10 +1360,10 @@ export default function EditProfileScreen({ navigation }) {
               <View style={styles.rowFieldHalf}>
                 <Field
                   icon="currency-rupee"
-                  label="Hourly rate"
+                  label="Session rate"
                   value={pricePerHour}
                   onChangeText={v => setPricePerHour(v.replace(/[^0-9.]/g, ''))}
-                  placeholder="₹ per hour"
+                  placeholder="₹ per session"
                   keyboardType="decimal-pad"
                   hint="Session booking rate"
                   isLast

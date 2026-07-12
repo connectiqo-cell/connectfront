@@ -11,8 +11,8 @@ export const formatCurrency = (amount, currency = '₹') => {
 };
 
 export const formatPrice = (amount, currency = '₹') => {
-  if (amount === null || amount === undefined) return `${currency}0/hr`;
-  return `${formatCurrency(amount, currency)}/hr`;
+  if (amount === null || amount === undefined) return `${currency}0/session`;
+  return `${formatCurrency(amount, currency)}/session`;
 };
 
 export const parseAmount = (amountString) => {

@@ -86,7 +86,7 @@ export function LearnerMentorCard({
 
       <View style={styles.priceRow}>
         <Text style={[styles.price, !price && styles.priceFree]}>{priceLabel}</Text>
-        {price ? <Text style={styles.priceUnit}>/hr</Text> : null}
+        {price ? <Text style={styles.priceUnit}>/session</Text> : null}
       </View>
 
       <View style={styles.metaRow}>

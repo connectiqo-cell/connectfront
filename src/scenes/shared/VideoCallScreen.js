@@ -6,7 +6,6 @@ import {
   Platform,
   PermissionsAndroid,
   Alert,
-  InteractionManager,
   BackHandler,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -30,6 +29,7 @@ import {
   markIosCallAudioSessionEnded,
   releaseIosCallAudioSession,
 } from '../../utils/iosCallAudioSession';
+import { scheduleMeetingLeaveNavigation } from '../../utils/meetingLeave';
 import MeetingContainer from '../meeting/MeetingContainer';
 import SessionLobbyView from '../meeting/Components/SessionLobbyView';
 
@@ -84,8 +84,16 @@ export default function VideoCallScreen({ navigation, route }) {
   const joinTimeRef = useRef(null); // Track when both participants joined (use Ref to persist across re-renders)
   const recordingRef = useRef();
   const sessionEndedRef = useRef(false);
+  const leaveNavTimerRef = useRef(null);
 
-  // Lobby / loading only — active call uses OneToOne BackHandler (leave confirmation).
+  useEffect(() => {
+    return () => {
+      if (leaveNavTimerRef.current) {
+        clearTimeout(leaveNavTimerRef.current);
+        leaveNavTimerRef.current = null;
+      }
+    };
+  }, []);
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== 'android' || ready) {
@@ -390,32 +398,23 @@ export default function VideoCallScreen({ navigation, route }) {
     }
   };
 
-  const handleMeetingLeft = () => {
-    if (sessionEndedRef.current) return;
-    sessionEndedRef.current = true;
-
+  const handleMeetingLeft = useCallback(() => {
     const snapshotCallParams = callParams;
 
-    // VideoSDK terminate() already stops InCallManager — only clear our tracking.
     markIosCallAudioSessionEnded();
 
-    const finishLeave = () => {
-      navigation.goBack();
-      runPostCallCleanup(snapshotCallParams).catch(error => {
-        console.error('Error ending call:', error);
-      });
-    };
-
-    // Let WebRTC/RTCView finish teardown before unmounting the screen (iOS crash fix).
-    if (Platform.OS === 'ios') {
-      InteractionManager.runAfterInteractions(() => {
-        setTimeout(finishLeave, 200);
-      });
-      return;
-    }
-
-    finishLeave();
-  };
+    scheduleMeetingLeaveNavigation({
+      alreadyEndedRef: sessionEndedRef,
+      timerRef: leaveNavTimerRef,
+      platform: Platform.OS,
+      onNavigate: () => {
+        navigation.goBack();
+        runPostCallCleanup(snapshotCallParams).catch(error => {
+          console.error('Error ending call:', error);
+        });
+      },
+    });
+  }, [navigation, callParams]);
 
   const VOID_BG = UNIFIED_THEME.colors.primary.void;
 
@@ -497,7 +496,7 @@ export default function VideoCallScreen({ navigation, route }) {
     >
       <View style={{ flex: 1 }}>
         <CallErrorBoundary onLeave={handleMeetingLeft}>
-          <MeetingConsumer onMeetingLeft={handleMeetingLeft}>
+          <MeetingConsumer>
             {() => (
               <MeetingContainer
                 meetingType="ONE_TO_ONE"

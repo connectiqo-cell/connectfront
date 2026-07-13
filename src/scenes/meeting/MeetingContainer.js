@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import React from 'react';
 import Toast from 'react-native-simple-toast';
 import { ensureIosCallAudioSession } from '../../utils/iosCallAudioSession';
+import { MEETING_LEAVE_NAV_FALLBACK_MS } from '../../utils/meetingLeave';
 import OneToOneMeetingViewer from './OneToOne';
 import ConferenceMeetingViewer from './Conference/ConferenceMeetingViewer';
 import SessionLobbyView from './Components/SessionLobbyView';
@@ -22,28 +23,56 @@ export default function MeetingContainer({
   const hasJoinedRef = useRef(false);
   const joinRequestedRef = useRef(false);
   const hasLeftRef = useRef(false);
+  const leavePendingRef = useRef(false);
   const iosWebcamBootstrappedRef = useRef(false);
   const iosWebcamTimerRef = useRef(null);
   const joinTimerRef = useRef(null);
   const toggleWebcamRef = useRef(null);
+  const onLeaveSessionRef = useRef(onLeaveSession);
+  onLeaveSessionRef.current = onLeaveSession;
+  const leaveFallbackTimerRef = useRef(null);
+
+  const clearLeaveFallback = useCallback(() => {
+    if (leaveFallbackTimerRef.current) {
+      clearTimeout(leaveFallbackTimerRef.current);
+      leaveFallbackTimerRef.current = null;
+    }
+  }, []);
+
+  const finishLeaveSession = useCallback(() => {
+    clearLeaveFallback();
+    leavePendingRef.current = false;
+    hasLeftRef.current = true;
+    onLeaveSessionRef.current?.();
+  }, [clearLeaveFallback]);
+
+  const scheduleLeaveFallback = useCallback(() => {
+    clearLeaveFallback();
+    leaveFallbackTimerRef.current = setTimeout(() => {
+      leaveFallbackTimerRef.current = null;
+      if (!hasLeftRef.current) {
+        finishLeaveSession();
+      }
+    }, MEETING_LEAVE_NAV_FALLBACK_MS);
+  }, [clearLeaveFallback, finishLeaveSession]);
 
   const requestLeave = useCallback(() => {
-    if (hasLeftRef.current) return;
-    hasLeftRef.current = true;
+    if (hasLeftRef.current || leavePendingRef.current) {
+      return;
+    }
+    leavePendingRef.current = true;
+
     try {
       leaveRef.current?.();
     } catch (_) {}
-  }, []);
 
-  const markSessionEnding = useCallback(() => {
-    hasLeftRef.current = true;
-  }, []);
+    scheduleLeaveFallback();
+  }, [scheduleLeaveFallback]);
 
   const onMeetingJoined = useCallback(() => {
     hasJoinedRef.current = true;
     setJoined(true);
 
-    // Join without camera on iOS, then enable after signaling — less lag on iPhone 11-class devices.
     if (Platform.OS === 'ios' && !iosWebcamBootstrappedRef.current) {
       iosWebcamBootstrappedRef.current = true;
       iosWebcamTimerRef.current = setTimeout(() => {
@@ -56,8 +85,8 @@ export default function MeetingContainer({
   }, []);
 
   const onMeetingLeft = useCallback(() => {
-    hasLeftRef.current = true;
-  }, []);
+    finishLeaveSession();
+  }, [finishLeaveSession]);
 
   const onError = useCallback(({ message }) => {
     Toast.show(message || 'Failed to join session');
@@ -112,12 +141,10 @@ export default function MeetingContainer({
         clearTimeout(iosWebcamTimerRef.current);
         iosWebcamTimerRef.current = null;
       }
-      // Do not call leave() here — on iOS, leave() during unmount after onMeetingLeft
-      // already fired crashes WebRTC. MeetingProvider unmount runs SDK terminate().
+      clearLeaveFallback();
     };
-  }, [join, requestLeave]);
+  }, [join, clearLeaveFallback]);
 
-  // Auto-end session after maxDurationMs once both participants are in the call
   useEffect(() => {
     if (!maxDurationMs || remoteParticipantCount < 1) return undefined;
     const timer = setTimeout(() => {
@@ -129,7 +156,6 @@ export default function MeetingContainer({
 
   const handleLeave = () => {
     if (hasJoinedRef.current) {
-      // SDK onMeetingLeft will run session cleanup — do not call onLeaveSession here.
       requestLeave();
       return;
     }
@@ -140,7 +166,14 @@ export default function MeetingContainer({
     isJoined && remoteParticipantCount >= 1 && meetingType !== 'GROUP';
 
   if (showActiveCall) {
-    return <OneToOneMeetingViewer isHost={isHost} booking={booking} onRequestLeave={requestLeave} onSessionEnding={markSessionEnding} />;
+    return (
+      <OneToOneMeetingViewer
+        isHost={isHost}
+        booking={booking}
+        onRequestLeave={requestLeave}
+        onSessionEnding={scheduleLeaveFallback}
+      />
+    );
   }
 
   if (isJoined && meetingType === 'GROUP') {

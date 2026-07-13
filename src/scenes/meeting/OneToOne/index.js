@@ -639,50 +639,24 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
     }
   };
 
-  const MIN_SESSION_SECONDS = 300; // 5 minutes — must match VideoCallScreen completion threshold
-
   const tryLeave = (endForAll = false) => {
-    if (bothJoinedAtRef.current) {
-      const elapsed = Math.floor((Date.now() - bothJoinedAtRef.current) / 1000);
-      if (elapsed < MIN_SESSION_SECONDS) {
-        const remainingSec = MIN_SESSION_SECONDS - elapsed;
-        const remainingMin = Math.ceil(remainingSec / 60);
-        Toast.show(
-          `Minimum 5 minutes required. ${remainingMin} min${remainingMin !== 1 ? 's' : ''} remaining.`
-        );
-        return;
-      }
-    }
     if (endForAll) {
       onSessionEnding?.();
       end();
-    } else {
-      exitMeeting();
+      return;
     }
+    exitMeeting();
   };
 
   const confirmLeaveMeeting = () => {
-    if (bothJoinedAtRef.current) {
-      const elapsed = Math.floor((Date.now() - bothJoinedAtRef.current) / 1000);
-      if (elapsed < MIN_SESSION_SECONDS) {
-        const remainingSec = MIN_SESSION_SECONDS - elapsed;
-        const remainingMin = Math.ceil(remainingSec / 60);
-        Alert.alert(
-          'Cannot leave yet',
-          `Sessions must be at least 5 minutes long. Please wait ${remainingMin} more minute${remainingMin !== 1 ? 's' : ''}.`,
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-    }
-    Alert.alert(
-      "Leave meeting?",
-      "Are you sure you want to leave this meeting?",
+    showDeferredAlert(
+      'Leave meeting?',
+      'Are you sure you want to leave this meeting?',
       [
-        { text: "Stay in meeting", style: "cancel" },
-        { text: "Leave meeting", style: "destructive", onPress: () => exitMeeting() },
+        { text: 'Stay in meeting', style: 'cancel' },
+        { text: 'Leave meeting', style: 'destructive', onPress: () => exitMeeting() },
       ],
-      { cancelable: true }
+      { cancelable: true },
     );
   };
 
@@ -867,8 +841,8 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
         <MenuItem
           title={"Leave call"}
           onPress={() => {
+            leaveMenu.current?.close();
             tryLeave(false);
-            moreOptionsMenu.current.close();
           }}
         />
       </Menu>

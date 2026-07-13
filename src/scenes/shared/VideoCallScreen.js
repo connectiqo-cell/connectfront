@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,10 @@ import {
   Platform,
   PermissionsAndroid,
   Alert,
+  InteractionManager,
+  BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   MeetingProvider,
@@ -23,7 +26,10 @@ import { recordingsApi, meetingIdFromBooking } from '../../api/recordingsApi';
 import { profileApi } from '../../api/profileApi';
 import { useAuth } from '../../hooks/useAuth';
 import { resolveLobbyPartner } from '../../utils/sessionLobbyRules';
-import { releaseIosCallAudioSession } from '../../utils/iosCallAudioSession';
+import {
+  markIosCallAudioSessionEnded,
+  releaseIosCallAudioSession,
+} from '../../utils/iosCallAudioSession';
 import MeetingContainer from '../meeting/MeetingContainer';
 import SessionLobbyView from '../meeting/Components/SessionLobbyView';
 
@@ -78,6 +84,20 @@ export default function VideoCallScreen({ navigation, route }) {
   const joinTimeRef = useRef(null); // Track when both participants joined (use Ref to persist across re-renders)
   const recordingRef = useRef();
   const sessionEndedRef = useRef(false);
+
+  // Lobby / loading only — active call uses OneToOne BackHandler (leave confirmation).
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android' || ready) {
+        return undefined;
+      }
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        navigation.goBack();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [ready, navigation]),
+  );
 
   // Track when both participants have joined
   useEffect(() => {
@@ -376,19 +396,25 @@ export default function VideoCallScreen({ navigation, route }) {
 
     const snapshotCallParams = callParams;
 
-    // Tear down WebRTC UI before navigation so iOS can release camera/audio cleanly.
-    setReady(false);
-    setCallParams(null);
+    // VideoSDK terminate() already stops InCallManager — only clear our tracking.
+    markIosCallAudioSessionEnded();
 
+    const finishLeave = () => {
+      navigation.goBack();
+      runPostCallCleanup(snapshotCallParams).catch(error => {
+        console.error('Error ending call:', error);
+      });
+    };
+
+    // Let WebRTC/RTCView finish teardown before unmounting the screen (iOS crash fix).
     if (Platform.OS === 'ios') {
-      setTimeout(() => releaseIosCallAudioSession(), 300);
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(finishLeave, 200);
+      });
+      return;
     }
 
-    navigation.goBack();
-
-    runPostCallCleanup(snapshotCallParams).catch(error => {
-      console.error('Error ending call:', error);
-    });
+    finishLeave();
   };
 
   const VOID_BG = UNIFIED_THEME.colors.primary.void;

@@ -56,6 +56,28 @@ function attachIosCallAudioListeners() {
   eventEmitter.addListener('onAudioDeviceChanged', routeListener);
 }
 
+function detachIosCallAudioListeners() {
+  if (eventEmitter && routeListener) {
+    eventEmitter.removeListener('onAudioDeviceChanged', routeListener);
+  }
+  eventEmitter = null;
+  routeListener = null;
+}
+
+/**
+ * Clear our session tracking without calling InCallManager.stop().
+ * VideoSDK MeetingProvider already calls terminate() → stop() on leave/unmount;
+ * a second native stop on iOS can crash the app.
+ */
+export function markIosCallAudioSessionEnded() {
+  if (Platform.OS !== 'ios' || !iosCallSessionActive) {
+    return;
+  }
+  iosCallSessionActive = false;
+  detachIosCallAudioListeners();
+}
+
+/** Full release — use only when the meeting never joined (lobby bail-out). */
 export function releaseIosCallAudioSession() {
   if (Platform.OS !== 'ios' || !iosCallSessionActive) {
     return;
@@ -69,9 +91,5 @@ export function releaseIosCallAudioSession() {
     // MeetingProvider may already have stopped the session.
   }
 
-  if (eventEmitter && routeListener) {
-    eventEmitter.removeListener('onAudioDeviceChanged', routeListener);
-  }
-  eventEmitter = null;
-  routeListener = null;
+  detachIosCallAudioListeners();
 }

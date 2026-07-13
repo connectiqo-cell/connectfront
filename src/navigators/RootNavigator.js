@@ -5,6 +5,7 @@ import { AuthContext } from '../contexts/AuthContext';
 import { SplashScreen } from '../components/SplashScreen';
 import { UNIFIED_THEME } from '../unifiedTheme';
 import { SCREEN_NAMES } from './screenNames';
+import { createAndroidOverlayBackListeners } from '../hooks/useSystemBack';
 import { AuthNavigator } from './AuthNavigator';
 import { UnifiedTabNavigator } from './UnifiedTabNavigator';
 import SharedMentorProfileScreen from '../scenes/shared/MentorProfileScreen';
@@ -27,6 +28,8 @@ import RescheduleRequestScreen from '../scenes/shared/RescheduleRequestScreen';
 import RescheduleResponseScreen from '../scenes/shared/RescheduleResponseScreen';
 const RootStack = createStackNavigator();
 
+const androidOverlayBackListeners = createAndroidOverlayBackListeners();
+
 /** Full-screen push — iOS: card + no swipe dismiss; Android: modal (unchanged). */
 const LOCKED_SCREEN_OPTIONS = Platform.select({
   ios: {
@@ -37,19 +40,22 @@ const LOCKED_SCREEN_OPTIONS = Platform.select({
   default: {
     presentation: 'modal',
     animationEnabled: false,
+    gestureEnabled: false,
   },
 });
 
-/** Settings / profile overlays — iOS only: card so pull-down does not close the screen. */
+/** Settings / profile overlays — card presentation; swipe/back enabled on iOS. */
 const OVERLAY_SCREEN_OPTIONS = Platform.select({
   ios: {
     presentation: 'card',
     animationEnabled: false,
-    gestureEnabled: false,
+    gestureEnabled: true,
+    fullScreenGestureEnabled: true,
   },
   default: {
-    presentation: 'modal',
+    presentation: 'card',
     animationEnabled: false,
+    gestureEnabled: false,
   },
 });
 
@@ -81,7 +87,10 @@ export const RootNavigator = () => {
             component={UnifiedTabNavigator}
             options={{ animationEnabled: false }}
           />
-          <RootStack.Group screenOptions={OVERLAY_SCREEN_OPTIONS}>
+          <RootStack.Group
+            screenOptions={OVERLAY_SCREEN_OPTIONS}
+            screenListeners={androidOverlayBackListeners}
+          >
             <RootStack.Screen
               name={SCREEN_NAMES.EditProfile}
               component={EditProfileScreen}
@@ -131,6 +140,7 @@ export const RootNavigator = () => {
             <RootStack.Screen
               name={SCREEN_NAMES.Booking}
               component={BookingScreen}
+              listeners={androidOverlayBackListeners}
             />
             <RootStack.Screen
               name={SCREEN_NAMES.VideoCall}
@@ -139,27 +149,32 @@ export const RootNavigator = () => {
             <RootStack.Screen
               name={SCREEN_NAMES.RecordingPlayer}
               component={RecordingPlayerScreen}
+              listeners={androidOverlayBackListeners}
             />
           </RootStack.Group>
           <RootStack.Screen
             name={SCREEN_NAMES.Review}
             component={ReviewScreen}
             options={OVERLAY_SCREEN_OPTIONS}
+            listeners={androidOverlayBackListeners}
           />
           <RootStack.Screen
             name={SCREEN_NAMES.MentorReviews}
             component={MentorReviewsScreen}
             options={OVERLAY_SCREEN_OPTIONS}
+            listeners={androidOverlayBackListeners}
           />
           <RootStack.Screen
             name={SCREEN_NAMES.RescheduleRequest}
             component={RescheduleRequestScreen}
             options={OVERLAY_SCREEN_OPTIONS}
+            listeners={androidOverlayBackListeners}
           />
           <RootStack.Screen
             name={SCREEN_NAMES.RescheduleResponse}
             component={RescheduleResponseScreen}
             options={OVERLAY_SCREEN_OPTIONS}
+            listeners={androidOverlayBackListeners}
           />
         </>
       )}

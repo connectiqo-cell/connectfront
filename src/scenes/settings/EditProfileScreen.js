@@ -24,6 +24,7 @@ import { UNIFIED_THEME } from '../../unifiedTheme';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
+import { useSystemBack } from '../../hooks/useSystemBack';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useAuth } from '../../hooks/useAuth';
 import { profileApi } from '../../api/profileApi';
@@ -961,6 +962,8 @@ export default function EditProfileScreen({ navigation }) {
       { text: 'Discard', style: 'destructive', onPress: () => navigation.goBack() },
     ]);
   };
+
+  useSystemBack(navigation, handleGoBack);
 
   const handlePickImage = async (source) => {
     try {

@@ -55,6 +55,10 @@ export default function MeetingContainer({
     }
   }, []);
 
+  const onMeetingLeft = useCallback(() => {
+    hasLeftRef.current = true;
+  }, []);
+
   const onError = useCallback(({ message }) => {
     Toast.show(message || 'Failed to join session');
   }, []);
@@ -62,6 +66,7 @@ export default function MeetingContainer({
   const leaveRef = useRef(null);
   const { join, participants, leave, localMicOn, localWebcamOn, toggleMic, toggleWebcam } = useMeeting({
     onMeetingJoined,
+    onMeetingLeft,
     onError,
   });
 
@@ -107,9 +112,8 @@ export default function MeetingContainer({
         clearTimeout(iosWebcamTimerRef.current);
         iosWebcamTimerRef.current = null;
       }
-      if (hasJoinedRef.current && !hasLeftRef.current) {
-        requestLeave();
-      }
+      // Do not call leave() here — on iOS, leave() during unmount after onMeetingLeft
+      // already fired crashes WebRTC. MeetingProvider unmount runs SDK terminate().
     };
   }, [join, requestLeave]);
 

@@ -507,6 +507,9 @@ export function ScheduleDayCell({
   };
 
   const combinedScale = Animated.multiply(scale, pressScale);
+  // iOS: keep Pressable hit box stable; animate children only without scale multiply bugs.
+  const dayTransform =
+    Platform.OS === 'ios' ? undefined : [{ scale: combinedScale }];
 
   const inner = (
     <View style={scheduleStyles.dayInner}>
@@ -541,7 +544,7 @@ export function ScheduleDayCell({
           onPressOut={onPressOut}
           disabled={!enabled}
         >
-          <Animated.View style={{ transform: [{ scale: combinedScale }] }}>
+          <Animated.View style={dayTransform ? { transform: dayTransform } : undefined}>
             <LinearGradient
               colors={B.primaryGradient}
               start={{ x: 0, y: 0 }}
@@ -570,7 +573,7 @@ export function ScheduleDayCell({
             enabled ? scheduleStyles.dayButtonAvailable : null,
             !enabled ? scheduleStyles.dayButtonPast : null,
             isToday && enabled ? scheduleStyles.dayButtonToday : null,
-            { transform: [{ scale: combinedScale }] },
+            dayTransform ? { transform: dayTransform } : null,
           ]}
         >
           {inner}

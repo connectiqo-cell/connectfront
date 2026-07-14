@@ -13,7 +13,6 @@ import {
   Easing,
   ScrollView,
 } from 'react-native';
-import RazorpayCheckout from 'react-native-razorpay';
 import Toast from 'react-native-simple-toast';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -24,6 +23,7 @@ import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import CelebrationPayButton, { CelebrationScreenFx } from '../../components/CelebrationPayButton';
+import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
 import {
   scheduleStyles,
   ScheduleSectionBlock,
@@ -671,7 +671,8 @@ const feeStyles = StyleSheet.create({
 export default function BookingScreen({ navigation, route }) {
   const mentorId = route.params?.mentorId;
   const mentorName = route.params?.mentorName ?? 'Mentor';
-  const { profile } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
+  const learnerId = profile?.id ?? user?.id ?? null;
   const insets = useSafeAreaInsets();
   const navBarInset = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 8);
   const stickyBottomPad = navBarInset + T.spacing.md;
@@ -725,18 +726,18 @@ export default function BookingScreen({ navigation, route }) {
         setMentorData(mentorProfile);
         setPricePerHour(mentorProfile?.price_per_hour || 0);
 
-        if (profile?.id) {
-          const rule = await paymentApi.getFeeRule();
-          if (!active) return;
-          setFeeConfig(
-            rule
-              ? {
-                  platformFeePercent: Number(rule.platform_fee_percent),
-                  gstPercent: Number(rule.gst_percent),
-                }
-              : null,
-          );
-        }
+        // Fee rules don't need the learner profile — always load so Pay CTA works on iOS
+        // while auth profile is still hydrating.
+        const rule = await paymentApi.getFeeRule();
+        if (!active) return;
+        setFeeConfig(
+          rule
+            ? {
+                platformFeePercent: Number(rule.platform_fee_percent),
+                gstPercent: Number(rule.gst_percent),
+              }
+            : null,
+        );
 
         if (!availability?.length) {
           setMentorAvailability({});
@@ -768,7 +769,7 @@ export default function BookingScreen({ navigation, route }) {
 
     run();
     return () => { active = false; };
-  }, [mentorId, profile?.id, navigation]);
+  }, [mentorId, navigation]);
 
   useEffect(() => {
     layoutSpring();
@@ -849,39 +850,44 @@ export default function BookingScreen({ navigation, route }) {
       return;
     }
 
+    const payLearnerId = learnerId ?? user?.id ?? null;
+    if (!payLearnerId) {
+      Toast.show('Still signing in… try again in a moment.');
+      refreshProfile?.();
+      return;
+    }
+
     try {
       setPaying(true);
 
       const order = await paymentApi.createOrder({
         mentorId,
-        learnerId: profile.id,
+        learnerId: payLearnerId,
         slotId: selectedTime.id,
         message: message.trim(),
       });
 
-      const razorpayOptions = {
+      const paymentData = await openRazorpayCheckout({
         description: `1-on-1 session with ${mentorName}`,
         currency: order.currency,
         key: order.keyId,
-        amount: String(order.amount),
+        amount: order.amount,
         order_id: order.orderId,
         name: 'Connectiqo',
         prefill: {
-          email: profile.email || '',
-          contact: profile.phone || '',
-          name: profile.name || '',
+          email: profile?.email || user?.email || '',
+          contact: profile?.phone || '',
+          name: profile?.name || user?.user_metadata?.full_name || '',
         },
         theme: { color: T.colors.accent.secondary },
-      };
-
-      const paymentData = await RazorpayCheckout.open(razorpayOptions);
+      });
 
       const verifyResult = await paymentApi.verifyAndBook({
         razorpayOrderId: order.orderId,
         razorpayPaymentId: paymentData.razorpay_payment_id,
         razorpaySignature: paymentData.razorpay_signature,
         mentorId,
-        learnerId: profile.id,
+        learnerId: payLearnerId,
         slotId: selectedTime.id,
         message: message.trim(),
       });

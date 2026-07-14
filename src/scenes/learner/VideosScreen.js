@@ -17,7 +17,6 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Video from 'react-native-video';
-import RazorpayCheckout from 'react-native-razorpay';
 import Toast from 'react-native-simple-toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UNIFIED_THEME } from '../../unifiedTheme';
@@ -31,6 +30,7 @@ import { videoApi } from '../../api/videoApi';
 import { homeApi } from '../../api/homeApi';
 import { useAuth } from '../../hooks/useAuth';
 import { isSameUserId } from '../../utils/mentorOwnership';
+import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { consumePendingLearnerVideo } from '../../navigators/pendingVideoNavigation';
@@ -277,7 +277,7 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
         learnerId: user.id,
       });
 
-      const paymentData = await RazorpayCheckout.open({
+      const paymentData = await openRazorpayCheckout({
         key:         order.keyId,
         amount:      order.amount,
         currency:    order.currency || 'INR',
@@ -286,7 +286,7 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
         order_id:    order.orderId,
         prefill:     { email: user.email || '' },
         theme:       { color: '#5eead4' },
-        upi:         { flow: 'collect' },
+        upi:         { flow: 'intent' },
       });
 
       await videoApi.verifyVideoSubscription({

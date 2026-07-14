@@ -92,20 +92,19 @@ function PressableShell({ pressScale, onPress, style, children, disabled, innerR
     );
   }
 
+  // Pressable outside native-driven scale — required for reliable taps on iOS.
   return (
-    <Animated.View
-      style={[style, styles.pressScaleWrap, { transform: [{ scale }] }]}
+    <Pressable
+      onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      style={[style, styles.pressScaleWrap, styles.pressableFill, innerRadius && { borderRadius: innerRadius, overflow: 'hidden' }]}
+      disabled={disabled}
     >
-      <Pressable
-        onPress={onPress}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-        style={[styles.pressableFill, innerRadius && { borderRadius: innerRadius, overflow: 'hidden' }]}
-        disabled={disabled}
-      >
+      <Animated.View style={[{ transform: [{ scale }] }, styles.pressScaleInner]}>
         {children}
-      </Pressable>
-    </Animated.View>
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -302,6 +301,10 @@ const styles = StyleSheet.create({
     ...Platform.select({ ios: { width: '100%' }, default: {} }),
   },
   pressScaleWrap: {
+    alignSelf: 'stretch',
+  },
+  pressScaleInner: {
+    width: '100%',
     alignSelf: 'stretch',
   },
   shellPressScale: {

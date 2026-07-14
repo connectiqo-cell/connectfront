@@ -474,19 +474,20 @@ export default function CelebrationPayButton({
           />
         ) : null}
 
-        <Animated.View style={{ transform: [{ scale: combinedScale }] }}>
-          <Pressable
-            onPress={onPress}
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
-            disabled={disabled || loading}
-            style={[
-              styles.shell,
-              isCheckout && styles.shellCheckout,
-              isActive && styles.shellReady,
-              (disabled || loading) && !isActive && styles.shellDisabled,
-            ]}
-          >
+        {/* Pressable outside native-driven scale so iOS checkout taps register. */}
+        <Pressable
+          onPress={onPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          disabled={disabled || loading}
+          style={[
+            styles.shell,
+            isCheckout && styles.shellCheckout,
+            isActive && styles.shellReady,
+            (disabled || loading) && !isActive && styles.shellDisabled,
+          ]}
+        >
+          <Animated.View style={{ transform: [{ scale: combinedScale }] }}>
             <IosGradientShell
               colors={
                 isActive
@@ -549,8 +550,8 @@ export default function CelebrationPayButton({
                 </Text>
               </View>
             </IosGradientShell>
-          </Pressable>
-        </Animated.View>
+          </Animated.View>
+        </Pressable>
       </View>
     </View>
   );

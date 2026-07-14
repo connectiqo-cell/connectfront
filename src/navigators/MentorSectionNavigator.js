@@ -27,7 +27,8 @@ export const MentorSectionNavigator = () => {
     <TopTab.Navigator
       tabBar={props => <CosmicTopTabBar {...props} compact />}
       screenOptions={{
-        swipeEnabled: true,
+        // iOS: horizontal pager swipe often cancels taps on dense slot grids.
+        swipeEnabled: Platform.OS !== 'ios',
         lazy: true,
         lazyPreloadDistance: 1,
         animationEnabled: false,

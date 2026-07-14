@@ -31,6 +31,8 @@ target 'MyApp' do
 
   pod 'react-native-webrtc', :path => '../node_modules/@videosdk.live/react-native-webrtc'
   pod 'RNVectorIcons', :path => '../node_modules/react-native-vector-icons'
+  # Explicit: ensure Razorpay native checkout is linked (was missing from Podfile.lock)
+  pod 'react-native-razorpay', :path => '../node_modules/react-native-razorpay'
 
   post_install do |installer|
     # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202

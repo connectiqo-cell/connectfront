@@ -88,7 +88,19 @@ function FadeSlideIn({ delay = 0, children, style }) {
   }, [delay, opacity, scale, translateY]);
 
   return (
-    <Animated.View style={[style, { opacity, transform: [{ translateY }, { scale }] }]}>
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity,
+          // iOS: avoid native-driven scale on wrappers that contain Pressables.
+          transform:
+            Platform.OS === 'ios'
+              ? [{ translateY }]
+              : [{ translateY }, { scale }],
+        },
+      ]}
+    >
       {children}
     </Animated.View>
   );
@@ -142,24 +154,23 @@ function PressScale({
     outputRange: [0, showGlow ? 0.45 : 0],
   });
 
+  // Pressable must stay outside native-driven scale (iOS hit-testing).
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable
-        onPress={onPress}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-        disabled={disabled}
-        style={[styles.pressHit, style]}
-      >
-        {showGlow ? (
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.pressGlow, { opacity: glowOpacity }]}
-          />
-        ) : null}
-        {children}
-      </Pressable>
-    </Animated.View>
+    <Pressable
+      onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      disabled={disabled}
+      style={[styles.pressHit, style]}
+    >
+      {showGlow ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.pressGlow, { opacity: glowOpacity }]}
+        />
+      ) : null}
+      <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>
+    </Pressable>
   );
 }
 
@@ -419,6 +430,11 @@ function ScheduleTimeChip({ startTime, endTime, state, onPress, delayIndex = 0 }
   const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.45] });
   const chipOpacity = entrance.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
   const chipY = entrance.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
+  // iOS: native-driven scale on the Pressable ancestor breaks hit-testing (same fix as BookingScreen).
+  const chipTransform =
+    Platform.OS === 'ios'
+      ? [{ translateY: chipY }]
+      : [{ translateY: chipY }, { scale }];
 
   const stateStyles = {
     available: styles.timeSlotAvailable,
@@ -449,7 +465,13 @@ function ScheduleTimeChip({ startTime, endTime, state, onPress, delayIndex = 0 }
   }[state];
 
   const cellBody = (
-    <View style={[styles.timeSlotCell, stateStyles[state]]}>
+    <Animated.View
+      style={[
+        styles.timeSlotCell,
+        stateStyles[state],
+        { opacity: chipOpacity, transform: chipTransform },
+      ]}
+    >
       {state === 'selected' ? (
         <LinearGradient
           colors={['rgba(52,211,153,0.22)', 'rgba(52,211,153,0.08)']}
@@ -472,32 +494,26 @@ function ScheduleTimeChip({ startTime, endTime, state, onPress, delayIndex = 0 }
       <Text style={[styles.timeSlotEnd, stateTextStyles[state]]} numberOfLines={1}>
         to {formatSlotTime(endTime)}
       </Text>
-    </View>
+    </Animated.View>
   );
 
-  const chip = isInteractive ? (
-    <Pressable
-      onPress={onPress}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      style={styles.timeSlotPress}
-    >
-      <Animated.View pointerEvents="none" style={[styles.timeSlotGlow, { opacity: glowOpacity }]} />
-      {cellBody}
-    </Pressable>
-  ) : (
-    <View style={styles.timeSlotPress}>{cellBody}</View>
-  );
+  // Keep Pressable outside native-driven transforms so iOS taps register.
+  if (!isInteractive) {
+    return <View style={styles.slotCellWrap}>{cellBody}</View>;
+  }
 
   return (
-    <Animated.View
-      style={[
-        styles.slotCellWrap,
-        { opacity: chipOpacity, transform: [{ translateY: chipY }, { scale }] },
-      ]}
-    >
-      {chip}
-    </Animated.View>
+    <View style={styles.slotCellWrap}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={styles.timeSlotPress}
+      >
+        <Animated.View pointerEvents="none" style={[styles.timeSlotGlow, { opacity: glowOpacity }]} />
+        {cellBody}
+      </Pressable>
+    </View>
   );
 }
 
@@ -637,8 +653,11 @@ function buildSlotEntriesFromMap(allSlotsMap) {
 }
 
 export default function MentorAvailabilityScreen() {
-  const { profile } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const insets = useSafeAreaInsets();
+  // Profile fetch is async after session bootstrap — use auth user id as fallback
+  // (same pattern as MentorDashboardScreen) so Schedule works while profile hydrates.
+  const mentorId = profile?.id ?? user?.id ?? null;
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -654,8 +673,8 @@ export default function MentorAvailabilityScreen() {
   const selectedDateRef = useRef(formatDate(new Date()));
   const publishResetTimerRef = useRef(null);
 
-  const mentorInitial = (profile?.name || 'M').charAt(0).toUpperCase();
-  const mentorName = profile?.name || 'Mentor';
+  const mentorInitial = (profile?.name || user?.user_metadata?.full_name || 'M').charAt(0).toUpperCase();
+  const mentorName = profile?.name || user?.user_metadata?.full_name || 'Mentor';
 
   selectedDateRef.current = selectedDate;
 
@@ -696,7 +715,7 @@ export default function MentorAvailabilityScreen() {
   }, []);
 
   const loadAvailability = useCallback(async (force = false) => {
-    if (!profile?.id) {
+    if (!mentorId) {
       setLoading(false);
       setInitialLoading(false);
       return;
@@ -709,7 +728,7 @@ export default function MentorAvailabilityScreen() {
         setInitialLoading(true);
       }
       setLoading(true);
-      const availability = await availabilityApi.getAvailabilityForMentor(profile.id);
+      const availability = await availabilityApi.getAvailabilityForMentor(mentorId);
 
       const unbookedMap = {};
       const bookedMap = {};
@@ -737,18 +756,22 @@ export default function MentorAvailabilityScreen() {
       setLoading(false);
       setInitialLoading(false);
     }
-  }, [applyAvailabilityMaps, profile?.id]);
+  }, [applyAvailabilityMaps, mentorId]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!profile?.id) {
+      if (!mentorId) {
+        // Session exists but profile row still missing — nudge a refresh.
+        if (user?.id) {
+          refreshProfile?.();
+        }
         setLoading(false);
         setInitialLoading(false);
         return undefined;
       }
       loadAvailability(false);
       return undefined;
-    }, [profile?.id, loadAvailability]),
+    }, [mentorId, user?.id, loadAvailability, refreshProfile]),
   );
 
   const handleSelectDate = date => {
@@ -775,15 +798,21 @@ export default function MentorAvailabilityScreen() {
   };
 
   const handleSaveAvailability = async () => {
-    if (!profile?.id) {
-      Toast.show('Profile not loaded. Please try again.');
+    let saveMentorId = mentorId;
+    if (!saveMentorId && user?.id) {
+      saveMentorId = user.id;
+      refreshProfile?.();
+    }
+    if (!saveMentorId) {
+      Toast.show('Still signing in… try Publish again in a moment.');
+      refreshProfile?.();
       return;
     }
 
     try {
       setSaving(true);
       const slotEntries = buildSlotEntriesFromMap(allSlots);
-      await availabilityApi.syncMentorAvailability(profile.id, slotEntries);
+      await availabilityApi.syncMentorAvailability(saveMentorId, slotEntries);
       clearUnsaved();
       await loadAvailability(true);
       triggerPublishSuccess();
@@ -1037,37 +1066,39 @@ export default function MentorAvailabilityScreen() {
         <View style={{ height: 100 + insets.bottom }} />
       </SafeScreen>
 
-      <FadeSlideIn delay={nextDelay()} style={styles.stickyWrap}>
-        <View style={[scheduleStyles.stickyBar, { paddingBottom: Math.max(insets.bottom, T.spacing.md) }]}>
-          <View style={styles.saveSummary}>
-            <Text style={styles.saveSummaryLabel}>
-              {hasUnsavedChanges ? 'Unsaved changes to publish' : 'Open slots across schedule'}
-            </Text>
-            <Text style={[styles.saveSummaryCount, hasUnsavedChanges ? styles.saveSummaryCountDirty : null]}>
-              {totalOpenSlots}
-            </Text>
-          </View>
-          <PublishScheduleButton
-            saving={saving}
-            loading={loading}
-            hasUnsavedChanges={hasUnsavedChanges}
-            justPublished={justPublished}
-            onPress={handleSaveAvailability}
-          />
+      {/* Direct sticky bar (no nested absolute / FadeSlideIn) so iOS receives Publish taps. */}
+      <View
+        style={[
+          scheduleStyles.stickyBar,
+          {
+            paddingBottom: Math.max(insets.bottom, T.spacing.md),
+            zIndex: 30,
+            elevation: 30,
+          },
+        ]}
+      >
+        <View style={styles.saveSummary}>
+          <Text style={styles.saveSummaryLabel}>
+            {hasUnsavedChanges ? 'Unsaved changes to publish' : 'Open slots across schedule'}
+          </Text>
+          <Text style={[styles.saveSummaryCount, hasUnsavedChanges ? styles.saveSummaryCountDirty : null]}>
+            {totalOpenSlots}
+          </Text>
         </View>
-      </FadeSlideIn>
+        <PublishScheduleButton
+          saving={saving}
+          loading={loading}
+          hasUnsavedChanges={hasUnsavedChanges}
+          justPublished={justPublished}
+          onPress={handleSaveAvailability}
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screenRoot: { flex: 1 },
-  stickyWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
   pressHit: {
     position: 'relative',
     overflow: 'hidden',

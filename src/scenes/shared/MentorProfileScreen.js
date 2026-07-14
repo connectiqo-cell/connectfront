@@ -20,7 +20,6 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import RazorpayCheckout from 'react-native-razorpay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-simple-toast';
 import { SafeScreen } from '../../components/SafeScreen';
@@ -37,6 +36,7 @@ import { navigateToLearnerVideosTab } from '../../navigators/navigateToLearnerVi
 import { parseMentorCategories } from '../../utils/mentorCategories';
 import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
 import { isSameUserId } from '../../utils/mentorOwnership';
+import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 
 const T = UNIFIED_THEME;
@@ -1053,7 +1053,7 @@ export default function MentorProfileScreen({ navigation, route }) {
     try {
       const order = await videoApi.createVideoOrder({ mentorId, learnerId: user.id });
       const displayName = mentor?.profiles?.name || 'Mentor';
-      const paymentData = await RazorpayCheckout.open({
+      const paymentData = await openRazorpayCheckout({
         key: order.keyId,
         amount: order.amount,
         currency: order.currency || 'INR',
@@ -1062,7 +1062,7 @@ export default function MentorProfileScreen({ navigation, route }) {
         order_id: order.orderId,
         prefill: { email: user.email || '' },
         theme: { color: '#5eead4' },
-        upi: { flow: 'collect' },
+        upi: { flow: 'intent' },
       });
 
       await videoApi.verifyVideoSubscription({

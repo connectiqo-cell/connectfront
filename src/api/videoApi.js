@@ -235,11 +235,13 @@ export const videoApi = {
   // ─── Create Razorpay order for video subscription ─────────────────────────
   createVideoOrder: async ({ mentorId, learnerId }) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userToken = session?.access_token ?? SUPABASE_ANON_KEY;
       const res = await fetch(`${SUPABASE_URL}/functions/v1/create-video-order`, {
         method: 'POST',
         headers: {
           'Content-Type':  'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${userToken}`,
           'apikey':        SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({ mentorId, learnerId }),
@@ -259,11 +261,13 @@ export const videoApi = {
   // ─── Verify payment + record subscription server-side ────────────────────
   verifyVideoSubscription: async ({ razorpayOrderId, razorpayPaymentId, razorpaySignature, mentorId, learnerId }) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userToken = session?.access_token ?? SUPABASE_ANON_KEY;
       const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-video-subscription`, {
         method: 'POST',
         headers: {
           'Content-Type':  'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${userToken}`,
           'apikey':        SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({ razorpayOrderId, razorpayPaymentId, razorpaySignature, mentorId, learnerId }),

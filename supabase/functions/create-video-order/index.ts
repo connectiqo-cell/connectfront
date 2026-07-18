@@ -2,6 +2,10 @@
 // Creates a Razorpay order for a video library subscription.
 // Separate from create-razorpay-order which is for session bookings.
 //
+// Also records a `video_order_intents` row so the razorpay-webhook function
+// can reconcile this payment if the client never calls
+// verify-video-subscription (crash, offline, killed app).
+//
 // Required secrets: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -22,6 +26,17 @@ serve(async (req: Request) => {
       throw new Error('mentorId and learnerId are required');
     }
 
+    // ── 1. Verify caller is the learner placing the order ─────────────────────
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const userClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) throw new Error('Unauthorized');
+    if (user.id !== learnerId) throw new Error('Unauthorized: learnerId must match authenticated user');
+
     const keyId     = Deno.env.get('RAZORPAY_KEY_ID')!;
     const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET')!;
     const creds     = btoa(`${keyId}:${keySecret}`);
@@ -31,7 +46,7 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // ── 1. Fetch mentor's unlock price server-side ────────────────────────────
+    // ── 2. Fetch mentor's unlock price server-side ────────────────────────────
     const { data: mp, error: mpErr } = await supabase
       .from('mentor_profiles')
       .select('unlock_price, razorpay_account_id, kyc_status')
@@ -41,7 +56,7 @@ serve(async (req: Request) => {
     if (mpErr || !mp) throw new Error('Mentor profile not found');
     if (!mp.unlock_price) throw new Error('Mentor has not set a subscription price');
 
-    // ── 2. Fetch fee rules server-side ────────────────────────────────────────
+    // ── 3. Fetch fee rules server-side ────────────────────────────────────────
     const { data: feeRule } = await supabase
       .from('platform_fee_rules')
       .select('platform_fee_percent, gst_percent')
@@ -51,7 +66,7 @@ serve(async (req: Request) => {
     const platformFeePercent = Number(feeRule?.platform_fee_percent ?? 5);
     const gstPercent         = Number(feeRule?.gst_percent ?? 18);
 
-    // ── 3. Calculate amounts server-side ─────────────────────────────────────
+    // ── 4. Calculate amounts server-side ──────────────────────────────────────
     const mentorAmount    = Number(mp.unlock_price);
     const platformBaseFee = mentorAmount * platformFeePercent / 100;
     const gstOnFee        = platformBaseFee * gstPercent / 100;
@@ -64,7 +79,7 @@ serve(async (req: Request) => {
 
     const routeEnabled = !!(mp.razorpay_account_id && mp.kyc_status === 'active');
 
-    // ── 4. Create Razorpay order ──────────────────────────────────────────────
+    // ── 5. Create Razorpay order ──────────────────────────────────────────────
     const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/json' },
@@ -79,6 +94,14 @@ serve(async (req: Request) => {
     const order = await rzpRes.json();
     if (!rzpRes.ok) throw new Error(order?.error?.description || 'Order creation failed');
 
+    // ── 6. Record the order intent for webhook reconciliation ─────────────────
+    const { error: intentErr } = await supabase.from('video_order_intents').insert({
+      razorpay_order_id: order.id,
+      mentor_id:         mentorId,
+      learner_id:        learnerId,
+    });
+    if (intentErr) throw intentErr;
+
     return new Response(
       JSON.stringify({
         orderId:           order.id,
@@ -88,7 +111,6 @@ serve(async (req: Request) => {
         mentorAmountPaise,
         platformFeePaise,
         routeEnabled,
-        // Return breakdown so app can display it
         mentorAmount,
         convenienceFee,
         totalAmount,

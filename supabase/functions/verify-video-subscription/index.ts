@@ -1,7 +1,10 @@
 // Supabase Edge Function: verify-video-subscription
 // 1. Verifies Razorpay payment signature
 // 2. Records learner_unlocks with expires_at (30 days)
-// 3. Credits mentor earnings + wallet
+// 3. Credits mentor earnings + wallet (idempotent, atomic)
+// 4. If mentor is on an activated Route account, transfers their cut now
+//    (no hold logic here — unlike session bookings there's no completion
+//    event to wait for).
 //
 // Required secrets: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
 
@@ -30,6 +33,7 @@ serve(async (req: Request) => {
       throw new Error('Missing required fields');
     }
 
+    const keyId     = Deno.env.get('RAZORPAY_KEY_ID')!;
     const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET')!;
 
     // ── 1. Verify HMAC signature ──────────────────────────────────────────────
@@ -45,17 +49,32 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // ── 2. Fetch mentor unlock price server-side ──────────────────────────────
+    // ── 2. Idempotency: has this exact payment already been recorded? ─────────
+    const { data: existingUnlock } = await supabase
+      .from('learner_unlocks')
+      .select('razorpay_payment_id, expires_at')
+      .eq('learner_id', learnerId)
+      .eq('mentor_id', mentorId)
+      .maybeSingle();
+
+    if (existingUnlock?.razorpay_payment_id === razorpayPaymentId) {
+      return new Response(
+        JSON.stringify({ success: true, expiresAt: existingUnlock.expires_at }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // ── 3. Fetch mentor unlock price + Route account info server-side ────────
     const { data: mp, error: mpErr } = await supabase
       .from('mentor_profiles')
-      .select('unlock_price')
+      .select('unlock_price, razorpay_account_id, kyc_status')
       .eq('id', mentorId)
       .single();
 
     if (mpErr || !mp) throw new Error('Mentor profile not found');
     if (!mp.unlock_price) throw new Error('Mentor has no subscription price set');
 
-    // ── 3. Fetch fee rules server-side ────────────────────────────────────────
+    // ── 4. Fetch fee rules server-side ────────────────────────────────────────
     const { data: feeRule } = await supabase
       .from('platform_fee_rules')
       .select('platform_fee_percent, gst_percent')
@@ -65,17 +84,18 @@ serve(async (req: Request) => {
     const platformFeePercent = Number(feeRule?.platform_fee_percent ?? 5);
     const gstPercent         = Number(feeRule?.gst_percent ?? 18);
 
-    // ── 4. Recalculate amounts server-side ────────────────────────────────────
+    // ── 5. Recalculate amounts server-side ────────────────────────────────────
     const mentorAmount    = Number(mp.unlock_price);
     const platformBaseFee = mentorAmount * platformFeePercent / 100;
     const gstOnFee        = platformBaseFee * gstPercent / 100;
     const convenienceFee  = platformBaseFee + gstOnFee;
     const amountPaid      = Math.round(mentorAmount + convenienceFee);
+    const mentorAmountPaise = Math.round(mentorAmount) * 100;
 
-    const now      = new Date();
+    const now       = new Date();
     const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 days
 
-    // ── 5. Record subscription with expiry ────────────────────────────────────
+    // ── 6. Record subscription with expiry ────────────────────────────────────
     const { error: unlockError } = await supabase
       .from('learner_unlocks')
       .upsert({
@@ -90,33 +110,67 @@ serve(async (req: Request) => {
 
     if (unlockError) throw unlockError;
 
-    // ── 6. Record mentor earnings (server-calculated) ─────────────────────────
-    const { error: earningsError } = await supabase
+    // ── 7. Record mentor earnings (server-calculated) ─────────────────────────
+    const { data: earningRow, error: earningsError } = await supabase
       .from('earnings')
       .insert({
         mentor_id:  mentorId,
         amount:     mentorAmount,
         source:     'video_subscription',
         status:     'completed',
-        notes:      `Video subscription by learner ${learnerId}`,
-      });
+        notes:      `Video subscription by learner ${learnerId} (payment ${razorpayPaymentId})`,
+      })
+      .select('id')
+      .single();
 
     if (earningsError) throw earningsError;
 
-    // ── 7. Credit mentor wallet ───────────────────────────────────────────────
-    const { data: wallet } = await supabase
-      .from('mentor_wallets')
-      .select('balance, total_earned')
-      .eq('id', mentorId)
-      .single();
+    // ── 8. Credit mentor wallet atomically (RPC avoids read-then-write race) ──
+    const { error: walletError } = await supabase.rpc('increment_mentor_wallet', {
+      p_mentor_id: mentorId,
+      p_amount:    mentorAmount,
+    });
 
-    await supabase
-      .from('mentor_wallets')
-      .upsert({
-        id:           mentorId,
-        balance:      (wallet?.balance || 0) + mentorAmount,
-        total_earned: (wallet?.total_earned || 0) + mentorAmount,
-      });
+    if (walletError) throw walletError;
+
+    // ── 9. If mentor is on an activated Route account, transfer their cut now.
+    // Non-fatal: if this fails, the wallet ledger above is still correct and
+    // the mentor is paid out via the manual withdrawal path instead.
+    try {
+      if (mp.razorpay_account_id && mp.kyc_status === 'active') {
+        const creds = btoa(`${keyId}:${keySecret}`);
+        const rzpRes = await fetch(
+          `https://api.razorpay.com/v1/payments/${razorpayPaymentId}/transfers`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              transfers: [
+                {
+                  account:  mp.razorpay_account_id,
+                  amount:   mentorAmountPaise,
+                  currency: 'INR',
+                  on_hold:  false,
+                  notes:    { mentor_id: mentorId, learner_id: learnerId, type: 'video_subscription' },
+                },
+              ],
+            }),
+          },
+        );
+        const result = await rzpRes.json();
+        if (rzpRes.ok) {
+          const transferId = result?.items?.[0]?.id ?? null;
+          await supabase
+            .from('earnings')
+            .update({ route_transfer_id: transferId, route_transferred_at: new Date().toISOString() })
+            .eq('id', earningRow.id);
+        } else {
+          console.warn('Route transfer failed (non-fatal):', result?.error?.description);
+        }
+      }
+    } catch (transferErr) {
+      console.warn('Route transfer error (non-fatal):', transferErr);
+    }
 
     return new Response(
       JSON.stringify({ success: true, expiresAt: expiresAt.toISOString() }),

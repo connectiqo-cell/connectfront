@@ -639,6 +639,9 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
     }
   };
 
+  const MIN_SESSION_SECONDS = 300; // 5 minutes minimum session
+
+
   const tryLeave = (endForAll = false) => {
     if (endForAll) {
       onSessionEnding?.();

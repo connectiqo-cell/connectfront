@@ -1,10 +1,10 @@
 import { supabase } from '../lib/supabase';
 
 export const payoutApi = {
-  createLinkedAccount: async ({ mentorId, legalName, email, upiId }) => {
+  createLinkedAccount: async ({ mentorId, legalName, phone, addressLine1, city, state, postalCode, upiId }) => {
     try {
       const { data, error } = await supabase.functions.invoke('create-linked-account', {
-        body: { mentorId, legalName, email, upiId },
+        body: { mentorId, legalName, phone, addressLine1, city, state, postalCode, upiId },
       });
       if (error) throw new Error(error.message || 'Failed to create payout account');
       return data;

@@ -1,10 +1,13 @@
 // Supabase Edge Function: create-razorpay-order
-// Deploy: supabase functions deploy create-razorpay-order
 //
-// Required secrets:
-//   RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
-
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+// NOTE: Route transfers are intentionally NOT embedded in the order here.
+// Splitting at order-creation time would pay the mentor's linked account the
+// instant the learner pays, before the session happens — removing the
+// no-show protection this app relies on (earnings stay 'pending' until the
+// mentor marks the session completed). The Route transfer for a routeEnabled
+// transaction is created later by `transfer-session-payout`, once the
+// session is marked completed.
+import { serve }        from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -22,6 +25,17 @@ serve(async (req) => {
       throw new Error('Missing required fields: mentorId, learnerId, slotId');
     }
 
+    // ── 1. Verify caller is the learner placing the order ─────────────────────
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const userClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) throw new Error('Unauthorized');
+    if (user.id !== learnerId) throw new Error('Unauthorized: learnerId must match authenticated user');
+
     const keyId     = Deno.env.get('RAZORPAY_KEY_ID')!;
     const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET')!;
     const creds     = btoa(`${keyId}:${keySecret}`);
@@ -31,7 +45,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // ── 1. Fetch mentor price server-side ─────────────────────────────────────
+    // ── 2. Fetch mentor price server-side ─────────────────────────────────────
     const { data: mentorProfile, error: mpErr } = await supabase
       .from('mentor_profiles')
       .select('price_per_hour, razorpay_account_id, kyc_status')
@@ -41,7 +55,7 @@ serve(async (req) => {
     if (mpErr || !mentorProfile) throw new Error('Mentor profile not found');
     if (!mentorProfile.price_per_hour) throw new Error('Mentor has not set a price');
 
-    // ── 2. Fetch fee rules server-side ────────────────────────────────────────
+    // ── 3. Fetch fee rules server-side ────────────────────────────────────────
     const { data: feeRule } = await supabase
       .from('platform_fee_rules')
       .select('platform_fee_percent, gst_percent')
@@ -51,7 +65,7 @@ serve(async (req) => {
     const platformFeePercent = Number(feeRule?.platform_fee_percent ?? 5);
     const gstPercent         = Number(feeRule?.gst_percent ?? 18);
 
-    // ── 3. Calculate amounts server-side ─────────────────────────────────────
+    // ── 4. Calculate amounts server-side ──────────────────────────────────────
     const mentorAmount    = mentorProfile.price_per_hour;
     const platformBaseFee = mentorAmount * platformFeePercent / 100;
     const gstOnFee        = platformBaseFee * gstPercent / 100;
@@ -62,38 +76,24 @@ serve(async (req) => {
     const mentorAmountPaise = Math.round(mentorAmount) * 100;
     const platformFeePaise  = amountPaise - mentorAmountPaise;
 
-    // ── 4. Check if mentor has an active Razorpay linked account ─────────────
+    // ── 5. Whether this mentor is on an activated Route linked account ────────
+    // (Used later by transfer-session-payout — no transfer happens here.)
     const linkedAccountId = mentorProfile.razorpay_account_id;
     const kycActive       = mentorProfile.kyc_status === 'active';
     const routeEnabled    = !!(linkedAccountId && kycActive);
 
-    // ── 5. Build Razorpay order body ──────────────────────────────────────────
-    const orderBody: Record<string, unknown> = {
-      amount:   amountPaise,
-      currency: 'INR',
-      receipt:  `rcpt_${Date.now()}`,
-    };
-
-    if (routeEnabled) {
-      orderBody.transfers = [
-        {
-          account:  linkedAccountId,
-          amount:   mentorAmountPaise,
-          currency: 'INR',
-          on_hold:  0,
-          notes: { mentor_id: mentorId, slot_id: slotId },
-        },
-      ];
-    }
-
-    // ── 6. Create Razorpay order ──────────────────────────────────────────────
+    // ── 6. Create Razorpay order (no transfers — full amount captured to platform) ─
     const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
         Authorization:  `Basic ${creds}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(orderBody),
+      body: JSON.stringify({
+        amount:   amountPaise,
+        currency: 'INR',
+        receipt:  `rcpt_${Date.now()}`,
+      }),
     });
 
     const order = await rzpRes.json();
@@ -101,7 +101,7 @@ serve(async (req) => {
       throw new Error(order?.error?.description || 'Razorpay order creation failed');
     }
 
-    // ── 7. Save pending transaction ───────────────────────────────────────────
+    // ── 7. Save pending transaction ────────────────────────────────────────────
     const { error: txError } = await supabase.from('transactions').insert({
       mentor_id:            mentorId,
       learner_id:           learnerId,
@@ -123,7 +123,6 @@ serve(async (req) => {
         currency:     order.currency,
         keyId,
         routeEnabled,
-        // Return calculated amounts so app can display breakdown
         mentorAmount,
         convenienceFee,
         totalAmount,

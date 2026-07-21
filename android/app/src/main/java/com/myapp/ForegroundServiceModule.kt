@@ -18,17 +18,17 @@ class ForegroundServiceModule(reactContext: ReactApplicationContext) : ReactCont
     fun startService(promise: Promise) {
         try {
             Log.d(TAG, "Starting foreground service from React Native")
-            
+
             val intent = Intent(reactApplicationContext, MyForegroundService::class.java).apply {
                 action = MyForegroundService.ACTION_START
             }
-            
+
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 reactApplicationContext.startForegroundService(intent)
             } else {
                 reactApplicationContext.startService(intent)
             }
-            
+
             promise.resolve(true)
             Log.d(TAG, "Foreground service start intent sent")
         } catch (e: Exception) {
@@ -41,11 +41,11 @@ class ForegroundServiceModule(reactContext: ReactApplicationContext) : ReactCont
     fun stopService(promise: Promise) {
         try {
             Log.d(TAG, "Stopping foreground service from React Native")
-            
+
             val intent = Intent(reactApplicationContext, MyForegroundService::class.java).apply {
                 action = MyForegroundService.ACTION_STOP
             }
-            
+
             reactApplicationContext.stopService(intent)
             promise.resolve(true)
             Log.d(TAG, "Foreground service stop intent sent")
@@ -61,9 +61,9 @@ class ForegroundServiceModule(reactContext: ReactApplicationContext) : ReactCont
             // Check if the service is running by checking if there's an active notification
             val notificationManager = reactApplicationContext.getSystemService(android.app.NotificationManager::class.java)
             val activeNotifications = notificationManager?.activeNotifications
-            
+
             val isRunning = activeNotifications?.any { it.id == MyForegroundService.NOTIFICATION_ID } ?: false
-            
+
             Log.d(TAG, "Service running status: $isRunning")
             promise.resolve(isRunning)
         } catch (e: Exception) {

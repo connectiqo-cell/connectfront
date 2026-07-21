@@ -31,6 +31,7 @@ import { homeApi } from '../../api/homeApi';
 import { useAuth } from '../../hooks/useAuth';
 import { isSameUserId } from '../../utils/mentorOwnership';
 import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
+import { purchaseAndroidProduct, finishAndroidPurchase, PLAY_VIDEO_UNLOCK_PRODUCT_ID } from '../../utils/playBilling';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { consumePendingLearnerVideo } from '../../navigators/pendingVideoNavigation';
@@ -272,30 +273,46 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
     }
     setLoading(true);
     try {
-      const order = await videoApi.createVideoOrder({
-        mentorId:  video.mentor_id,
-        learnerId: user.id,
-      });
+      if (Platform.OS === 'android') {
+        const purchase = await purchaseAndroidProduct(PLAY_VIDEO_UNLOCK_PRODUCT_ID);
 
-      const paymentData = await openRazorpayCheckout({
-        key:         order.keyId,
-        amount:      order.amount,
-        currency:    order.currency || 'INR',
-        name:        'Connectiqo',
-        description: `Subscribe to ${mentorName}'s video library`,
-        order_id:    order.orderId,
-        prefill:     { email: user.email || '' },
-        theme:       { color: '#5eead4' },
-        upi:         { flow: 'intent' },
-      });
+        await videoApi.verifyPlayPurchase({
+          mentorId:      video.mentor_id,
+          learnerId:     user.id,
+          productId:     purchase.productId,
+          purchaseToken: purchase.purchaseToken,
+        });
 
-      await videoApi.verifyVideoSubscription({
-        razorpayOrderId:   order.orderId,
-        razorpayPaymentId: paymentData.razorpay_payment_id,
-        razorpaySignature: paymentData.razorpay_signature,
-        mentorId:          video.mentor_id,
-        learnerId:         user.id,
-      });
+        // Only consume after the server has confirmed + credited the purchase —
+        // otherwise a crash between verify and consume would leave the token
+        // consumable-but-uncredited.
+        await finishAndroidPurchase(purchase);
+      } else {
+        const order = await videoApi.createVideoOrder({
+          mentorId:  video.mentor_id,
+          learnerId: user.id,
+        });
+
+        const paymentData = await openRazorpayCheckout({
+          key:         order.keyId,
+          amount:      order.amount,
+          currency:    order.currency || 'INR',
+          name:        'Connectiqo',
+          description: `Subscribe to ${mentorName}'s video library`,
+          order_id:    order.orderId,
+          prefill:     { email: user.email || '' },
+          theme:       { color: '#5eead4' },
+          upi:         { flow: 'intent' },
+        });
+
+        await videoApi.verifyVideoSubscription({
+          razorpayOrderId:   order.orderId,
+          razorpayPaymentId: paymentData.razorpay_payment_id,
+          razorpaySignature: paymentData.razorpay_signature,
+          mentorId:          video.mentor_id,
+          learnerId:         user.id,
+        });
+      }
 
       onUnlocked(video.mentor_id);
       onClose();

@@ -8,26 +8,26 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class MyForegroundService : Service() {
-    
+
     companion object {
         const val NOTIFICATION_ID = 1001
         const val CHANNEL_ID = "MyAppChannelID"
         private const val TAG = "MyForegroundService"
-        
+
         // Actions
         const val ACTION_START = "com.myapp.START_FOREGROUND_SERVICE"
         const val ACTION_STOP = "com.myapp.STOP_FOREGROUND_SERVICE"
     }
-    
+
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Service onCreate")
         createNotificationChannel()
     }
-    
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service onStartCommand")
-        
+
         when (intent?.action) {
             ACTION_START -> {
                 startForegroundService()
@@ -40,22 +40,22 @@ class MyForegroundService : Service() {
                 startForegroundService()
             }
         }
-        
+
         return START_STICKY
     }
-    
+
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "Service onDestroy")
     }
-    
+
     private fun startForegroundService() {
         Log.d(TAG, "Starting foreground service")
-        
+
         try {
             val notification = createNotification()
             startForeground(NOTIFICATION_ID, notification)
@@ -69,13 +69,13 @@ class MyForegroundService : Service() {
             throw e
         }
     }
-    
+
     private fun stopForegroundService() {
         Log.d(TAG, "Stopping foreground service")
         stopForeground(true)
         stopSelf()
     }
-    
+
     private fun createNotification(): Notification {
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -84,7 +84,7 @@ class MyForegroundService : Service() {
             notificationIntent,
             PendingIntent.FLAG_IMMUTABLE
         )
-        
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("MyApp Foreground Service")
             .setContentText("Camera and microphone are active")
@@ -94,7 +94,7 @@ class MyForegroundService : Service() {
             .setOngoing(true)
             .build()
     }
-    
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -107,7 +107,7 @@ class MyForegroundService : Service() {
                 enableLights(false)
                 enableVibration(false)
             }
-            
+
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager?.createNotificationChannel(channel)
             Log.d(TAG, "Notification channel created")

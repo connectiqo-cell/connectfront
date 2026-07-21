@@ -37,6 +37,7 @@ import { parseMentorCategories } from '../../utils/mentorCategories';
 import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
 import { isSameUserId } from '../../utils/mentorOwnership';
 import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
+import { purchaseAndroidProduct, finishAndroidPurchase, PLAY_VIDEO_UNLOCK_PRODUCT_ID } from '../../utils/playBilling';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 
 const T = UNIFIED_THEME;
@@ -1051,27 +1052,40 @@ export default function MentorProfileScreen({ navigation, route }) {
     }
     setUnlocking(true);
     try {
-      const order = await videoApi.createVideoOrder({ mentorId, learnerId: user.id });
-      const displayName = mentor?.profiles?.name || 'Mentor';
-      const paymentData = await openRazorpayCheckout({
-        key: order.keyId,
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        name: 'Connectiqo',
-        description: `Subscribe to ${displayName}'s video library`,
-        order_id: order.orderId,
-        prefill: { email: user.email || '' },
-        theme: { color: '#5eead4' },
-        upi: { flow: 'intent' },
-      });
+      if (Platform.OS === 'android') {
+        const purchase = await purchaseAndroidProduct(PLAY_VIDEO_UNLOCK_PRODUCT_ID);
 
-      await videoApi.verifyVideoSubscription({
-        razorpayOrderId: order.orderId,
-        razorpayPaymentId: paymentData.razorpay_payment_id,
-        razorpaySignature: paymentData.razorpay_signature,
-        mentorId,
-        learnerId: user.id,
-      });
+        await videoApi.verifyPlayPurchase({
+          mentorId,
+          learnerId:     user.id,
+          productId:     purchase.productId,
+          purchaseToken: purchase.purchaseToken,
+        });
+
+        await finishAndroidPurchase(purchase);
+      } else {
+        const order = await videoApi.createVideoOrder({ mentorId, learnerId: user.id });
+        const displayName = mentor?.profiles?.name || 'Mentor';
+        const paymentData = await openRazorpayCheckout({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency || 'INR',
+          name: 'Connectiqo',
+          description: `Subscribe to ${displayName}'s video library`,
+          order_id: order.orderId,
+          prefill: { email: user.email || '' },
+          theme: { color: '#5eead4' },
+          upi: { flow: 'intent' },
+        });
+
+        await videoApi.verifyVideoSubscription({
+          razorpayOrderId: order.orderId,
+          razorpayPaymentId: paymentData.razorpay_payment_id,
+          razorpaySignature: paymentData.razorpay_signature,
+          mentorId,
+          learnerId: user.id,
+        });
+      }
 
       setIsUnlocked(true);
       Toast.show('Subscribed! You can watch all videos.', Toast.SHORT);

@@ -10,27 +10,31 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 import { PLATFORM_LAYOUT } from '../utils/platformLayout';
 import { formatDate, formatTime, formatDateForDisplay } from '../utils/dateHelpers';
 import CosmicButton from './CosmicButton';
 import { useAvatarPreview } from '../contexts/AvatarPreviewContext';
+import { softFill, softBorder } from '../theme/surfaceStyles';
 
 const T = UNIFIED_THEME.colors;
 const S = UNIFIED_THEME.colors.surface;
 const B = UNIFIED_THEME.colors.buttons;
 const PURPLE_LINK = B.nebulaGradient[0];
 
-const STATUS_COLORS = {
-  pending: T.accent.warning,
-  confirmed: T.accent.secondary,
-  completed: T.accent.success,
-  cancelled: T.text.muted,
-  booked: T.accent.success,
-  failed: T.text.muted,
-  expired: T.text.muted,
-  live: T.accent.secondary,
-  done: T.accent.success,
-};
+function getStatusColors(colors) {
+  return {
+    pending: colors.accent.warning,
+    confirmed: colors.accent.secondary,
+    completed: colors.accent.success,
+    cancelled: colors.text.muted,
+    booked: colors.accent.success,
+    failed: colors.text.muted,
+    expired: colors.text.muted,
+    live: colors.accent.secondary,
+    done: colors.accent.success,
+  };
+}
 
 const STATUS_ICONS = {
   pending: 'schedule',
@@ -61,6 +65,12 @@ export const BookingCard = ({
   entranceDelay = null,
   pressScale = false,
 }) => {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const T = theme.colors;
+  const S = theme.colors.surface;
+  const B = theme.colors.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
   const { showAvatarPreview } = useAvatarPreview();
   const showLearnerDetails = isMentor || showLearnerInfo;
   const scale = useRef(new Animated.Value(1)).current;
@@ -127,7 +137,7 @@ export const BookingCard = ({
     .toLowerCase()
     .replace(/\s+/g, '');
   const displayStatus = statusLabel || booking.status || 'pending';
-  const statusColor = STATUS_COLORS[rawStatus] || T.text.secondary;
+  const statusColor = getStatusColors(T)[rawStatus] || T.text.secondary;
   const statusIcon = STATUS_ICONS[rawStatus] || 'help';
 
   const date = booking.availability_slots?.date;
@@ -309,13 +319,16 @@ export const BookingCard = ({
   );
 };
 
-const styles = StyleSheet.create({
+function createThemedStyles(theme) {
+  const T = theme.colors;
+  const S = theme.colors.surface;
+  return StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: theme.colors.surface.panel,
     borderRadius: 16,
     padding: UNIFIED_THEME.spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderColor: theme.colors.border.light,
     borderLeftWidth: 3,
     ...Platform.select({
       ios: UNIFIED_THEME.shadows.small,
@@ -336,7 +349,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 26,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: theme.colors.border.light,
   },
   avatarCompact: {
     width: 44,
@@ -379,7 +392,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: UNIFIED_THEME.borderRadius.chip,
     borderWidth: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: softFill(theme),
     maxWidth: '36%',
   },
   statusText: {
@@ -397,7 +410,7 @@ const styles = StyleSheet.create({
     marginTop: UNIFIED_THEME.spacing.sm,
     paddingTop: UNIFIED_THEME.spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    borderTopColor: softBorder(theme),
   },
   goalStripCompact: {
     marginTop: UNIFIED_THEME.spacing.xs,
@@ -454,3 +467,5 @@ const styles = StyleSheet.create({
     default: { flex: 1 },
   }),
 });
+}
+

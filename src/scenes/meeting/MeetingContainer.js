@@ -7,7 +7,7 @@ import { ensureIosCallAudioSession } from '../../utils/iosCallAudioSession';
 import { MEETING_LEAVE_NAV_FALLBACK_MS } from '../../utils/meetingLeave';
 import OneToOneMeetingViewer from './OneToOne';
 import ConferenceMeetingViewer from './Conference/ConferenceMeetingViewer';
-import SessionLobbyView from './Components/SessionLobbyView';
+import WaitingToJoinView from './Components/WaitingToJoinView';
 
 export default function MeetingContainer({
   meetingType,
@@ -16,6 +16,7 @@ export default function MeetingContainer({
   booking,
   isMentor,
   otherUser,
+  autoStartRecording = false,
   onLeaveSession,
   maxDurationMs,
 }) {
@@ -93,7 +94,7 @@ export default function MeetingContainer({
   }, []);
 
   const leaveRef = useRef(null);
-  const { join, participants, leave, localMicOn, localWebcamOn, toggleMic, toggleWebcam } = useMeeting({
+  const { join, participants, leave, toggleWebcam } = useMeeting({
     onMeetingJoined,
     onMeetingLeft,
     onError,
@@ -154,45 +155,28 @@ export default function MeetingContainer({
     return () => clearTimeout(timer);
   }, [remoteParticipantCount, maxDurationMs, requestLeave]);
 
-  const handleLeave = () => {
-    if (hasJoinedRef.current) {
-      requestLeave();
-      return;
-    }
-    onLeaveSession?.();
-  };
+  // Show the call UI as soon as VideoSDK join succeeds — waiting for the peer
+  // inside OneToOneMeetingViewer. Gating on remoteParticipantCount kept both
+  // sides stuck on a dead lobby after join.
+  if (isJoined && meetingType === 'GROUP') {
+    return <ConferenceMeetingViewer onRequestLeave={requestLeave} />;
+  }
 
-  const showActiveCall =
-    isJoined && remoteParticipantCount >= 1 && meetingType !== 'GROUP';
-
-  if (showActiveCall) {
+  if (isJoined) {
     return (
       <OneToOneMeetingViewer
         isHost={isHost}
         booking={booking}
+        autoStartRecording={autoStartRecording}
         onRequestLeave={requestLeave}
         onSessionEnding={scheduleLeaveFallback}
       />
     );
   }
 
-  if (isJoined && meetingType === 'GROUP') {
-    return <ConferenceMeetingViewer onRequestLeave={requestLeave} />;
-  }
-
+  // Do not re-mount SessionLobbyView here — its mentor/learner CTAs ignore
+  // `connecting` and look like Start/Join failed after the room was created.
   return (
-    <SessionLobbyView
-      booking={booking}
-      isMentor={isMentor}
-      otherUser={otherUser}
-      connecting={!isJoined}
-      micOn={localMicOn}
-      camOn={localWebcamOn}
-      onToggleMic={isJoined ? () => toggleMic() : undefined}
-      onToggleCam={isJoined ? () => toggleWebcam() : undefined}
-      onLeave={handleLeave}
-      onReschedule={handleLeave}
-      onCancelRefund={() => {}}
-    />
+    <WaitingToJoinView otherUser={otherUser} isMentor={isMentor} />
   );
 }

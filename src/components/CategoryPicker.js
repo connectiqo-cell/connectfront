@@ -1,7 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Modal,
+  StatusBar,
+} from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { UNIFIED_THEME } from '../unifiedTheme';
+import Toast from 'react-native-simple-toast';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import { softBorder, softFill, softFillStrong } from '../theme/surfaceStyles';
 import { fetchActiveCategoryNames } from '../api/contentApi';
 import { MENTOR_CATEGORIES } from '../constants/mentorCategories';
 import {
@@ -18,14 +29,20 @@ export const CategoryPicker = ({
   onChange,
   onClose,
   multiple = false,
+  minSelections = 0,
+  maxSelections = Number.POSITIVE_INFINITY,
+  title,
 }) => {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme, isDark } = useTheme();
+  const C = theme.colors;
   const [adminCategories, setAdminCategories] = useState([]);
   const [draft, setDraft] = useState([]);
 
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
-    fetchActiveCategoryNames().then((names) => {
+    fetchActiveCategoryNames().then(names => {
       if (!cancelled) setAdminCategories(names || []);
     });
     return () => {
@@ -47,12 +64,16 @@ export const CategoryPicker = ({
     return MENTOR_CATEGORIES;
   }, [adminCategories]);
 
-  const handleSingleSelect = (category) => {
+  const handleSingleSelect = category => {
     onSelect?.(category);
     onClose?.();
   };
 
   const handleDone = () => {
+    if (draft.length < minSelections) {
+      Toast.show(`Select ${minSelections} categories`);
+      return;
+    }
     onChange?.(draft);
     onClose?.();
   };
@@ -60,32 +81,60 @@ export const CategoryPicker = ({
   const summary = formatSelectedCategoriesLabel(draft);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.container}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={C.surface.panel}
+      />
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose}>
-            <MaterialIcons name="close" size={24} color={UNIFIED_THEME.colors.text.primary} />
+          <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button">
+            <MaterialIcons name="close" size={24} color={C.text.primary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {multiple ? 'Select Categories' : 'Select Your Category'}
+            {title || (multiple ? 'Select Categories' : 'Select Your Category')}
           </Text>
           {multiple ? (
-            <TouchableOpacity onPress={handleDone}>
-              <Text style={styles.doneText}>Done</Text>
+            <TouchableOpacity
+              onPress={handleDone}
+              disabled={draft.length < minSelections}
+              accessibilityRole="button"
+            >
+              <Text
+                style={[
+                  styles.doneText,
+                  draft.length < minSelections && styles.doneTextDisabled,
+                ]}
+              >
+                Done
+              </Text>
             </TouchableOpacity>
           ) : (
-            <View style={{ width: 24 }} />
+            <View style={styles.headerSpacer} />
           )}
         </View>
 
         {multiple ? (
           <Text style={styles.subtitle}>
-            {summary ? `${summary} selected` : 'Choose all categories that apply'}
+            {Number.isFinite(maxSelections)
+              ? `${draft.length} / ${maxSelections} selected`
+              : summary
+                ? `${summary} selected`
+                : 'Choose all categories that apply'}
           </Text>
         ) : null}
 
-        <ScrollView style={styles.categoryList} showsVerticalScrollIndicator={false}>
-          {allCategories.map((category) => {
+        <ScrollView
+          style={styles.categoryList}
+          contentContainerStyle={styles.categoryListContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {allCategories.map(category => {
             const isSelected = multiple
               ? draft.some(c => c.toLowerCase() === category.toLowerCase())
               : selectedCategory === category;
@@ -93,97 +142,126 @@ export const CategoryPicker = ({
             return (
               <TouchableOpacity
                 key={category}
-                style={[
-                  styles.categoryItem,
-                  isSelected && styles.categoryItemSelected,
-                ]}
+                style={[styles.categoryItem, isSelected && styles.categoryItemSelected]}
                 onPress={() => {
                   if (multiple) {
-                    setDraft(prev => toggleMentorCategory(prev, category));
+                    setDraft(prev => {
+                      const selected = prev.some(
+                        c => c.toLowerCase() === category.toLowerCase(),
+                      );
+                      if (!selected && prev.length >= maxSelections) {
+                        Toast.show(`Select up to ${maxSelections} categories`);
+                        return prev;
+                      }
+                      return toggleMentorCategory(prev, category);
+                    });
                     return;
                   }
                   handleSingleSelect(category);
                 }}
+                accessibilityRole={multiple ? 'checkbox' : 'button'}
+                accessibilityState={{ selected: isSelected }}
               >
                 <Text
-                  style={[
-                    styles.categoryText,
-                    isSelected && styles.categoryTextSelected,
-                  ]}
+                  style={[styles.categoryText, isSelected && styles.categoryTextSelected]}
                 >
                   {category}
                 </Text>
-                {isSelected && (
+                {isSelected ? (
+                  <MaterialIcons name="check" size={20} color={C.accent.primary} />
+                ) : (
                   <MaterialIcons
-                    name="check"
+                    name="radio-button-unchecked"
                     size={20}
-                    color={UNIFIED_THEME.colors.primary.light}
+                    color={C.text.muted}
                   />
                 )}
               </TouchableOpacity>
             );
           })}
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: UNIFIED_THEME.colors.primary.light,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: UNIFIED_THEME.spacing.lg,
-    paddingVertical: UNIFIED_THEME.spacing.md,
-  },
-  headerTitle: {
-    ...UNIFIED_THEME.typography.headingMd,
-    color: UNIFIED_THEME.colors.text.primary,
-  },
-  doneText: {
-    ...UNIFIED_THEME.typography.labelMd,
-    color: UNIFIED_THEME.colors.accent.secondary,
-    fontWeight: '700',
-  },
-  subtitle: {
-    ...UNIFIED_THEME.typography.bodySm,
-    color: UNIFIED_THEME.colors.text.muted,
-    paddingHorizontal: UNIFIED_THEME.spacing.lg,
-    marginBottom: UNIFIED_THEME.spacing.sm,
-  },
-  categoryList: {
-    flex: 1,
-    paddingHorizontal: UNIFIED_THEME.spacing.lg,
-    paddingVertical: UNIFIED_THEME.spacing.md,
-  },
-  categoryItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: UNIFIED_THEME.spacing.md,
-    paddingHorizontal: UNIFIED_THEME.spacing.md,
-    marginVertical: UNIFIED_THEME.spacing.xs,
-    backgroundColor: UNIFIED_THEME.colors.component.input,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: UNIFIED_THEME.colors.border.light,
-  },
-  categoryItemSelected: {
-    backgroundColor: UNIFIED_THEME.colors.primary.light,
-    borderColor: UNIFIED_THEME.colors.primary.dark,
-  },
-  categoryText: {
-    ...UNIFIED_THEME.typography.bodyMd,
-    color: UNIFIED_THEME.colors.text.primary,
-    flex: 1,
-  },
-  categoryTextSelected: {
-    fontWeight: '600',
-    color: UNIFIED_THEME.colors.primary.dark,
-  },
-});
+function createThemedStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: C.surface.panel,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: T.spacing.lg,
+      paddingVertical: T.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: softBorder(theme),
+    },
+    headerTitle: {
+      ...T.typography.headingSm,
+      color: C.text.primary,
+      fontWeight: '800',
+      flex: 1,
+      textAlign: 'center',
+      paddingHorizontal: T.spacing.sm,
+    },
+    headerSpacer: {
+      width: 24,
+    },
+    doneText: {
+      ...T.typography.labelMd,
+      color: C.accent.secondary,
+      fontWeight: '700',
+    },
+    doneTextDisabled: {
+      opacity: 0.4,
+    },
+    subtitle: {
+      ...T.typography.bodySm,
+      color: C.text.muted,
+      paddingHorizontal: T.spacing.lg,
+      paddingTop: T.spacing.sm,
+      marginBottom: T.spacing.sm,
+      fontWeight: '600',
+    },
+    categoryList: {
+      flex: 1,
+    },
+    categoryListContent: {
+      paddingHorizontal: T.spacing.lg,
+      paddingVertical: T.spacing.md,
+      paddingBottom: T.spacing.xxl,
+    },
+    categoryItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: T.spacing.md,
+      paddingHorizontal: T.spacing.md,
+      marginVertical: T.spacing.xs,
+      backgroundColor: softFill(theme),
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: softBorder(theme),
+    },
+    categoryItemSelected: {
+      backgroundColor: softFillStrong(theme),
+      borderColor: C.border.accent,
+    },
+    categoryText: {
+      ...T.typography.bodyMd,
+      color: C.text.primary,
+      flex: 1,
+      paddingRight: T.spacing.sm,
+    },
+    categoryTextSelected: {
+      fontWeight: '700',
+      color: C.accent.primary,
+    },
+  });
+}

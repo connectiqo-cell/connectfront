@@ -18,6 +18,7 @@ import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import CosmicButton from '../../components/CosmicButton';
 import { useAuth } from '../../hooks/useAuth';
@@ -42,7 +43,6 @@ const S = C.surface;
 
 const PURPLE_LINK = C.buttons.nebulaGradient[0];
 const TEAL = C.accent.secondary;
-const PANEL_BG = '#161432';
 
 function runEntrance(opacity, translateY, delay = 0) {
   opacity.setValue(0);
@@ -87,6 +87,7 @@ function FadeSlideIn({ children, delay = 0, style, replayToken = 0 }) {
 }
 
 function PulseGlow({ color = TEAL, size = 68 }) {
+  const styles = useThemedStyles(createRecordedStyles);
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -140,6 +141,7 @@ function HoverHighlight({
   hoverScale = 1.02,
   highlightRadius = 16,
 }) {
+  const styles = useThemedStyles(createRecordedStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const highlight = useRef(new Animated.Value(0)).current;
   const hovered = useRef(false);
@@ -253,6 +255,14 @@ function RotatingRefreshIcon({ spinning }) {
 }
 
 function SectionHeader({ title, subtitle, replayToken = 0 }) {
+  const styles = useThemedStyles(createRecordedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const GLASS_BORDER = C.border.light;
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(14)).current;
   const iconBob = useRef(new Animated.Value(0)).current;
@@ -401,6 +411,14 @@ function RecordingRow({
   onPressRecording,
   onPressDownload,
 }) {
+  const styles = useThemedStyles(createRecordedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const GLASS_BORDER = C.border.light;
   const opacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(-10)).current;
   const hasEntered = useRef(false);
@@ -495,6 +513,14 @@ function RecordingRow({
 }
 
 function EmptyState() {
+  const styles = useThemedStyles(createRecordedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const GLASS_BORDER = C.border.light;
   const float = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -544,6 +570,14 @@ function EmptyState() {
 }
 
 export default function RecordedLecturesScreen({ navigation }) {
+  const styles = useThemedStyles(createRecordedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const GLASS_BORDER = C.border.light;
   const { profile } = useAuth();
   const [recordings, setRecordings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -657,7 +691,7 @@ export default function RecordedLecturesScreen({ navigation }) {
             hoverScale={1.08}
             pressScale={0.92}
           >
-            <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+            <MaterialIcons name="arrow-back" size={22} color={C.accent.primary} />
           </AnimatedPressable>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Recorded lectures</Text>
@@ -716,24 +750,36 @@ export default function RecordedLecturesScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createRecordedStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  return StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: T.spacing.lg,
     paddingVertical: T.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(167,139,250,0.18)',
+    borderBottomColor: GLASS_BORDER,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: T.borderRadius.md,
-    backgroundColor: PANEL_BG,
+    backgroundColor: S.accentViolet,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.default,
   },
   headerCenter: {
     flex: 1,
@@ -743,7 +789,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: C.text.primary,
+    color: C.accent.primary,
   },
   headerSubtitle: {
     fontSize: 12,
@@ -806,7 +852,7 @@ const styles = StyleSheet.create({
     backgroundColor: PANEL_BG,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: GLASS_BORDER,
     overflow: 'hidden',
   },
 
@@ -832,7 +878,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderColor: GLASS_BORDER,
   },
   avatarPlaceholder: {
     backgroundColor: S.accentViolet,
@@ -893,3 +939,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+}
+
+
+
+
+
+
+

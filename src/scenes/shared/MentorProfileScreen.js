@@ -25,7 +25,10 @@ import Toast from 'react-native-simple-toast';
 import { SafeScreen } from '../../components/SafeScreen';
 import CosmicButton from '../../components/CosmicButton';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
+import ReportUserSheet from '../../components/ReportUserSheet';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill, avatarRingColors } from '../../theme/surfaceStyles';
 import { iosFlexChild } from '../../utils/platformLayout';
 import { profileApi } from '../../api/profileApi';
 import { videoApi } from '../../api/videoApi';
@@ -157,6 +160,7 @@ function PressableScale({
   hitSlop,
   showGlow = true,
 }) {
+  const pressFx = useThemedStyles(createMentorPressFxStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
 
@@ -219,7 +223,20 @@ function PressableScale({
   );
 }
 
-const pressFx = StyleSheet.create({
+function createMentorPressFxStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   glowRing: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 14,
@@ -227,6 +244,7 @@ const pressFx = StyleSheet.create({
     borderColor: PURPLE_LINK,
   },
 });
+}
 
 /** Subtle Ken Burns zoom on hero cover. */
 function HeroEntrance({ children, style }) {
@@ -259,6 +277,7 @@ function HeroEntrance({ children, style }) {
 
 /** Pulsing halo behind avatar ring. */
 function AvatarPulseRing({ children }) {
+  const avatarFx = useThemedStyles(createMentorAvatarFxStyles);
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -298,7 +317,20 @@ function AvatarPulseRing({ children }) {
   );
 }
 
-const avatarFx = StyleSheet.create({
+function createMentorAvatarFxStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   wrap: { position: 'relative', alignItems: 'center' },
   halo: {
     position: 'absolute',
@@ -334,9 +366,11 @@ const avatarFx = StyleSheet.create({
     borderColor: SCREEN_BG,
   },
 });
+}
 
 /** Breathing online indicator. */
 function PulseOnlineDot({ style }) {
+  const avatarFx = useThemedStyles(createMentorAvatarFxStyles);
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -374,18 +408,15 @@ function PulseOnlineDot({ style }) {
 }
 
 function AnimatedTagChip({ label, overflow }) {
+  const styles = useThemedStyles(createMentorProfileStyles);
   return (
-    <PressableScale
-      scaleTo={0.92}
-      showGlow={false}
-      style={[styles.tagChip, overflow && styles.tagOverflowChip]}
-    >
-      <Text style={styles.tagTxt}>{label}</Text>
-    </PressableScale>
+    <Text style={[styles.tagTxt, overflow && styles.tagOverflowTxt]}>{label}</Text>
   );
 }
 
 function GoldStarsRow({ rating, size = 11 }) {
+  const { theme } = useTheme();
+  const starColor = theme.colors.accent.primary;
   const filled = Math.min(5, Math.max(0, Math.round(Number(rating) || 0)));
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 1 }}>
@@ -394,7 +425,7 @@ function GoldStarsRow({ rating, size = 11 }) {
           key={i}
           name={i < filled ? 'star' : 'star-border'}
           size={size}
-          color={GOLD}
+          color={starColor}
         />
       ))}
     </View>
@@ -402,14 +433,24 @@ function GoldStarsRow({ rating, size = 11 }) {
 }
 
 function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, onRatingPress }) {
+  const { theme: liveTheme } = useTheme();
+  const statsBar = useThemedStyles(createMentorStatsBarStyles);
+  const LC = liveTheme.colors;
+  const isLight = liveTheme.mode === 'light';
   const ratingNum = Number(rating) || 0;
   const hasRating = ratingNum > 0;
+  const numberColor = LC.text.primary;
+  const labelColor = LC.text.muted;
+  const dividerColor = isLight ? LC.border.light : 'rgba(255,255,255,0.18)';
+  const accentPurple = LC.accent.primary;
+  const accentTeal = LC.accent.secondary;
+  const accentGold = isLight ? LC.accent.primary : GOLD;
 
   const CountSeg = ({ icon, iconColor, valueText, label }) => (
     <View style={statsBar.segment}>
       <View style={statsBar.valueRowSlot}>
         <Text
-          style={statsBar.valueBig}
+          style={[statsBar.valueBig, { color: numberColor }]}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.72}
@@ -422,7 +463,12 @@ function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, on
       </View>
       <View style={statsBar.labelRow}>
         <MaterialIcons name={icon} size={12} color={iconColor} />
-        <Text style={statsBar.labelMuted} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
+        <Text
+          style={[statsBar.labelMuted, { color: labelColor }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.78}
+        >
           {label}
         </Text>
       </View>
@@ -433,25 +479,25 @@ function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, on
     <View style={statsBar.wrap}>
       <CountSeg
         icon="groups"
-        iconColor="#e879f9"
+        iconColor={isLight ? accentPurple : '#e879f9'}
         valueText={formatStatCount(subscriberCount)}
         label="Subscribers"
       />
-      <View style={statsBar.divider} />
+      <View style={[statsBar.divider, { backgroundColor: dividerColor }]} />
       <CountSeg
         icon="video-library"
-        iconColor={PURPLE_LINK}
+        iconColor={accentPurple}
         valueText={formatStatCount(videoCount)}
         label="Videos"
       />
-      <View style={statsBar.divider} />
+      <View style={[statsBar.divider, { backgroundColor: dividerColor }]} />
       <CountSeg
         icon="event"
-        iconColor={TEAL}
+        iconColor={accentTeal}
         valueText={formatStatCount(totalSessions)}
         label="Sessions"
       />
-      <View style={statsBar.divider} />
+      <View style={[statsBar.divider, { backgroundColor: dividerColor }]} />
       <Pressable
         onPress={onRatingPress}
         disabled={!onRatingPress}
@@ -464,7 +510,12 @@ function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, on
         accessibilityLabel="View reviews"
       >
         <View style={statsBar.valueRowSlot}>
-          <Text style={statsBar.valueBig} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
+          <Text
+            style={[statsBar.valueBig, { color: numberColor }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.72}
+          >
             {hasRating ? ratingNum.toFixed(1) : '—'}
           </Text>
         </View>
@@ -472,8 +523,8 @@ function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, on
           <View style={statsBar.starsSlotInner} />
         </View>
         <View style={statsBar.labelRow}>
-          <MaterialIcons name="star" size={12} color={GOLD} />
-          <Text style={statsBar.labelMuted} numberOfLines={1}>
+          <MaterialIcons name="star" size={12} color={accentGold} />
+          <Text style={[statsBar.labelMuted, { color: labelColor }]} numberOfLines={1}>
             Reviews
           </Text>
         </View>
@@ -482,18 +533,27 @@ function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, on
   );
 }
 
-const statsBar = StyleSheet.create({
+function createMentorStatsBarStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    marginHorizontal: T.spacing.md,
+    marginHorizontal: T.spacing.lg,
     marginBottom: T.spacing.md,
-    paddingVertical: 11,
-    paddingHorizontal: 4,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    paddingVertical: T.spacing.sm,
+    paddingHorizontal: 0,
   },
   segment: {
     flex: 1,
@@ -511,7 +571,6 @@ const statsBar = StyleSheet.create({
   valueBig: {
     fontSize: 17,
     fontWeight: '800',
-    color: C.text.primary,
     letterSpacing: -0.4,
     textAlign: 'center',
     width: '100%',
@@ -540,24 +599,24 @@ const statsBar = StyleSheet.create({
   labelMuted: {
     fontSize: 10,
     fontWeight: '700',
-    color: C.text.muted,
     letterSpacing: 0.2,
   },
   divider: {
-    width: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    marginVertical: 6,
+    width: StyleSheet.hairlineWidth,
+    marginVertical: 4,
     alignSelf: 'stretch',
   },
-  ratingSegment: {
-    borderRadius: 10,
-  },
+  ratingSegment: {},
   ratingSegmentPressed: {
-    backgroundColor: 'rgba(167,139,250,0.12)',
+    opacity: 0.7,
   },
 });
+}
 
 function SectionHeaderRow({ title, onSeeAll, delayIndex = 0 }) {
+  const { theme: liveTheme } = useTheme();
+  const secHdr = useThemedStyles(createMentorSecHdrStyles);
+  const PURPLE_LINK = liveTheme.colors.buttons.nebulaGradient[0];
   const scale = useRef(new Animated.Value(1)).current;
   const chevronX = useRef(new Animated.Value(0)).current;
 
@@ -596,7 +655,7 @@ function SectionHeaderRow({ title, onSeeAll, delayIndex = 0 }) {
 
   return (
     <ProfileFadeIn delayIndex={delayIndex} style={secHdr.row}>
-      <Text style={secHdr.title}>{title}</Text>
+      <Text style={[secHdr.title, { color: liveTheme.colors.text.primary }]}>{title}</Text>
       <Animated.View style={{ transform: [{ scale }] }}>
         <Pressable
           onPress={onSeeAll}
@@ -615,7 +674,20 @@ function SectionHeaderRow({ title, onSeeAll, delayIndex = 0 }) {
   );
 }
 
-const secHdr = StyleSheet.create({
+function createMentorSecHdrStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -635,6 +707,7 @@ const secHdr = StyleSheet.create({
   },
   link: { fontSize: 13, fontWeight: '700', color: PURPLE_LINK },
 });
+}
 
 function PortraitVideoCard({
   video,
@@ -647,6 +720,8 @@ function PortraitVideoCard({
   thumbAspect = 1.38,
   animDelay = 0,
 }) {
+  const { theme: liveTheme } = useTheme();
+  const railCard = useThemedStyles(createMentorRailCardStyles);
   const isPrev = isPreviewSlot(video, index);
   const canPlay = isOwnChannel || isPrev || isUnlocked;
   const showLocked = !isOwnChannel && locked && !isPrev && !isUnlocked;
@@ -696,9 +771,7 @@ function PortraitVideoCard({
                 <MaterialIcons name="lock" size={iconSize} color="rgba(255,255,255,0.5)" />
               </View>
               {durationLabel ? (
-                <View style={railCard.lockedDur}>
-                  <Text style={railCard.lockedDurTxt}>{durationLabel}</Text>
-                </View>
+                <Text style={railCard.lockedDurTxt}>{durationLabel}</Text>
               ) : null}
             </>
           ) : (
@@ -710,30 +783,38 @@ function PortraitVideoCard({
               <View style={railCard.thumbBottomRow}>
                 <MaterialIcons name="play-circle-filled" size={playIconSize} color="rgba(255,255,255,0.95)" />
                 {durationLabel ? (
-                  <View style={railCard.durPill}>
-                    <Text style={railCard.durTxt}>{durationLabel}</Text>
-                  </View>
+                  <Text style={railCard.durTxt}>{durationLabel}</Text>
                 ) : <View />}
               </View>
             </>
           )}
         </View>
         <View style={railCard.info}>
-          <Text style={railCard.titleTxt} numberOfLines={2}>{video.title}</Text>
+          <Text style={[railCard.titleTxt, { color: liveTheme.colors.text.primary }]} numberOfLines={2}>{video.title}</Text>
         </View>
       </PressableScale>
     </ProfileFadeIn>
   );
 }
 
-const railCard = StyleSheet.create({
+function createMentorRailCardStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderRadius: 4,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 6 }, android: { elevation: 4 } }),
+    backgroundColor: 'transparent',
   },
   thumbWrap: { width: '100%', overflow: 'hidden', position: 'relative' },
   thumbPlaceholder: {
@@ -766,28 +847,36 @@ const railCard = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  durPill: {
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+  durTxt: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  durTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  lockedDur: {
+  lockedDurTxt: {
     position: 'absolute',
     right: 8,
     bottom: 8,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 11,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  lockedDurTxt: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '700' },
-  info: { paddingHorizontal: 10, paddingVertical: 8, minHeight: 40, justifyContent: 'center' },
+  info: { paddingHorizontal: 2, paddingVertical: 8, minHeight: 40, justifyContent: 'center' },
   titleTxt: { color: C.text.primary, fontSize: 12, fontWeight: '700', lineHeight: 16 },
 });
+}
 
 function PastSessionRow({ session, onWatchRecap }) {
+  const { theme } = useTheme();
+  const past = useThemedStyles(createMentorPastStyles);
+  const C = theme.colors;
+  const GOLD = C.accent.primary;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
   const { showAvatarPreview } = useAvatarPreview();
   const hasRecap = Boolean(session.recap_url);
   const hasRating = session.rating != null && !Number.isNaN(session.rating);
@@ -837,7 +926,20 @@ function PastSessionRow({ session, onWatchRecap }) {
   );
 }
 
-const past = StyleSheet.create({
+function createMentorPastStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   card: {
     marginHorizontal: T.spacing.lg,
     flexDirection: 'row',
@@ -845,9 +947,9 @@ const past = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: T.spacing.sm,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: softFill(theme),
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: softBorder(theme),
     gap: T.spacing.sm,
   },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.primary.light },
@@ -874,8 +976,19 @@ const past = StyleSheet.create({
   recapBtnDisabled: { opacity: 0.55 },
   recapTxtDisabled: { color: C.text.muted },
 });
+}
 
 export default function MentorProfileScreen({ navigation, route }) {
+  const { theme: liveTheme } = useTheme();
+  const styles = useThemedStyles(createMentorProfileStyles);
+  const sheet = useThemedStyles(createMentorSheetStyles);
+  const T = liveTheme;
+  const C = liveTheme.colors;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const SCREEN_BG = C.primary.void;
+  const isLightTheme = liveTheme.mode === 'light';
   const insets = useSafeAreaInsets();
   const { height: winH, width: winW } = useWindowDimensions();
   const { user, profile, refreshProfile } = useAuth();
@@ -894,6 +1007,7 @@ export default function MentorProfileScreen({ navigation, route }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [showSubSheet, setShowSubSheet] = useState(false);
+  const [showReportSheet, setShowReportSheet] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
   const isOwnProfile = useMemo(
@@ -1287,22 +1401,54 @@ export default function MentorProfileScreen({ navigation, route }) {
                     onPress={() => navigation.goBack()}
                     scaleTo={0.9}
                     showGlow={false}
-                    style={styles.heroCircleBtn}
+                    style={[
+                      styles.heroCircleBtn,
+                      isLightTheme && styles.heroCircleBtnLight,
+                    ]}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
-                    <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+                    <MaterialIcons
+                      name="arrow-back"
+                      size={22}
+                      color={liveTheme.colors.text.primary}
+                    />
                   </PressableScale>
                 ) : (
                   <PressableScale
                     onPress={() => navigation.navigate(SCREEN_NAMES.EditProfile)}
                     scaleTo={0.9}
                     showGlow={false}
-                    style={styles.heroCircleBtn}
+                    style={[
+                      styles.heroCircleBtn,
+                      isLightTheme && styles.heroCircleBtnLight,
+                    ]}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
-                    <MaterialIcons name="edit" size={20} color={C.text.primary} />
+                    <MaterialIcons
+                      name="edit"
+                      size={20}
+                      color={liveTheme.colors.text.primary}
+                    />
                   </PressableScale>
                 )}
+                {!isOwnProfile ? (
+                  <PressableScale
+                    onPress={() => setShowReportSheet(true)}
+                    scaleTo={0.9}
+                    showGlow={false}
+                    style={[
+                      styles.heroCircleBtn,
+                      isLightTheme && styles.heroCircleBtnLight,
+                    ]}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <MaterialIcons
+                      name="flag"
+                      size={20}
+                      color={liveTheme.colors.text.primary}
+                    />
+                  </PressableScale>
+                ) : null}
               </View>
             </View>
           </View>
@@ -1314,7 +1460,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                 <CircularProfileImage
                   size={94}
                   ringWidth={3}
-                  colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
+                  colors={avatarRingColors(liveTheme)}
                   innerBg={SCREEN_BG}
                   uri={avatarUrl}
                   previewName={name}
@@ -1338,29 +1484,35 @@ export default function MentorProfileScreen({ navigation, route }) {
 
             {/* Name + specialization + verified */}
             <View style={styles.nameRow}>
-              <Text style={styles.heroName}>{name}</Text>
+              <Text style={[styles.heroName, { color: liveTheme.colors.text.primary }]}>{name}</Text>
               {(rating >= 4 || totalSessions >= 5) && (
                 <MaterialIcons name="verified" size={18} color={VERIFIED_BLUE} />
               )}
             </View>
             {username ? (
-              <Text style={styles.usernameHandle}>@{username}</Text>
+              <Text style={[styles.usernameHandle, { color: liveTheme.colors.accent.primary }]}>@{username}</Text>
             ) : null}
-            <Text style={styles.titleGold}>{specialization}</Text>
+            <Text style={[styles.titleGold, isLightTheme && { color: liveTheme.colors.accent.primary }]}>{specialization}</Text>
 
             {/* Bio */}
-            <Text style={styles.heroBio}>{bio}</Text>
+            <Text style={[styles.heroBio, { color: liveTheme.colors.text.secondary }]}>{bio}</Text>
 
-            {/* Tags */}
+            {/* Tags — plain text, no capsule chips */}
             {visibleTags.length > 0 && (
-              <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagStrip}>
-                {visibleTags.map(t => (
-                  <AnimatedTagChip key={t} label={t} />
+              <View style={styles.tagStrip}>
+                {visibleTags.map((t, i) => (
+                  <React.Fragment key={t}>
+                    {i > 0 ? <Text style={styles.tagSep}>·</Text> : null}
+                    <AnimatedTagChip label={t} />
+                  </React.Fragment>
                 ))}
-                {tagOverflow > 0 && (
-                  <AnimatedTagChip label={`+${tagOverflow}`} overflow />
-                )}
-              </ScrollView>
+                {tagOverflow > 0 ? (
+                  <>
+                    <Text style={styles.tagSep}>·</Text>
+                    <AnimatedTagChip label={`+${tagOverflow}`} overflow />
+                  </>
+                ) : null}
+              </View>
             )}
           </ProfileFadeIn>
 
@@ -1574,30 +1726,52 @@ export default function MentorProfileScreen({ navigation, route }) {
         </View>
       </Modal>
 
+      <ReportUserSheet
+        visible={showReportSheet}
+        reportedUserId={mentorId}
+        reportedUserName={name}
+        contextType="profile"
+        contextId={mentorId}
+        onClose={() => setShowReportSheet(false)}
+      />
+
     </>
   );
 }
 
-const sheet = StyleSheet.create({
+function createMentorSheetStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
   container: {
-    backgroundColor: '#0f0e2a',
+    backgroundColor: C.surface.sheet,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 36,
     borderTopWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: C.border.light,
   },
-  handle: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  handle: { width: 40, height: 4, backgroundColor: C.border.default, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   mentorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   avatar: { width: 48, height: 48, borderRadius: 24 },
-  avatarFallback: { backgroundColor: 'rgba(124,58,237,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(124,58,237,0.2)' },
+  avatarFallback: { backgroundColor: C.surface.accentViolet, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border.light },
   mentorName: { color: C.text.primary, fontSize: 15, fontWeight: '700' },
   mentorSpec: { color: C.text.muted, fontSize: 12, marginTop: 2 },
-  pricePill: { backgroundColor: 'rgba(94,234,212,0.12)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(94,234,212,0.25)' },
+  pricePill: { backgroundColor: C.surface.accentTeal, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: C.border.default },
   priceText: { color: C.accent.secondary, fontSize: 14, fontWeight: '800' },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.07)', marginBottom: 16 },
+  divider: { height: 1, backgroundColor: C.border.light, marginBottom: 16 },
   title: { color: C.text.primary, fontSize: 18, fontWeight: '800', marginBottom: 6 },
   sub: { color: C.text.muted, fontSize: 13, lineHeight: 19, marginBottom: 16 },
   perks: { gap: 10, marginBottom: 24 },
@@ -1606,8 +1780,22 @@ const sheet = StyleSheet.create({
   payBtn: { marginBottom: 8, marginVertical: 0 },
   cancelBtnWrap: { marginVertical: 0 },
 });
+}
 
-const styles = StyleSheet.create({
+function createMentorProfileStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   root: { backgroundColor: 'transparent' },
   ownProfileScrollPad: { paddingBottom: T.spacing.xxxl },
   mainColumn: {},
@@ -1638,9 +1826,22 @@ const styles = StyleSheet.create({
     borderRadius: T.borderRadius.md,
     backgroundColor: 'rgba(12,12,40,0.55)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: softBorder(theme),
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  heroCircleBtnLight: {
+    backgroundColor: '#ffffff',
+    borderColor: 'rgba(109,74,255,0.22)',
+    ...Platform.select({
+      ios: {
+        shadowColor: 'rgba(109,74,255,0.2)',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 1,
+        shadowRadius: 6,
+      },
+      android: { elevation: 3 },
+    }),
   },
   identityBlock: {
     marginTop: -48,
@@ -1727,24 +1928,27 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   tagStrip: {
-    flexGrow: 0,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
     marginTop: T.spacing.sm,
     paddingVertical: 0,
-    gap: T.spacing.xs,
+    gap: 0,
   },
-  tagChip: {
-    paddingVertical: 4,
-    paddingHorizontal: T.spacing.sm,
-    borderRadius: T.borderRadius.chip,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    marginRight: T.spacing.xs,
+  tagSep: {
+    color: C.text.muted,
+    fontSize: 11,
+    fontWeight: '600',
+    marginHorizontal: 6,
   },
-  tagTxt: { color: C.text.primary, fontSize: 10, fontWeight: '700' },
-  tagOverflowChip: {
-    backgroundColor: 'rgba(167,139,250,0.12)',
-    borderColor: 'rgba(167,139,250,0.35)',
+  tagTxt: {
+    color: C.text.secondary,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.15,
+  },
+  tagOverflowTxt: {
+    color: PURPLE_LINK,
   },
   dualCtas: {
     flexDirection: 'row',
@@ -1757,10 +1961,9 @@ const styles = StyleSheet.create({
     flex: 1,
     flexBasis: 0,
     minWidth: 0,
-    borderRadius: 12,
+    borderRadius: 4,
     overflow: 'hidden',
     alignSelf: 'stretch',
-    ...Platform.select({ ios: T.shadows.small, android: { elevation: 3 } }),
   },
   ctaHalfInner: {
     flexDirection: 'row',
@@ -1786,7 +1989,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: T.spacing.sm,
     minHeight: 46,
     backgroundColor: TEAL_DEEP,
-    borderRadius: 12,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: TEAL,
   },
@@ -1799,10 +2002,10 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     paddingHorizontal: T.spacing.sm,
     minHeight: 46,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: softFill(theme),
     borderWidth: 1,
     borderColor: C.border.light,
-    borderRadius: 12,
+    borderRadius: 4,
   },
   ctaHalfTxtDark: { color: '#0c1228', fontWeight: '800', fontSize: 12 },
   ctaHalfTxtMuted: { color: C.text.muted, fontWeight: '700', fontSize: 12 },
@@ -1837,3 +2040,4 @@ const styles = StyleSheet.create({
   },
   subNoteTxt: { color: C.accent.success, fontSize: 12, fontWeight: '600' },
 });
+}

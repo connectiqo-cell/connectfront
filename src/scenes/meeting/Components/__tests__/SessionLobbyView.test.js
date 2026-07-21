@@ -1,7 +1,10 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
-import SessionLobbyView from '../SessionLobbyView';
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(() => Promise.resolve(null)),
+  setItem: jest.fn(() => Promise.resolve()),
+}));
 jest.mock('react-native-linear-gradient', () => 'LinearGradient');
 jest.mock('react-native-vector-icons/MaterialIcons', () => 'MaterialIcons');
 jest.mock('react-native-safe-area-context', () => ({
@@ -19,6 +22,12 @@ jest.mock('../../../../components/CosmicButton', () => {
     </Pressable>
   );
 });
+jest.mock('../../../../components/IosGradientShell', () => {
+  const { View } = require('react-native');
+  return ({ children, style }) => <View style={style}>{children}</View>;
+});
+
+import SessionLobbyView from '../SessionLobbyView';
 
 function flattenText(node) {
   if (!node) return '';
@@ -63,37 +72,39 @@ describe('SessionLobbyView', () => {
     jest.useRealTimers();
   });
 
-  it('shows pre-start panel before slot opens', () => {
+  it('shows waiting room before slot opens', () => {
     let tree;
     act(() => {
       tree = renderer.create(
-        <SessionLobbyView {...baseProps} booking={buildBooking({ startOffsetMin: 30 })} />
+        <SessionLobbyView {...baseProps} booking={buildBooking({ startOffsetMin: 30 })} />,
       );
     });
 
     const text = flattenText(tree.toJSON());
-    expect(text).toContain('Before your session starts');
-    expect(text).toContain('Leave waiting room');
-    expect(text).not.toContain('Wait 5 more minutes');
-    expect(text).not.toContain("hasn't joined yet");
+    expect(text).toContain('Waiting Room');
+    expect(text).toContain('until session starts');
+    expect(text).toContain('Join Call');
+    expect(text).toContain('Waiting for mentor to start the session');
+    expect(text).not.toContain('time remaining');
   });
 
-  it('shows no-show panel when slot is live', () => {
+  it('shows live waiting state when slot is open', () => {
     let tree;
     act(() => {
       tree = renderer.create(
-        <SessionLobbyView {...baseProps} booking={buildBooking({ startOffsetMin: -5 })} />
+        <SessionLobbyView {...baseProps} booking={buildBooking({ startOffsetMin: -5 })} />,
       );
     });
 
     const text = flattenText(tree.toJSON());
-    expect(text).toContain("Alex Mentor hasn't joined yet");
-    expect(text).not.toContain('Wait 5 more minutes');
-    expect(text).toContain('Cancel & Get Refund');
-    expect(text).not.toContain('Before your session starts');
+    expect(text).toContain('Waiting Room');
+    expect(text).toContain('time remaining');
+    expect(text).toContain('Join Call');
+    expect(text).toContain('Waiting for mentor to start the session');
+    expect(text).not.toContain('until session starts');
   });
 
-  it('shows mentor end-session copy for hosts', () => {
+  it('shows mentor start-session CTA for hosts', () => {
     let tree;
     act(() => {
       tree = renderer.create(
@@ -102,20 +113,25 @@ describe('SessionLobbyView', () => {
           isMentor
           otherUser={{ name: 'Sam Learner' }}
           booking={buildBooking({ startOffsetMin: -5 })}
-        />
+        />,
       );
     });
 
     const text = flattenText(tree.toJSON());
-    expect(text).toContain('End Session');
-    expect(text).not.toContain('Cancel & Get Refund');
+    expect(text).toContain('Start Session');
+    expect(text).toContain('Ready to start');
+    expect(text).toContain('Sam Learner');
+    expect(text).not.toContain('Join Call');
   });
 
   it('transitions to expired when slot ends', () => {
     let tree;
     act(() => {
       tree = renderer.create(
-        <SessionLobbyView {...baseProps} booking={buildBooking({ startOffsetMin: -35, durationMin: 30 })} />
+        <SessionLobbyView
+          {...baseProps}
+          booking={buildBooking({ startOffsetMin: -35, durationMin: 30 })}
+        />,
       );
     });
 

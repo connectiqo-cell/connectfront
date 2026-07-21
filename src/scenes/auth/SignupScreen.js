@@ -12,18 +12,12 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import CosmicBackground from '../../components/CosmicBackground';
 import CosmicButton from '../../components/CosmicButton';
-import { UNIFIED_THEME } from '../../unifiedTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { createAuthFormStyles } from '../../utils/authFormStyles';
 import { authApi } from '../../api/authApi';
 import { profileApi } from '../../api/profileApi';
-import { AUTH_FORM_STYLES } from '../../utils/authFormStyles';
 
-const T = UNIFIED_THEME;
-const C = T.colors;
-const B = C.buttons;
-const S = C.surface;
-
-const PURPLE_LINK = B.nebulaGradient[0];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function validateFields({ name, email, password, confirmPassword }) {
@@ -50,6 +44,12 @@ function validateFields({ name, email, password, confirmPassword }) {
 }
 
 export default function SignupScreen({ navigation }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const cursorColor = theme.mode === 'light' ? C.text.primary : '#ffffff';
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -121,7 +121,7 @@ export default function SignupScreen({ navigation }) {
                 autoCorrect
                 spellCheck
                 autoCapitalize="words"
-                cursorColor="#ffffff"
+                cursorColor={cursorColor}
                 selectionColor={PURPLE_LINK}
                 selectionHandleColor="transparent"
                 underlineColorAndroid="transparent"
@@ -144,7 +144,7 @@ export default function SignupScreen({ navigation }) {
                 autoCorrect={false}
                 spellCheck={false}
                 editable={!loading}
-                cursorColor="#ffffff"
+                cursorColor={cursorColor}
                 selectionColor={PURPLE_LINK}
                 selectionHandleColor="transparent"
                 underlineColorAndroid="transparent"
@@ -166,7 +166,7 @@ export default function SignupScreen({ navigation }) {
                 autoCorrect={false}
                 spellCheck={false}
                 editable={!loading}
-                cursorColor="#ffffff"
+                cursorColor={cursorColor}
                 selectionColor={PURPLE_LINK}
                 selectionHandleColor="transparent"
                 underlineColorAndroid="transparent"
@@ -201,7 +201,7 @@ export default function SignupScreen({ navigation }) {
                 autoCorrect={false}
                 spellCheck={false}
                 editable={!loading}
-                cursorColor="#ffffff"
+                cursorColor={cursorColor}
                 selectionColor={PURPLE_LINK}
                 selectionHandleColor="transparent"
                 underlineColorAndroid="transparent"
@@ -255,75 +255,82 @@ export default function SignupScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  background: { flex: 1 },
-  overlay: { flex: 1 },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: T.spacing.lg,
-    paddingVertical: T.spacing.lg,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: T.spacing.xxxl,
-  },
-  title: {
-    ...T.typography.headingLg,
-    color: C.text.primary,
-    textAlign: 'center',
-    fontWeight: '800',
-    marginBottom: T.spacing.sm,
-  },
-  formContainer: {
-    marginBottom: T.spacing.xxxl,
-  },
-  inputWrapper: AUTH_FORM_STYLES.inputWrapper,
-  inputIconSlot: AUTH_FORM_STYLES.inputIconSlot,
-  input: AUTH_FORM_STYLES.input,
-  eyeIcon: AUTH_FORM_STYLES.eyeIcon,
-  inputError: AUTH_FORM_STYLES.inputError,
-  errorText: {
-    ...T.typography.bodyXs,
-    color: C.accent.error,
-    marginTop: -T.spacing.md,
-    marginBottom: T.spacing.md,
-    marginLeft: T.spacing.sm,
-  },
-  hintText: {
-    ...T.typography.bodyXs,
-    color: C.text.muted,
-    marginTop: -T.spacing.md,
-    marginBottom: T.spacing.md,
-    marginLeft: T.spacing.sm,
-  },
-  signupBtn: {
-    marginTop: T.spacing.lg,
-    ...AUTH_FORM_STYLES.fullWidthButton,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: T.spacing.xl,
-    gap: T.spacing.sm,
-  },
-  footerText: {
-    ...T.typography.bodySm,
-    color: C.text.secondary,
-  },
-  signinLink: {
-    ...T.typography.bodySm,
-    color: PURPLE_LINK,
-    fontWeight: '600',
-  },
-  backButton: {
-    alignSelf: 'center',
-    paddingVertical: T.spacing.md,
-  },
-  backButtonText: {
-    ...T.typography.bodySm,
-    color: PURPLE_LINK,
-    fontWeight: '600',
-  },
-});
+function createThemedStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const form = createAuthFormStyles(theme);
+
+  return StyleSheet.create({
+    background: { flex: 1 },
+    overlay: { flex: 1 },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      paddingHorizontal: T.spacing.lg,
+      paddingVertical: T.spacing.lg,
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: T.spacing.xxxl,
+    },
+    title: {
+      ...T.typography.headingLg,
+      color: C.text.primary,
+      textAlign: 'center',
+      fontWeight: '800',
+      marginBottom: T.spacing.sm,
+    },
+    formContainer: {
+      marginBottom: T.spacing.xxxl,
+    },
+    inputWrapper: form.inputWrapper,
+    inputIconSlot: form.inputIconSlot,
+    input: form.input,
+    eyeIcon: form.eyeIcon,
+    inputError: form.inputError,
+    errorText: {
+      ...T.typography.bodyXs,
+      color: C.accent.error,
+      marginTop: -T.spacing.md,
+      marginBottom: T.spacing.md,
+      marginLeft: T.spacing.sm,
+    },
+    hintText: {
+      ...T.typography.bodyXs,
+      color: C.text.muted,
+      marginTop: -T.spacing.md,
+      marginBottom: T.spacing.md,
+      marginLeft: T.spacing.sm,
+    },
+    signupBtn: {
+      marginTop: T.spacing.lg,
+      ...form.fullWidthButton,
+    },
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: T.spacing.xl,
+      gap: T.spacing.sm,
+    },
+    footerText: {
+      ...T.typography.bodySm,
+      color: C.text.secondary,
+    },
+    signinLink: {
+      ...T.typography.bodySm,
+      color: PURPLE_LINK,
+      fontWeight: '600',
+    },
+    backButton: {
+      alignSelf: 'center',
+      paddingVertical: T.spacing.md,
+    },
+    backButtonText: {
+      ...T.typography.bodySm,
+      color: PURPLE_LINK,
+      fontWeight: '600',
+    },
+  });
+}

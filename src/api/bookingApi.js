@@ -21,8 +21,17 @@ async function attachRecordings(bookings) {
 }
 
 export const bookingApi = {
-  createBooking: async ({ learnerId, mentorId, slotId, message }) => {
+  createBooking: async ({
+    learnerId,
+    mentorId,
+    slotId,
+    message,
+    recordingRequested,
+  }) => {
     try {
+      if (typeof recordingRequested !== 'boolean') {
+        throw new Error('Choose whether you want the session to be recorded.');
+      }
       // Verify slot is still available before booking
       const { data: slot, error: slotCheckError } = await supabase
         .from('availability_slots')
@@ -44,6 +53,7 @@ export const bookingApi = {
             mentor_id: mentorId,
             slot_id: slotId,
             message: message || null,
+            recording_requested: recordingRequested,
             status: 'pending',
           },
         ])

@@ -116,7 +116,7 @@ const ChatViewer = ({}) => {
                     <Text
                       style={{
                         fontSize: convertRFValue(14),
-                        color: "white",
+                        color: colors.primary[100],
                         fontFamily: ROBOTO_FONTS.RobotoMedium,
                         // marginTop: 8,
                       }}

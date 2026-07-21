@@ -42,13 +42,14 @@ const styles = StyleSheet.create({
     marginVertical: UNIFIED_THEME.spacing.sm,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: UNIFIED_THEME.colors.primary.light,
+    borderColor: UNIFIED_THEME.colors.border.light,
     backgroundColor: UNIFIED_THEME.colors.component.input,
     justifyContent: 'center',
     alignItems: 'center',
   },
   slotSelected: {
-    backgroundColor: UNIFIED_THEME.colors.primary.light,
+    backgroundColor: UNIFIED_THEME.colors.accent.primary,
+    borderColor: UNIFIED_THEME.colors.accent.primary,
   },
   slotText: {
     ...UNIFIED_THEME.typography.bodyMd,
@@ -56,6 +57,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   slotTextSelected: {
-    color: UNIFIED_THEME.colors.primary.light,
+    color: UNIFIED_THEME.colors.text.onAccent,
   },
 });

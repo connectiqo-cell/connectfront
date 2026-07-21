@@ -17,6 +17,7 @@ import CosmicBackground from '../../components/CosmicBackground';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import CosmicButton from '../../components/CosmicButton';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { rescheduleApi } from '../../api/rescheduleApi';
 import { formatDateForDisplay, formatTime } from '../../utils/dateHelpers';
 import { useAuth } from '../../hooks/useAuth';
@@ -141,6 +142,15 @@ function DropdownSheet({ visible, title, items, selected, onSelect, onClose, ins
 // ── SelectorRow ───────────────────────────────────────────────────────────────
 
 function SelectorRow({ label, icon, value, placeholder, onPress, error }) {
+  const styles = useThemedStyles(createRescheduleRequestStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   return (
     <View style={styles.selectorWrap}>
       <Text style={styles.selectorLabel}>{label}</Text>
@@ -163,6 +173,15 @@ function SelectorRow({ label, icon, value, placeholder, onPress, error }) {
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function RescheduleRequestScreen({ navigation, route }) {
+  const styles = useThemedStyles(createRescheduleRequestStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const { booking } = route.params;
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
@@ -429,7 +448,18 @@ const sheet = StyleSheet.create({
   },
 });
 
-const styles = StyleSheet.create({
+function createRescheduleRequestStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
   scroll: { flex: 1 },
   content: {
     paddingHorizontal: T.spacing.md,
@@ -626,3 +656,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+}

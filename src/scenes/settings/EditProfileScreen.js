@@ -21,11 +21,13 @@ import LinearGradient from 'react-native-linear-gradient';
 import Toast from 'react-native-simple-toast';
 import { pickProfileAvatar, pickProfileCover } from '../../utils/pickProfileAvatar';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { useSystemBack } from '../../hooks/useSystemBack';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
+import { CategoryPicker } from '../../components/CategoryPicker';
 import { useAuth } from '../../hooks/useAuth';
 import { profileApi } from '../../api/profileApi';
 import { supabase } from '../../lib/supabase';
@@ -33,6 +35,8 @@ import { MENTOR_CATEGORIES } from '../../constants/mentorCategories';
 import { fetchActiveCategoryNames } from '../../api/contentApi';
 import {
   formatSelectedCategoriesLabel,
+  MAX_LEARNER_INTERESTS,
+  MIN_LEARNER_INTERESTS,
   parseMentorCategories,
   serializeMentorCategories,
   toggleMentorCategory,
@@ -51,8 +55,8 @@ const S = C.surface;
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
-const PANEL_BG = '#161432';
-const INPUT_BG = '#0f0e2a';
+const PANEL_BG = C.surface.panel;
+const INPUT_BG = C.surface.sheet;
 
 const BIO_MAX = 280;
 const NAME_MAX = 60;
@@ -62,7 +66,7 @@ function calcCompletion(fields) {
     !!fields.name?.trim(),
     !!fields.username?.trim(),
     !!fields.learnerBio?.trim(),
-    !!fields.interests?.trim(),
+    !!fields.interests?.length,
     !!fields.specialization?.trim(),
     !!fields.mentorBio?.trim(),
     !!fields.experienceYears?.trim(),
@@ -153,32 +157,8 @@ function FadeSlideIn({ children, delay = 0, style }) {
   );
 }
 
-function AvatarGlowRing() {
-  const pulse = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-
-  const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
-  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] });
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[styles.avatarGlowRing, { opacity: ringOpacity, transform: [{ scale: ringScale }] }]}
-    />
-  );
-}
-
 function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay = 0 }) {
+  const styles = useThemedStyles(createEditProfileStyles);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(14)).current;
 
@@ -203,6 +183,7 @@ function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay
 }
 
 function CategoryChip({ label, active, onPress, index }) {
+  const styles = useThemedStyles(createEditProfileStyles);
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.92)).current;
 
@@ -240,6 +221,7 @@ function CategoryChip({ label, active, onPress, index }) {
 }
 
 function CategoryDropdown({ categories, open, onToggle, options, onToggleCategory }) {
+  const styles = useThemedStyles(createEditProfileStyles);
   const selected = parseMentorCategories(categories);
   const summary = formatSelectedCategoriesLabel(selected);
 
@@ -330,6 +312,7 @@ function Field({
   autoCorrect = true,
   autoCapitalize = 'sentences',
 }) {
+  const styles = useThemedStyles(createEditProfileStyles);
   const charCount = typeof value === 'string' ? value.length : 0;
 
   return (
@@ -376,6 +359,7 @@ function Field({
 }
 
 function CompletionBar({ percent }) {
+  const styles = useThemedStyles(createEditProfileStyles);
   const clamped = Math.min(100, Math.max(0, percent));
   const widthAnim = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -423,6 +407,7 @@ function CompletionBar({ percent }) {
 }
 
 function AnimatedFooter({ children, insets }) {
+  const styles = useThemedStyles(createEditProfileStyles);
   const translateY = useRef(new Animated.Value(16)).current;
 
   useEffect(() => {
@@ -470,6 +455,7 @@ function buildSaveSparkles() {
 }
 
 function AnimatedSaveButton({ saving, saveSuccess, disabled, onPress, onSuccessComplete, onSuccessMeasure }) {
+  const styles = useThemedStyles(createEditProfileStyles);
   const btnScale = useRef(new Animated.Value(1)).current;
   const checkScale = useRef(new Animated.Value(0)).current;
   const labelOpacity = useRef(new Animated.Value(0)).current;
@@ -757,6 +743,10 @@ function AnimatedSaveButton({ saving, saveSuccess, disabled, onPress, onSuccessC
 }
 
 export default function EditProfileScreen({ navigation }) {
+  const styles = useThemedStyles(createEditProfileStyles);
+  const { theme: liveTheme } = useTheme();
+  const isLightTheme = liveTheme.mode === 'light';
+  const livePanel = liveTheme.colors.surface.panel;
   const { showAvatarPreview } = useAvatarPreview();
   const insets = useSafeAreaInsets();
   const { profile, user, refreshProfile } = useAuth();
@@ -775,7 +765,7 @@ export default function EditProfileScreen({ navigation }) {
   const [username, setUsername] = useState(profile?.username || '');
   const [usernameError, setUsernameError] = useState('');
   const [learnerBio, setLearnerBio] = useState('');
-  const [interests, setInterests] = useState('');
+  const [interests, setInterests] = useState([]);
   const [specialization, setSpecialization] = useState('');
   const [mentorBio, setMentorBio] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
@@ -783,6 +773,7 @@ export default function EditProfileScreen({ navigation }) {
   const [categories, setCategories] = useState([]);
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showInterestPicker, setShowInterestPicker] = useState(false);
   const [adminCategoryNames, setAdminCategoryNames] = useState([]);
 
   const savedSnapshot = useRef(null);
@@ -828,7 +819,7 @@ export default function EditProfileScreen({ navigation }) {
         name: name.trim(),
         username: username.trim().toLowerCase(),
         learnerBio: learnerBio.trim(),
-        interests: interests.trim(),
+        interests,
         specialization: specialization.trim(),
         mentorBio: mentorBio.trim(),
         experienceYears: experienceYears.trim(),
@@ -889,7 +880,7 @@ export default function EditProfileScreen({ navigation }) {
       let nextCategories = [];
       let nextCover = '';
       let nextLearnerBio = '';
-      let nextInterests = '';
+      let nextInterests = [];
 
       if (mentorData.status === 'fulfilled' && mentorData.value) {
         const m = mentorData.value;
@@ -903,7 +894,7 @@ export default function EditProfileScreen({ navigation }) {
       if (learnerData.status === 'fulfilled' && learnerData.value) {
         const l = learnerData.value;
         nextLearnerBio = l.bio || '';
-        nextInterests = Array.isArray(l.interests) ? l.interests.join(', ') : l.interests || '';
+        nextInterests = parseMentorCategories(l.interests);
       }
 
       setAvatarUrl(profile.avatar_url || '');
@@ -922,7 +913,7 @@ export default function EditProfileScreen({ navigation }) {
         name: (profile.name || '').trim(),
         username: (profile.username || '').trim().toLowerCase(),
         learnerBio: nextLearnerBio.trim(),
-        interests: nextInterests.trim(),
+        interests: nextInterests,
         specialization: nextSpecialization.trim(),
         mentorBio: nextMentorBio.trim(),
         experienceYears: nextExperienceYears.trim(),
@@ -1103,6 +1094,10 @@ export default function EditProfileScreen({ navigation }) {
       Toast.show(usernameResult.message || 'Please fix your username');
       return;
     }
+    if (interests.length !== MAX_LEARNER_INTERESTS) {
+      Toast.show(`Please select exactly ${MAX_LEARNER_INTERESTS} interests`);
+      return;
+    }
 
     try {
       setSaving(true);
@@ -1125,10 +1120,7 @@ export default function EditProfileScreen({ navigation }) {
         profileApi.updateLearnerProfile({
           userId,
           bio: learnerBio,
-          interests: interests
-            .split(',')
-            .map(i => i.trim())
-            .filter(Boolean),
+          interests,
         }),
       ]);
       markSaved();
@@ -1149,7 +1141,7 @@ export default function EditProfileScreen({ navigation }) {
       <FadeSlideIn delay={0}>
         <View style={styles.header}>
           <AnimatedPressable onPress={handleGoBack} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
-            <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+            <MaterialIcons name="arrow-back" size={22} color={C.accent.primary} />
           </AnimatedPressable>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Edit Profile</Text>
@@ -1180,12 +1172,20 @@ export default function EditProfileScreen({ navigation }) {
                 <Image source={{ uri: coverImageUrl }} style={styles.coverImage} resizeMode="cover" />
               ) : (
                 <LinearGradient
-                  colors={['rgba(124,58,237,0.35)', 'rgba(94,234,212,0.2)', PANEL_BG]}
+                  colors={
+                    isLightTheme
+                      ? ['rgba(109,74,255,0.18)', 'rgba(139,92,246,0.1)', livePanel]
+                      : ['rgba(124,58,237,0.35)', 'rgba(94,234,212,0.2)', livePanel]
+                  }
                   style={StyleSheet.absoluteFill}
                 />
               )}
               <LinearGradient
-                colors={['transparent', 'rgba(15,14,42,0.85)', PANEL_BG]}
+                colors={
+                  isLightTheme
+                    ? ['transparent', 'rgba(248,249,255,0.55)', livePanel]
+                    : ['transparent', 'rgba(15,14,42,0.85)', livePanel]
+                }
                 style={styles.coverFade}
               />
               <View style={styles.coverEditChip}>
@@ -1208,12 +1208,11 @@ export default function EditProfileScreen({ navigation }) {
                 hoverScale={1.05}
                 pressScale={0.94}
               >
-                <AvatarGlowRing />
                 <CircularProfileImage
                   size={94}
                   ringWidth={3}
                   colors={B.premiumGradient}
-                  innerBg={C.primary.void}
+                  innerBg={liveTheme.colors.primary.void}
                   uri={avatarUrl}
                   previewName={name.trim() || 'Your profile'}
                   pressable={false}
@@ -1311,15 +1310,61 @@ export default function EditProfileScreen({ navigation }) {
               multiline
               maxLength={BIO_MAX}
             />
-            <Field
-              icon="interests"
-              label="Interests"
-              value={interests}
-              onChangeText={setInterests}
-              placeholder="React, Python, UI Design…"
-              hint="Separate topics with commas"
-              isLast
-            />
+            <View style={[styles.fieldWrap, styles.fieldWrapLast]}>
+              <View style={styles.fieldLabelRow}>
+                <View style={styles.fieldLabelLeft}>
+                  <MaterialIcons
+                    name="interests"
+                    size={14}
+                    color={liveTheme.colors.text.muted}
+                  />
+                  <Text style={styles.fieldLabel}>Interested categories</Text>
+                </View>
+                <Text style={styles.fieldHint}>
+                  {interests.length} / {MAX_LEARNER_INTERESTS}
+                </Text>
+              </View>
+              <Pressable
+                style={styles.interestPickerTrigger}
+                onPress={() => setShowInterestPicker(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Edit interested categories"
+              >
+                <View style={styles.interestPickerCopy}>
+                  <Text
+                    style={
+                      interests.length
+                        ? styles.interestPickerValue
+                        : styles.dropdownPlaceholder
+                    }
+                    numberOfLines={2}
+                  >
+                    {interests.length
+                      ? formatSelectedCategoriesLabel(interests, 3)
+                      : `Choose ${MAX_LEARNER_INTERESTS} categories`}
+                  </Text>
+                  <Text style={styles.interestPickerHint}>
+                    These categories appear first in Discover
+                  </Text>
+                </View>
+                <View style={styles.interestEditBadge}>
+                  <MaterialIcons
+                    name="edit"
+                    size={16}
+                    color={liveTheme.colors.accent.secondary}
+                  />
+                </View>
+              </Pressable>
+              {interests.length ? (
+                <View style={styles.interestChips}>
+                  {interests.map(interest => (
+                    <View key={interest} style={styles.interestChip}>
+                      <Text style={styles.interestChipText}>{interest}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
           </SectionBlock>
 
           <SectionBlock
@@ -1384,10 +1429,6 @@ export default function EditProfileScreen({ navigation }) {
           </SectionBlock>
 
           <FadeSlideIn delay={360} style={styles.dangerZone}>
-            <View style={styles.dangerZoneHeader}>
-              <MaterialIcons name="warning" size={14} color="#ef4444" />
-              <Text style={styles.dangerZoneTitle}>Danger Zone</Text>
-            </View>
             <View style={styles.dangerZoneCard}>
               <View style={styles.dangerZoneInfo}>
                 <Text style={styles.dangerZoneHeading}>Delete Account</Text>
@@ -1427,6 +1468,17 @@ export default function EditProfileScreen({ navigation }) {
 
       <LoadingOverlay visible={!profileReady && !saving} message="Loading profile…" />
 
+      <CategoryPicker
+        visible={showInterestPicker}
+        multiple
+        title="Edit interested categories"
+        selectedCategories={interests}
+        minSelections={MIN_LEARNER_INTERESTS}
+        maxSelections={MAX_LEARNER_INTERESTS}
+        onChange={setInterests}
+        onClose={() => setShowInterestPicker(false)}
+      />
+
       <CelebrationScreenFx
         active={saveSuccess}
         origin={celebrationOrigin}
@@ -1437,24 +1489,35 @@ export default function EditProfileScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createEditProfileStyles(theme) {
+  const T = theme;
+  const C = T.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: T.spacing.lg,
     paddingVertical: T.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(167,139,250,0.18)',
+    borderBottomColor: C.border.light,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: T.borderRadius.md,
-    backgroundColor: PANEL_BG,
+    backgroundColor: S.accentViolet,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.default,
   },
   headerCenter: {
     flex: 1,
@@ -1464,7 +1527,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: C.text.primary,
+    color: C.accent.primary,
   },
   headerSubtitle: {
     fontSize: 12,
@@ -1485,7 +1548,7 @@ const styles = StyleSheet.create({
   heroCard: {
     backgroundColor: PANEL_BG,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(167,139,250,0.18)',
+    borderBottomColor: C.border.light,
     marginBottom: T.spacing.lg,
   },
   coverBanner: {
@@ -1509,7 +1572,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: 'rgba(15,14,42,0.75)',
+    backgroundColor: isLight ? 'rgba(26,22,66,0.72)' : 'rgba(15,14,42,0.75)',
     borderWidth: 1,
     borderColor: 'rgba(94,234,212,0.3)',
   },
@@ -1530,19 +1593,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarGlowRing: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2,
-    borderColor: TEAL,
-  },
   avatarRing: {
     padding: 3,
     borderRadius: 48,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: isLight ? C.border.default : 'rgba(255,255,255,0.35)',
   },
   avatarFallbackEdit: {
     width: 88,
@@ -1566,7 +1621,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor: C.border.default,
   },
   heroName: {
     fontSize: 20,
@@ -1593,7 +1648,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: INPUT_BG,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.18)',
+    borderColor: C.border.light,
   },
   completionTop: {
     flexDirection: 'row',
@@ -1761,6 +1816,61 @@ const styles = StyleSheet.create({
   rowFieldHalf: {
     flex: 1,
   },
+  interestPickerTrigger: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: INPUT_BG,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.22)',
+    borderRadius: 12,
+    paddingHorizontal: T.spacing.md,
+    paddingVertical: T.spacing.sm,
+  },
+  interestPickerCopy: {
+    flex: 1,
+    paddingRight: T.spacing.sm,
+  },
+  interestPickerValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: C.text.primary,
+    lineHeight: 20,
+  },
+  interestPickerHint: {
+    fontSize: 11,
+    color: C.text.muted,
+    marginTop: 3,
+  },
+  interestEditBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: S.accentTeal,
+    borderWidth: 1,
+    borderColor: C.border.light,
+  },
+  interestChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    marginTop: T.spacing.sm,
+  },
+  interestChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: S.accentTeal,
+    borderWidth: 1,
+    borderColor: C.border.light,
+  },
+  interestChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: TEAL,
+  },
   dropdownTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1814,9 +1924,9 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: T.spacing.lg,
     paddingTop: T.spacing.sm,
-    backgroundColor: 'rgba(15,14,42,0.96)',
+    backgroundColor: isLight ? S.checkoutBar : 'rgba(15,14,42,0.96)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(167,139,250,0.18)',
+    borderTopColor: C.border.light,
   },
   unsavedHint: {
     fontSize: 12,
@@ -1901,20 +2011,6 @@ const styles = StyleSheet.create({
     marginTop: T.spacing.md,
     marginBottom: T.spacing.xl,
   },
-  dangerZoneHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: T.spacing.sm,
-    paddingHorizontal: T.spacing.xs,
-  },
-  dangerZoneTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#ef4444',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
   dangerZoneCard: {
     backgroundColor: 'rgba(239,68,68,0.06)',
     borderRadius: 16,
@@ -1953,4 +2049,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ef4444',
   },
-});
+  });
+}

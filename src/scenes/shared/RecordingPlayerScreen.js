@@ -11,11 +11,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Video from 'react-native-video';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { normalizeRecordingUrl } from '../../api/api';
 
 const TEAL = UNIFIED_THEME.colors.accent.secondary;
 
 export default function RecordingPlayerScreen({ navigation, route }) {
+  const styles = useThemedStyles(createRecordingPlayerStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -88,7 +98,18 @@ export default function RecordingPlayerScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createRecordingPlayerStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
@@ -127,3 +148,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+}

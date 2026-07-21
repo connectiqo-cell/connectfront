@@ -6,7 +6,7 @@ import {
   MeetingConsumer,
   MeetingProvider,
 } from "@videosdk.live/react-native-sdk";
-import { UNIFIED_THEME } from "../../unifiedTheme";
+import { useThemedStyles } from "../../hooks/useTheme";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import MeetingContainer from "./MeetingContainer";
 import { SCREEN_NAMES } from "../../navigators/screenNames";
@@ -58,6 +58,7 @@ const requestPermissions = async () => {
 export default function ({ navigation, route }) {
   const [permissionsGranted, setPermissionsGranted] = useState(false);
   const { isRecordingDetected } = useScreenProtection();
+  const styles = useThemedStyles(createMeetingScreenStyles);
 
   const {
     token,
@@ -164,35 +165,38 @@ export default function ({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: UNIFIED_THEME.colors.primary.light,
-    padding: UNIFIED_THEME.spacing.md,
-  },
-  recordingBlocker: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    zIndex: 9999,
-  },
-  blockerIcon: {
-    marginBottom: 20,
-    opacity: 0.9,
-  },
-  blockerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  blockerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.65)',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-});
+function createMeetingScreenStyles(theme) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      // Call chrome stays dark in both app themes.
+      backgroundColor: theme.colors.meeting[900],
+      padding: theme.spacing.md,
+    },
+    recordingBlocker: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: '#000',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 32,
+      zIndex: 9999,
+    },
+    blockerIcon: {
+      marginBottom: 20,
+      opacity: 0.9,
+    },
+    blockerTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: '#ffffff',
+      textAlign: 'center',
+      marginBottom: 10,
+    },
+    blockerSubtitle: {
+      fontSize: 14,
+      color: 'rgba(255,255,255,0.65)',
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+  });
+}

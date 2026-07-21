@@ -21,22 +21,12 @@ import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
-import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useThemedStyles, useTheme } from '../../hooks/useTheme';
+import { softFill } from '../../theme/surfaceStyles';
 import { paymentApi } from '../../api/paymentApi';
 import { payoutApi } from '../../api/payoutApi';
 import { useAuth } from '../../hooks/useAuth';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
-
-const T = UNIFIED_THEME;
-const C = T.colors;
-const B = C.buttons;
-const S = C.surface;
-
-const PURPLE_LINK = B.nebulaGradient[0];
-const GOLD = C.accent.primary;
-const TEAL = C.accent.secondary;
-const PANEL_BG = '#161432';
-const INPUT_BG = '#0f0e2a';
 
 const MIN_WITHDRAWAL = 5000;
 
@@ -90,7 +80,10 @@ function FadeSlideIn({ children, delay = 0, style, replayToken = 0 }) {
   );
 }
 
-function PulseGlow({ color = TEAL, size = 68 }) {
+function PulseGlow({ color, size = 68 }) {
+  const styles = useThemedStyles(createWalletStyles);
+  const { theme } = useTheme();
+  const ringColor = color ?? theme.colors.accent.secondary;
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -126,7 +119,7 @@ function PulseGlow({ color = TEAL, size = 68 }) {
           width: size,
           height: size,
           borderRadius: size / 2,
-          borderColor: color,
+          borderColor: ringColor,
           opacity,
           transform: [{ scale }],
         },
@@ -197,6 +190,7 @@ function PulseBadge({ children, style }) {
 }
 
 function HoverHighlight({ children, style, onPress, disabled, pressScale = 0.98, hoverScale = 1.02 }) {
+  const styles = useThemedStyles(createWalletStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const highlight = useRef(new Animated.Value(0)).current;
   const hovered = useRef(false);
@@ -314,6 +308,10 @@ function AnimatedPressable({
 }
 
 function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay = 0 }) {
+  const styles = useThemedStyles(createWalletStyles);
+  const { theme } = useTheme();
+  const S = theme.colors.surface;
+  const PURPLE_LINK = theme.colors.buttons.nebulaGradient[0];
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(14)).current;
 
@@ -338,6 +336,7 @@ function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay
 }
 
 function StatTile({ icon, label, value, color, accentBg, delay = 0, replayToken = 0 }) {
+  const styles = useThemedStyles(createWalletStyles);
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.92)).current;
   const iconScale = useRef(new Animated.Value(1)).current;
@@ -410,6 +409,10 @@ function StatTile({ icon, label, value, color, accentBg, delay = 0, replayToken 
 }
 
 function AnimatedProgressBar({ percent }) {
+  const styles = useThemedStyles(createWalletStyles);
+  const { theme } = useTheme();
+  const TEAL = theme.colors.accent.secondary;
+  const GOLD = theme.colors.accent.primary;
   const widthAnim = useRef(new Animated.Value(0)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
 
@@ -505,7 +508,12 @@ function ExpandFadeIn({ visible, children }) {
   );
 }
 
-function MenuRow({ icon, title, subtitle, onPress, accent = TEAL, accentBg = S.accentTeal, badge, index = 0, replayToken = 0 }) {
+function MenuRow({ icon, title, subtitle, onPress, accent, accentBg, badge, index = 0, replayToken = 0 }) {
+  const styles = useThemedStyles(createWalletStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const rowAccent = accent ?? C.accent.secondary;
+  const rowAccentBg = accentBg ?? C.surface.accentTeal;
   const chevron = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
   const highlight = useRef(new Animated.Value(0)).current;
@@ -592,8 +600,8 @@ function MenuRow({ icon, title, subtitle, onPress, accent = TEAL, accentBg = S.a
       >
         <Animated.View style={[styles.menuRow, { transform: [{ scale }] }]}>
           <Animated.View pointerEvents="none" style={[styles.menuHighlight, { opacity: highlightOpacity }]} />
-          <Animated.View style={[styles.menuIcon, { backgroundColor: accentBg, transform: [{ scale: iconScale }] }]}>
-            <MaterialIcons name={icon} size={20} color={accent} />
+          <Animated.View style={[styles.menuIcon, { backgroundColor: rowAccentBg, transform: [{ scale: iconScale }] }]}>
+            <MaterialIcons name={icon} size={20} color={rowAccent} />
           </Animated.View>
           <View style={styles.menuText}>
             <Text style={styles.menuTitle}>{title}</Text>
@@ -614,6 +622,7 @@ function MenuRow({ icon, title, subtitle, onPress, accent = TEAL, accentBg = S.a
 }
 
 function QuickAmountChip({ label, active, onPress }) {
+  const styles = useThemedStyles(createWalletStyles);
   const scale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -640,6 +649,9 @@ function QuickAmountChip({ label, active, onPress }) {
 }
 
 function InfoRow({ icon, label, value, valueColor }) {
+  const styles = useThemedStyles(createWalletStyles);
+  const { theme } = useTheme();
+  const TEAL = theme.colors.accent.secondary;
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoLeft}>
@@ -652,6 +664,11 @@ function InfoRow({ icon, label, value, valueColor }) {
 }
 
 function TransactionRow({ item, isMentor, index = 0, replayToken = 0 }) {
+  const styles = useThemedStyles(createWalletStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const TEAL = C.accent.secondary;
   const net = parseFloat(item.amount || 0) - parseFloat(item.platform_fee || 0);
   const dateLabel = moment(item.created_at).format('DD MMM · hh:mm A');
   const isRecent = moment(item.created_at).isAfter(moment().subtract(7, 'days'));
@@ -719,6 +736,9 @@ function TransactionRow({ item, isMentor, index = 0, replayToken = 0 }) {
 }
 
 function GuideRow({ icon, text, index = 0 }) {
+  const styles = useThemedStyles(createWalletStyles);
+  const { theme } = useTheme();
+  const TEAL = theme.colors.accent.secondary;
   const opacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(-8)).current;
 
@@ -750,6 +770,8 @@ function GuideRow({ icon, text, index = 0 }) {
 }
 
 function RotatingRefreshIcon({ spinning }) {
+  const { theme } = useTheme();
+  const TEAL = theme.colors.accent.secondary;
   const spin = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -780,6 +802,19 @@ function RotatingRefreshIcon({ spinning }) {
 }
 
 export default function WalletScreen({ navigation }) {
+  const styles = useThemedStyles(createWalletStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const PANEL_BG = C.surface.panel;
+  const isLight = theme.mode === 'light';
+  const balanceFade = isLight
+    ? ['transparent', 'rgba(248,249,255,0.92)', PANEL_BG]
+    : ['transparent', 'rgba(15,14,42,0.9)', PANEL_BG];
   const { profile } = useAuth();
   const [wallet, setWallet] = useState({ balance: 0, total_earned: 0, total_withdrawn: 0 });
   const [pendingAmount, setPendingAmount] = useState(0);
@@ -917,7 +952,7 @@ export default function WalletScreen({ navigation }) {
       <FadeSlideIn delay={0} replayToken={replayToken}>
         <View style={styles.header}>
           <AnimatedPressable onPress={() => navigation.goBack()} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
-            <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+            <MaterialIcons name="arrow-back" size={22} color={C.accent.primary} />
           </AnimatedPressable>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>My Wallet</Text>
@@ -952,7 +987,7 @@ export default function WalletScreen({ navigation }) {
         <FadeSlideIn delay={60} replayToken={replayToken}>
           <HoverHighlight style={styles.balanceHero} hoverScale={1.005} pressScale={0.998}>
             <LinearGradient
-              colors={['rgba(124,58,237,0.45)', 'rgba(94,234,212,0.22)', PANEL_BG]}
+              colors={C.surface.heroGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.balanceBanner}
@@ -962,7 +997,7 @@ export default function WalletScreen({ navigation }) {
               style={[styles.balanceShimmer, { transform: [{ translateX: bannerShimmerX }] }]}
             />
             <LinearGradient
-              colors={['transparent', 'rgba(15,14,42,0.9)', PANEL_BG]}
+              colors={balanceFade}
               style={styles.balanceFade}
             />
 
@@ -1109,7 +1144,11 @@ export default function WalletScreen({ navigation }) {
             pressScale={0.97}
           >
             <LinearGradient
-              colors={canWithdraw ? B.nebulaGradient : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.04)']}
+              colors={
+                canWithdraw
+                  ? B.nebulaGradient
+                  : [softFill(theme), theme.colors.component.disabled]
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.withdrawCtaGrad}
@@ -1251,7 +1290,17 @@ export default function WalletScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createWalletStyles(theme) {
+  const T = theme;
+  const C = T.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  return StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1264,11 +1313,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: T.borderRadius.md,
-    backgroundColor: PANEL_BG,
+    backgroundColor: S.accentViolet,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.default,
   },
   headerCenter: {
     flex: 1,
@@ -1278,7 +1327,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: C.text.primary,
+    color: C.accent.primary,
   },
   headerSubtitle: {
     fontSize: 12,
@@ -1326,7 +1375,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 90,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: softFill(theme),
     transform: [{ skewX: '-16deg' }],
   },
   balanceBanner: {
@@ -1574,7 +1623,7 @@ const styles = StyleSheet.create({
     backgroundColor: PANEL_BG,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: theme.colors.border.light,
     padding: T.spacing.lg,
     gap: T.spacing.md,
   },
@@ -1609,7 +1658,7 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     height: 8,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: softFill(theme),
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -1673,7 +1722,7 @@ const styles = StyleSheet.create({
     backgroundColor: INPUT_BG,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: theme.colors.border.light,
     paddingHorizontal: T.spacing.md,
   },
   inputReadOnly: {
@@ -1851,4 +1900,5 @@ const styles = StyleSheet.create({
     color: C.text.secondary,
     lineHeight: 18,
   },
-});
+  });
+}

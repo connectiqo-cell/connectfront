@@ -20,6 +20,8 @@ import Video from 'react-native-video';
 import Toast from 'react-native-simple-toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
 import {
   getFloatingTabBarContentInset,
 } from '../../components/CosmicBottomTabBar';
@@ -45,9 +47,11 @@ const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
 const PANEL_BG = '#161432';
 const SHEET_BG = '#0f0e2a';
-const GLASS_BORDER = 'rgba(167,139,250,0.22)';
+const GLASS_BORDER = C.border.light;
 
 function SkeletonBone({ style }) {
+  const sk = useThemedStyles(createVideosSkeletonStyles);
+  const { theme } = useTheme();
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
@@ -62,6 +66,8 @@ function SkeletonBone({ style }) {
 }
 
 function VideosSkeleton() {
+  const sk = useThemedStyles(createVideosSkeletonStyles);
+  const { theme } = useTheme();
   return (
     <View style={sk.root}>
       <SkeletonBone style={sk.shimmerVideo} />
@@ -84,6 +90,20 @@ function VideosSkeleton() {
 }
 
 function ReelProfileRail({ item, onViewProfile }) {
+  const s = useThemedStyles(createVideosStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   const { showAvatarPreview } = useAvatarPreview();
   const name = item.profiles?.name || 'Connectiqo';
   const canPress = !!item.mentor_id && onViewProfile;
@@ -133,6 +153,20 @@ function ReelProfileRail({ item, onViewProfile }) {
 }
 
 function ReelProgressBar({ progress, duration }) {
+  const s = useThemedStyles(createVideosStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   const pct = duration > 0 ? Math.min(progress / duration, 1) : 0;
   return (
     <View style={s.progressTrack} pointerEvents="none">
@@ -150,6 +184,20 @@ function ReelInfoDock({
   item,
   onViewProfile,
 }) {
+  const s = useThemedStyles(createVideosStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   const { showAvatarPreview } = useAvatarPreview();
   const [descExpanded, setDescExpanded] = useState(false);
   const [needsMore, setNeedsMore] = useState(false);
@@ -258,6 +306,20 @@ function ReelInfoDock({
 
 // ─── Unlock bottom sheet ──────────────────────────────────────────────────────
 function UnlockSheet({ video, onClose, onUnlocked }) {
+  const u = useThemedStyles(createUnlockStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const price = video?.mentor_profiles?.unlock_price || 299;
@@ -375,7 +437,20 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
   );
 }
 
-const u = StyleSheet.create({
+function createUnlockStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(3,3,8,0.75)' },
   sheet: {
     backgroundColor: SHEET_BG,
@@ -442,6 +517,7 @@ const u = StyleSheet.create({
   payBtn: { marginBottom: T.spacing.sm, marginVertical: 0 },
   cancelBtnWrap: { marginVertical: 0 },
 });
+}
 
 // ─── Single short card (full-screen reel) ─────────────────────────────────────
 function ShortCard({
@@ -454,6 +530,20 @@ function ShortCard({
   forcePaused,
   allowPlayback,
 }) {
+  const s = useThemedStyles(createVideosStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -616,6 +706,20 @@ function ShortCard({
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function VideosScreen({ navigation, route }) {
+  const s = useThemedStyles(createVideosStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   const { user, profile } = useAuth();
   const insets = useSafeAreaInsets();
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -920,7 +1024,20 @@ export default function VideosScreen({ navigation, route }) {
   );
 }
 
-const s = StyleSheet.create({
+function createVideosStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#000',
@@ -940,7 +1057,7 @@ const s = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: GLASS_BORDER,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: softFill(theme),
   },
   emptyIconRing: {
     width: 88,
@@ -948,7 +1065,7 @@ const s = StyleSheet.create({
     borderRadius: 44,
     backgroundColor: S.accentViolet,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor: softBorder(theme),
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: T.spacing.lg,
@@ -1017,7 +1134,7 @@ const s = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: softFill(theme),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
@@ -1190,14 +1307,28 @@ const s = StyleSheet.create({
     opacity: 0.72,
   },
 });
+}
 
-const sk = StyleSheet.create({
+function createVideosSkeletonStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#000',
   },
   bone: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: softFillStrong(theme),
     borderRadius: 8,
   },
   shimmerVideo: {
@@ -1255,3 +1386,4 @@ const sk = StyleSheet.create({
     borderRadius: 0,
   },
 });
+}

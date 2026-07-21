@@ -10,8 +10,14 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicButton from './CosmicButton';
 import { CircularProfileImage } from './CircularGradientFrame';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 import { iosFlexChild } from '../utils/platformLayout';
 import { scaleUi } from '../utils/iosUiScale';
+import {
+  avatarRingColors,
+  isLightMode,
+  ringBorder,
+} from '../theme/surfaceStyles';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -33,6 +39,14 @@ export function LearnerMentorCard({
   onPress,
   fullWidth = false,
 }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
   const name = mentor.profiles?.name || 'Unknown';
   const initial = name.charAt(0).toUpperCase();
   const rating = mentor.rating != null && mentor.rating !== '' ? String(mentor.rating) : null;
@@ -49,7 +63,7 @@ export function LearnerMentorCard({
           <CircularProfileImage
             size={Platform.OS === 'ios' ? scaleUi(48) : 48}
             ringWidth={2}
-            colors={['rgba(167,139,250,0.95)', 'rgba(255,255,255,0.55)', 'rgba(94,234,212,0.5)']}
+            colors={avatarRingColors(theme)}
             innerBg={C.primary.void}
             uri={mentor.profiles?.avatar_url}
             previewName={name}
@@ -133,23 +147,39 @@ export function LearnerMentorCard({
   return <View style={[styles.card, fullWidth && styles.cardFullWidth]}>{body}</View>;
 }
 
-const styles = StyleSheet.create({
+function createThemedStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const light = isLightMode(theme);
+  return StyleSheet.create({
   card: {
     width: Platform.OS === 'ios' ? scaleUi(192) : 176,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: theme.colors.surface.panel,
     borderRadius: 16,
     padding: T.spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderColor: theme.colors.border.light,
     alignSelf: 'flex-start',
     ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 6,
-      },
-      android: { elevation: 4 },
+      ios: light
+        ? {
+            shadowColor: 'rgba(26, 22, 66, 0.12)',
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.35,
+            shadowRadius: 10,
+          }
+        : {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 6,
+          },
+      android: { elevation: light ? 3 : 4 },
     }),
   },
   cardFullWidth: {
@@ -180,7 +210,7 @@ const styles = StyleSheet.create({
     padding: 2,
     borderRadius: 26,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: ringBorder(theme),
   },
   avatarFallbackSmall: {
     width: 44,
@@ -226,7 +256,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: 'rgba(240,216,117,0.25)',
+    borderColor: light ? C.border.light : 'rgba(240,216,117,0.25)',
   },
   ratingText: {
     fontSize: 11,
@@ -239,7 +269,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: 'rgba(94,234,212,0.25)',
+    borderColor: light ? C.border.light : 'rgba(94,234,212,0.25)',
   },
   expText: {
     fontSize: 11,
@@ -296,9 +326,11 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor: C.border.default,
     backgroundColor: S.accentViolet,
     justifyContent: 'center',
     alignItems: 'center',
   },
 });
+}
+

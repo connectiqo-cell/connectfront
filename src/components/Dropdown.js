@@ -63,7 +63,7 @@ export const Dropdown = ({ label, items, selectedValue, onSelect, placeholder })
                     <MaterialIcons
                       name="check"
                       size={20}
-                      color={UNIFIED_THEME.colors.primary.light}
+                      color={UNIFIED_THEME.colors.accent.primary}
                     />
                   )}
                 </TouchableOpacity>
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     maxHeight: '80%',
-    backgroundColor: UNIFIED_THEME.colors.primary.light,
+    backgroundColor: UNIFIED_THEME.colors.surface.panel,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: UNIFIED_THEME.spacing.lg,
@@ -147,8 +147,8 @@ const styles = StyleSheet.create({
     borderColor: UNIFIED_THEME.colors.border.light,
   },
   optionSelected: {
-    backgroundColor: UNIFIED_THEME.colors.primary.light,
-    borderColor: UNIFIED_THEME.colors.primary.dark,
+    backgroundColor: UNIFIED_THEME.colors.surface.accentViolet,
+    borderColor: UNIFIED_THEME.colors.border.accent,
   },
   optionText: {
     ...UNIFIED_THEME.typography.bodyMd,
@@ -157,6 +157,6 @@ const styles = StyleSheet.create({
   },
   optionTextSelected: {
     fontWeight: '600',
-    color: UNIFIED_THEME.colors.primary.dark,
+    color: UNIFIED_THEME.colors.accent.primary,
   },
 });

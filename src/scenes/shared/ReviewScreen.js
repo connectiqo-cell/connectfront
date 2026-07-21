@@ -22,6 +22,7 @@ import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import CosmicButton from '../../components/CosmicButton';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { reviewsApi } from '../../api/reviewsApi';
 import { bookingApi } from '../../api/bookingApi';
 import { profileApi } from '../../api/profileApi';
@@ -36,9 +37,9 @@ const S = C.surface;
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
-const PANEL_BG = 'rgba(22, 20, 50, 0.72)';
+const PANEL_BG = C.surface.panel;
 const INPUT_BG = '#0f0e2a';
-const GLASS_BORDER = 'rgba(167,139,250,0.22)';
+const GLASS_BORDER = C.border.light;
 
 const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
 const QUICK_TAGS = ['Clear explanations', 'Very helpful', 'Great listener', 'On time', 'Would recommend'];
@@ -63,6 +64,11 @@ function formatSessionDate(booking) {
 }
 
 function SectionHeader({ icon, title, accent = PURPLE_LINK, accentBg = S.accentViolet }) {
+  const sec = useThemedStyles(createReviewSecStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
   return (
     <View style={sec.row}>
       <View style={[sec.badge, { backgroundColor: accentBg }]}>
@@ -74,7 +80,20 @@ function SectionHeader({ icon, title, accent = PURPLE_LINK, accentBg = S.accentV
   );
 }
 
-const sec = StyleSheet.create({
+function createReviewSecStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -100,6 +119,7 @@ const sec = StyleSheet.create({
     backgroundColor: GLASS_BORDER,
   },
 });
+}
 
 function FadeInBlock({ delay = 0, children, style }) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -148,6 +168,7 @@ function PressableScale({
   hitSlop,
   showGlow = false,
 }) {
+  const pressFx = useThemedStyles(createReviewPressFxStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
 
@@ -211,7 +232,20 @@ function PressableScale({
   );
 }
 
-const pressFx = StyleSheet.create({
+function createReviewPressFxStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   glow: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 14,
@@ -219,8 +253,23 @@ const pressFx = StyleSheet.create({
     borderColor: PURPLE_LINK,
   },
 });
+}
 
 function ScreenHeader({ title, subtitle, onBack }) {
+  const styles = useThemedStyles(createReviewStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   return (
     <StackScreenHeader insetTop={STACK_OVERLAY_LAYOUT.headerInsetTop}>
     <View style={styles.screenHeader}>
@@ -238,6 +287,7 @@ function ScreenHeader({ title, subtitle, onBack }) {
 }
 
 function AvatarPulseRing({ children }) {
+  const avatarFx = useThemedStyles(createReviewAvatarFxStyles);
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -274,7 +324,20 @@ function AvatarPulseRing({ children }) {
   );
 }
 
-const avatarFx = StyleSheet.create({
+function createReviewAvatarFxStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   wrap: { position: 'relative' },
   halo: {
     position: 'absolute',
@@ -287,8 +350,23 @@ const avatarFx = StyleSheet.create({
     left: -6,
   },
 });
+}
 
 function SubmittedBadge() {
+  const styles = useThemedStyles(createReviewStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   const scale = useRef(new Animated.Value(0.85)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -317,6 +395,20 @@ function SubmittedBadge() {
 }
 
 function AnimatedQuickTag({ label, selected, onPress, delayIndex }) {
+  const styles = useThemedStyles(createReviewStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   return (
     <FadeInBlock delay={160 + delayIndex * 45} style={styles.quickTagWrap}>
       <PressableScale
@@ -335,6 +427,20 @@ function AnimatedQuickTag({ label, selected, onPress, delayIndex }) {
 }
 
 function AnimatedInputShell({ focused, readOnly, children }) {
+  const styles = useThemedStyles(createReviewStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   const focusAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -367,6 +473,10 @@ function AnimatedInputShell({ focused, readOnly, children }) {
 }
 
 function StarRatingPicker({ rating, onSelect, readOnly = false }) {
+  const starStyles = useThemedStyles(createReviewStarStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const GOLD = C.accent.primary;
   const starScales = useRef([1, 2, 3, 4, 5].map(() => new Animated.Value(1))).current;
   const starPressScales = useRef([1, 2, 3, 4, 5].map(() => new Animated.Value(1))).current;
   const labelOpacity = useRef(new Animated.Value(0)).current;
@@ -498,7 +608,20 @@ function StarRatingPicker({ rating, onSelect, readOnly = false }) {
   );
 }
 
-const starStyles = StyleSheet.create({
+function createReviewStarStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   wrap: { alignItems: 'center', gap: T.spacing.sm, position: 'relative' },
   glowBg: {
     position: 'absolute',
@@ -529,8 +652,23 @@ const starStyles = StyleSheet.create({
     minHeight: 22,
   },
 });
+}
 
 export default function ReviewScreen({ navigation, route }) {
+  const styles = useThemedStyles(createReviewStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
   const bookingId = route.params?.bookingId;
   const paramMentorId = route.params?.mentorId;
   const paramMentorName = route.params?.mentorName?.trim?.() || '';
@@ -793,7 +931,20 @@ export default function ReviewScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createReviewStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  const SCREEN_BG = C.primary.void;
+  return StyleSheet.create({
   root: { flex: 1, minHeight: 0 },
   flex: { flex: 1 },
   scrollContent: {
@@ -1021,3 +1172,4 @@ const styles = StyleSheet.create({
     marginBottom: T.spacing.sm,
   },
 });
+}

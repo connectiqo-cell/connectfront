@@ -50,7 +50,6 @@ import ParticipantStatsViewer from "../Components/ParticipantStatsViewer";
 import {
   startOneToOneRecordingViaAPI,
   startOneToOneRecording,
-  stopOneToOneRecordingSession,
 } from "../../../utils/recordingConfig";
 import { getToken } from "../../../api/api";
 import { computeSessionTiming, formatCountdown } from "../../../utils/sessionSlotTimer";
@@ -105,7 +104,13 @@ function showDeferredAlert(title, message, buttons, options) {
   runAfterMenuDismiss(() => Alert.alert(title, message, buttons, options));
 }
 
-export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave, onSessionEnding }) {
+export default function OneToOneMeetingViewer({
+  isHost,
+  booking,
+  autoStartRecording = false,
+  onRequestLeave,
+  onSessionEnding,
+}) {
   const onMeetingError = useCallback((data) => {
     const { code, message } = data;
     Toast.show(`Error: ${code}: ${message}`);
@@ -126,7 +131,6 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
     localScreenShareOn,
     toggleScreenShare,
     meetingId,
-    stopRecording,
     startRecording,
     meeting,
     recordingState,
@@ -144,6 +148,7 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
   const processedConsentMessagesRef = useRef(new Set());
   const localParticipantIdRef = useRef(null);
   const pendingRecordingRequestRef = useRef(null);
+  const autoRecordingAttemptedRef = useRef(false);
   const meetingTimerRef = useRef(null);
   const meetingStartedAtRef = useRef(null);
   const bothJoinedAtRef = useRef(null);
@@ -368,43 +373,14 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
     );
   };
 
-  const executeStopRecording = () => {
-    getToken()
-      .then(token =>
-        stopOneToOneRecordingSession({
-          token,
-          meetingId,
-          stopRecording,
-        }),
-      )
-      .then(() => {
-        setRestRecordingActive(false);
-        Toast.show("Recording stopped.");
-      })
-      .catch(err => {
-        console.error('[Recording] stop failed:', err);
-        Toast.show('Could not stop recording');
-      });
-  };
-
-  const confirmStopRecording = () => {
-    if (!isHost) {
-      Toast.show("Only mentor can stop recording");
+  const requestRecordingConsent = () => {
+    if (booking?.recording_requested !== true) {
+      Alert.alert(
+        "Recording unavailable",
+        "The learner did not request a recording when this session was booked."
+      );
       return;
     }
-
-    showDeferredAlert(
-      "Stop Recording",
-      "Are you sure you want to stop recording? The session recording will be finalized.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Stop Recording", style: "destructive", onPress: executeStopRecording },
-      ],
-      { cancelable: true },
-    );
-  };
-
-  const requestRecordingConsent = () => {
     if (!bothParticipantsPresent) {
       Toast.show("Wait for the other participant to join");
       return;
@@ -439,6 +415,52 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
       { cancelable: false }
     );
   };
+
+  useEffect(() => {
+    if (
+      !isHost ||
+      !autoStartRecording ||
+      booking?.recording_requested !== true ||
+      !bothParticipantsPresent ||
+      !meetingId ||
+      autoRecordingAttemptedRef.current
+    ) {
+      return;
+    }
+
+    autoRecordingAttemptedRef.current = true;
+    Toast.show("Both participants agreed. Starting recording...");
+
+    getToken()
+      .then(token => startOneToOneRecordingViaAPI({
+        token,
+        meetingId,
+        mentorId: localParticipantIdRef.current,
+      }))
+      .then(() => {
+        setRestRecordingActive(true);
+        Toast.show("Recording started.");
+      })
+      .catch(err => {
+        console.error('[Recording] automatic REST start failed, trying SDK fallback:', err);
+        try {
+          startOneToOneRecording(startRecording, participantCount || 2);
+          Toast.show("Recording started.");
+        } catch (fallbackErr) {
+          autoRecordingAttemptedRef.current = false;
+          console.error('[Recording] automatic start failed:', fallbackErr);
+          Toast.show('Could not start recording');
+        }
+      });
+  }, [
+    autoStartRecording,
+    booking?.recording_requested,
+    bothParticipantsPresent,
+    isHost,
+    meetingId,
+    participantCount,
+    startRecording,
+  ]);
 
   useEffect(() => {
     const messages = recordingConsentPubSub.messages || [];
@@ -687,7 +709,7 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
 
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.primary[900] }}>
       <View
         style={{
           flexDirection: "row",
@@ -765,7 +787,7 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
                     style={{
                       fontSize: 10,
                       fontFamily: ROBOTO_FONTS.RobotoMedium,
-                      color: "rgba(255, 255, 255, 0.75)",
+                      color: colors.primary[200],
                       marginBottom: 1,
                     }}
                   >
@@ -898,7 +920,7 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
               ? "Starting"
               : recordingState === Constants.recordingEvents.RECORDING_STOPPING
               ? "Stopping"
-              : "Stop"
+              : "Recording"
           } Recording`}
           icon={<Recording width={22} height={22} />}
           onPress={() => {
@@ -910,9 +932,9 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
                   recordingState === Constants.recordingEvents.RECORDING_STOPPED)
               ) {
                 requestRecordingConsent();
-              } else if (isRecordingRunning) {
-                confirmStopRecording();
+                return;
               }
+              Toast.show("Recording stops when the meeting ends");
             });
           }}
         />
@@ -973,7 +995,7 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
             flexDirection: "row",
             borderRadius: 14,
             borderWidth: 1.5,
-            borderColor: "#2B3034",
+            borderColor: colors.sheet,
             backgroundColor: !localMicOn ? colors.primary[100] : "transparent",
             height: 50,
             alignItems: "center",
@@ -984,8 +1006,8 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
             style={{ width: 50, height: 50, justifyContent: "center", alignItems: "center" }}
           >
             {localMicOn
-              ? <MicOn height={24} width={24} fill="#FFF" />
-              : <MicOff height={28} width={28} fill="#1D2939" />}
+              ? <MicOn height={24} width={24} fill={colors.primary[100]} />
+              : <MicOff height={28} width={28} fill={colors.ink} />}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={async () => {
@@ -998,7 +1020,7 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
           </TouchableOpacity>
         </View>
         <IconContainer
-          style={{ borderWidth: 1.5, borderColor: "#2B3034" }}
+          style={{ borderWidth: 1.5, borderColor: colors.sheet }}
           backgroundColor={!localWebcamOn ? colors.primary[100] : "transparent"}
           onPress={() => {
             if (!localWebcamOn) {
@@ -1016,15 +1038,15 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
           }}
         >
           {localWebcamOn
-            ? <VideoOn height={24} width={24} fill="#FFF" />
-            : <VideoOff height={36} width={36} fill="#1D2939" />}
+            ? <VideoOn height={24} width={24} fill={colors.primary[100]} />
+            : <VideoOff height={36} width={36} fill={colors.ink} />}
         </IconContainer>
         <View style={{ position: 'relative' }}>
           <IconContainer
             onPress={openChatPanel}
-            style={{ borderWidth: 1.5, borderColor: "#2B3034" }}
+            style={{ borderWidth: 1.5, borderColor: colors.sheet }}
           >
-            <Chat height={22} width={22} fill="#FFF" />
+            <Chat height={22} width={22} fill={colors.primary[100]} />
           </IconContainer>
           {unreadCount > 0 ? (
             <View
@@ -1050,16 +1072,16 @@ export default function OneToOneMeetingViewer({ isHost, booking, onRequestLeave,
         <IconContainer
           style={{
             borderWidth: 1.5,
-            borderColor: "#2B3034",
+            borderColor: colors.sheet,
             transform: [{ rotate: "90deg" }],
           }}
           onPress={() => moreOptionsMenu.current.show()}
         >
-          <More height={18} width={18} fill="#FFF" />
+          <More height={18} width={18} fill={colors.primary[100]} />
         </IconContainer>
       </View>
       <BottomSheet
-        sheetBackgroundColor={"#2B3034"}
+        sheetBackgroundColor={colors.sheet}
         draggable={true}
         radius={12}
         hasDraggableIcon

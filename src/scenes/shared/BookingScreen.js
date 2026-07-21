@@ -21,11 +21,13 @@ import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import CelebrationPayButton, { CelebrationScreenFx } from '../../components/CelebrationPayButton';
 import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
 import {
-  scheduleStyles,
+  useScheduleStyles,
   ScheduleSectionBlock,
   SchedulePreviewBar,
   SchedulePreviewChip,
@@ -51,8 +53,8 @@ const S = T.colors.surface;
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
-const PANEL_BG = '#161432';
-const INPUT_BG = '#0f0e2a';
+const PANEL_BG = C.surface.panel;
+const INPUT_BG = C.surface.sheet;
 const GLASS_BORDER = 'rgba(167,139,250,0.22)';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -264,6 +266,7 @@ const GOAL_PROMPTS = [
 ];
 
 function PressScale({ onPress, children, style, disabled, scaleTo = 0.94, showGlow = false }) {
+  const styles = useThemedStyles(createBookingStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
 
@@ -305,6 +308,7 @@ function PressScale({ onPress, children, style, disabled, scaleTo = 0.94, showGl
 }
 
 function SkeletonBone({ style }) {
+  const sk = useThemedStyles(createSkeletonStyles);
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
@@ -319,6 +323,7 @@ function SkeletonBone({ style }) {
 }
 
 function BookingSkeleton() {
+  const sk = useThemedStyles(createSkeletonStyles);
   return (
     <View style={sk.wrap}>
       <SkeletonBone style={sk.hero} />
@@ -332,26 +337,46 @@ function BookingSkeleton() {
   );
 }
 
-const sk = StyleSheet.create({
-  bone: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: T.borderRadius.md,
-  },
-  wrap: { gap: T.spacing.md },
-  hero: { height: 96, borderRadius: 16 },
-  preview: { height: 44, borderRadius: 14 },
-  progress: { height: 52, borderRadius: 14 },
-  sectionTitle: { height: 36, width: '55%', borderRadius: 8 },
-  calendar: { height: 280, borderRadius: 16 },
-  slots: { height: 200, borderRadius: 16 },
-});
+function createSkeletonStyles(theme) {
+  const T = theme;
+  return StyleSheet.create({
+    bone: {
+      backgroundColor: softFillStrong(theme),
+      borderRadius: T.borderRadius.md,
+    },
+    wrap: { gap: T.spacing.md },
+    hero: { height: 96, borderRadius: 16 },
+    preview: { height: 44, borderRadius: 14 },
+    progress: { height: 52, borderRadius: 14 },
+    sectionTitle: { height: 36, width: '55%', borderRadius: 8 },
+    calendar: { height: 280, borderRadius: 16 },
+    slots: { height: 200, borderRadius: 16 },
+  });
+}
 
-function BookingProgressSteps({ selectedDate, selectedTime, message, readyToPay }) {
+function BookingProgressSteps({
+  selectedDate,
+  selectedTime,
+  message,
+  recordingRequested,
+  readyToPay,
+}) {
+  const styles = useThemedStyles(createBookingStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const GOLD = C.accent.primary;
   const steps = [
     { id: 1, label: 'Date', icon: 'event', done: !!selectedDate },
     { id: 2, label: 'Time', icon: 'schedule', done: !!selectedTime },
     { id: 3, label: 'Goal', icon: 'flag', done: message.trim().length > 0 },
-    { id: 4, label: 'Pay', icon: 'lock', done: readyToPay },
+    {
+      id: 4,
+      label: 'Record',
+      icon: 'videocam',
+      done: typeof recordingRequested === 'boolean',
+    },
+    { id: 5, label: 'Pay', icon: 'lock', done: readyToPay },
   ];
   const activeIndex = steps.findIndex(s => !s.done);
   const current = activeIndex === -1 ? steps.length - 1 : activeIndex;
@@ -403,16 +428,29 @@ function BookingProgressSteps({ selectedDate, selectedTime, message, readyToPay 
 }
 
 /** CTA copy framed around booking & ownership — avoids “pay” loss-aversion. */
-function getBookingCtaLabel({ paying, readyToPay, fees, selectedTime, message }) {
+function getBookingCtaLabel({
+  paying,
+  readyToPay,
+  fees,
+  selectedTime,
+  message,
+  recordingRequested,
+}) {
   if (paying) return 'Securing your spot…';
   if (!fees) return 'Get started';
   if (readyToPay) return `Secure My Spot · ₹${fees.totalAmount}`;
-  if (selectedTime && !message.trim()) return 'One step left to book';
+  if (selectedTime && !message.trim()) return 'Add your session goal';
+  if (selectedTime && typeof recordingRequested !== 'boolean') {
+    return 'Choose recording preference';
+  }
   if (selectedTime) return `Book My Session · ₹${fees.totalAmount}`;
   return 'Choose your slot';
 }
 
 function SessionPreviewBar({ selectedDate, selectedTime, mentorName, readyToPay }) {
+  const { theme } = useTheme();
+  const T = theme;
+  const B = theme.colors.buttons;
   if (!selectedDate && !selectedTime) return null;
 
   const fmt = t => (t ? t.substring(0, 5) : '');
@@ -451,6 +489,9 @@ function SessionPreviewBar({ selectedDate, selectedTime, mentorName, readyToPay 
 }
 
 function GoalPromptChips({ onSelect, selected }) {
+  const styles = useThemedStyles(createBookingStyles);
+  const { theme } = useTheme();
+  const B = theme.colors.buttons;
   return (
     <ScrollView
       horizontal
@@ -480,6 +521,7 @@ function GoalPromptChips({ onSelect, selected }) {
 }
 
 function FeeRow({ label, amount, accent, bold }) {
+  const feeStyles = useThemedStyles(createFeeStyles);
   return (
     <View style={feeStyles.row}>
       <Text style={[feeStyles.label, bold && feeStyles.bold]}>{label}</Text>
@@ -491,6 +533,10 @@ function FeeRow({ label, amount, accent, bold }) {
 }
 
 function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
+  const styles = useThemedStyles(createBookingStyles);
+  const { theme } = useTheme();
+  const B = theme.colors.buttons;
+  const TEAL = theme.colors.accent.secondary;
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
   const entrance = useRef(new Animated.Value(0)).current;
@@ -592,6 +638,9 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
 }
 
 function BookingSlotPeriodSection({ period, items, selectedTime, onSelect }) {
+  const styles = useThemedStyles(createBookingStyles);
+  const { theme } = useTheme();
+  const TEAL = theme.colors.accent.secondary;
   if (!items.length) return null;
 
   return (
@@ -629,6 +678,7 @@ function BookingSlotPeriodSection({ period, items, selectedTime, onSelect }) {
 }
 
 function BookingSlotsPanel({ selectedDate, slots, selectedTime, onSelect }) {
+  const styles = useThemedStyles(createBookingStyles);
   const grouped = groupSlotsByPeriod(slots);
 
   return (
@@ -660,15 +710,27 @@ function BookingSlotsPanel({ selectedDate, slots, selectedTime, onSelect }) {
   );
 }
 
-const feeStyles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  label: { fontSize: 13, color: C.text.secondary },
-  amount: { fontSize: 13, color: C.text.secondary },
-  bold: { fontWeight: '800', color: C.text.primary, fontSize: 15 },
-  accent: { color: GOLD, fontSize: 17, fontWeight: '800' },
-});
+function createFeeStyles(theme) {
+  const C = theme.colors;
+  const GOLD = C.accent.primary;
+  return StyleSheet.create({
+    row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+    label: { fontSize: 13, color: C.text.secondary },
+    amount: { fontSize: 13, color: C.text.secondary },
+    bold: { fontWeight: '800', color: C.text.primary, fontSize: 15 },
+    accent: { color: GOLD, fontSize: 17, fontWeight: '800' },
+  });
+}
 
 export default function BookingScreen({ navigation, route }) {
+  const styles = useThemedStyles(createBookingStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const scheduleStyles = useScheduleStyles();
   const mentorId = route.params?.mentorId;
   const mentorName = route.params?.mentorName ?? 'Mentor';
   const { profile, user, refreshProfile } = useAuth();
@@ -685,6 +747,7 @@ export default function BookingScreen({ navigation, route }) {
   const [mentorAvailability, setMentorAvailability] = useState({});
   const [timeSlotsForDate, setTimeSlotsForDate] = useState([]);
   const [message, setMessage] = useState('');
+  const [recordingRequested, setRecordingRequested] = useState(null);
   const [selectedPrompt, setSelectedPrompt] = useState(null);
   const [pricePerHour, setPricePerHour] = useState(0);
   const [mentorData, setMentorData] = useState(null);
@@ -802,7 +865,11 @@ export default function BookingScreen({ navigation, route }) {
   const fees = pricePerHour > 0 ? calculateFees(pricePerHour, feeConfig || undefined) : null;
 
   const readyToPay = Boolean(
-    selectedTime && message.trim().length > 0 && fees && !paying,
+    selectedTime &&
+      message.trim().length > 0 &&
+      typeof recordingRequested === 'boolean' &&
+      fees &&
+      !paying,
   );
 
   useEffect(() => {
@@ -845,6 +912,10 @@ export default function BookingScreen({ navigation, route }) {
       Toast.show('Please share what you want to achieve');
       return;
     }
+    if (typeof recordingRequested !== 'boolean') {
+      Toast.show('Please choose whether you want the session recorded');
+      return;
+    }
     if (!fees) {
       Toast.show('Unable to load pricing. Please go back and try again.');
       return;
@@ -865,6 +936,7 @@ export default function BookingScreen({ navigation, route }) {
         learnerId: payLearnerId,
         slotId: selectedTime.id,
         message: message.trim(),
+        recordingRequested,
       });
 
       const paymentData = await openRazorpayCheckout({
@@ -890,6 +962,7 @@ export default function BookingScreen({ navigation, route }) {
         learnerId: payLearnerId,
         slotId: selectedTime.id,
         message: message.trim(),
+        recordingRequested,
       });
 
       const newBookingId = verifyResult?.bookingId;
@@ -1027,31 +1100,40 @@ export default function BookingScreen({ navigation, route }) {
             avatarUrl={avatarUrl}
           >
             <View style={scheduleStyles.metaRow}>
-              <View style={scheduleStyles.metaPill}>
+              <View style={scheduleStyles.metaItem}>
                 <MaterialIcons name="videocam" size={12} color={T.colors.accent.secondary} />
                 <Text style={scheduleStyles.metaPillText}>
                   {sessionDurationMin ? `Live · ${sessionDurationMin} min` : 'Live · 1-on-1'}
                 </Text>
               </View>
               {specialization ? (
-                <View style={scheduleStyles.metaPill}>
-                  <MaterialIcons name="work-outline" size={12} color={PURPLE_LINK} />
-                  <Text style={scheduleStyles.metaPillText} numberOfLines={1}>
-                    {specialization}
-                  </Text>
-                </View>
+                <>
+                  <Text style={scheduleStyles.metaSep}>·</Text>
+                  <View style={scheduleStyles.metaItem}>
+                    <MaterialIcons name="work-outline" size={12} color={PURPLE_LINK} />
+                    <Text style={scheduleStyles.metaPillText} numberOfLines={1}>
+                      {specialization}
+                    </Text>
+                  </View>
+                </>
               ) : null}
               {mentorRating > 0 ? (
-                <View style={scheduleStyles.metaPill}>
-                  <MaterialIcons name="star" size={12} color={GOLD} />
-                  <Text style={scheduleStyles.metaPillText}>{Number(mentorRating).toFixed(1)}</Text>
-                </View>
+                <>
+                  <Text style={scheduleStyles.metaSep}>·</Text>
+                  <View style={scheduleStyles.metaItem}>
+                    <MaterialIcons name="star" size={12} color={GOLD} />
+                    <Text style={scheduleStyles.metaPillText}>{Number(mentorRating).toFixed(1)}</Text>
+                  </View>
+                </>
               ) : null}
               {pricePerHour > 0 ? (
-                <View style={scheduleStyles.metaPill}>
-                  <MaterialIcons name="payments" size={12} color={T.colors.accent.primary} />
-                  <Text style={scheduleStyles.metaPillText}>₹{pricePerHour}/session</Text>
-                </View>
+                <>
+                  <Text style={scheduleStyles.metaSep}>·</Text>
+                  <View style={scheduleStyles.metaItem}>
+                    <MaterialIcons name="payments" size={12} color={T.colors.accent.primary} />
+                    <Text style={scheduleStyles.metaPillText}>₹{pricePerHour}/session</Text>
+                  </View>
+                </>
               ) : null}
             </View>
           </ScheduleHeroBanner>
@@ -1067,6 +1149,7 @@ export default function BookingScreen({ navigation, route }) {
             selectedDate={selectedDate}
             selectedTime={selectedTime}
             message={message}
+            recordingRequested={recordingRequested}
             readyToPay={readyToPay}
           />
         </Animated.View>
@@ -1240,9 +1323,95 @@ export default function BookingScreen({ navigation, route }) {
           </FadeSlideIn>
         </FadeInSection>
 
-        <FadeInSection show={!!selectedTime && !!fees} delay={140}>
+        <FadeInSection show={!!selectedTime && message.trim().length > 0} delay={120}>
           <FadeSlideIn delay={nextDelay()}>
-            <ScheduleSectionBlock step="04" title="Confirm your session" subtitle="Clear, upfront pricing" accent="violet">
+            <ScheduleSectionBlock
+              step="04"
+              title="Session recording"
+              subtitle="Would you like this session to be recorded?"
+              accent="teal"
+            >
+              <View style={styles.recordingChoices}>
+                {[
+                  {
+                    value: true,
+                    icon: 'videocam',
+                    title: 'Yes, record it',
+                    subtitle: 'Recording starts after mentor agrees and runs until the meeting ends.',
+                  },
+                  {
+                    value: false,
+                    icon: 'videocam-off',
+                    title: 'No recording',
+                    subtitle: 'Recording controls will be disabled for this session.',
+                  },
+                ].map(option => {
+                  const selected = recordingRequested === option.value;
+                  return (
+                    <Pressable
+                      key={String(option.value)}
+                      style={[
+                        styles.recordingChoice,
+                        selected && styles.recordingChoiceSelected,
+                      ]}
+                      onPress={() => setRecordingRequested(option.value)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected }}
+                    >
+                      <View
+                        style={[
+                          styles.recordingChoiceIcon,
+                          selected && styles.recordingChoiceIconSelected,
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={option.icon}
+                          size={21}
+                          color={selected ? TEAL : C.text.muted}
+                        />
+                      </View>
+                      <View style={styles.recordingChoiceCopy}>
+                        <Text
+                          style={[
+                            styles.recordingChoiceTitle,
+                            selected && styles.recordingChoiceTitleSelected,
+                          ]}
+                        >
+                          {option.title}
+                        </Text>
+                        <Text style={styles.recordingChoiceSubtitle}>{option.subtitle}</Text>
+                      </View>
+                      <MaterialIcons
+                        name={
+                          selected ? 'radio-button-checked' : 'radio-button-unchecked'
+                        }
+                        size={21}
+                        color={selected ? PURPLE_LINK : C.text.muted}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={styles.recordingPrivacyNote}>
+                <MaterialIcons name="privacy-tip" size={16} color={TEAL} />
+                <Text style={styles.recordingPrivacyText}>
+                  Recordings are private and available only to session participants.
+                </Text>
+              </View>
+            </ScheduleSectionBlock>
+          </FadeSlideIn>
+        </FadeInSection>
+
+        <FadeInSection
+          show={
+            !!selectedTime &&
+            !!fees &&
+            typeof recordingRequested === 'boolean'
+          }
+          delay={140}
+        >
+          <FadeSlideIn delay={nextDelay()}>
+            <ScheduleSectionBlock step="05" title="Confirm your session" subtitle="Clear, upfront pricing" accent="violet">
               <View style={styles.ticketCard}>
                 <View style={styles.ticketTop}>
                   <View>
@@ -1317,7 +1486,13 @@ export default function BookingScreen({ navigation, route }) {
             </Animated.View>
           ) : (
             <Text style={styles.checkoutHint}>
-              {selectedTime ? 'Add your session goal to continue' : 'Select date & time to continue'}
+              {!selectedTime
+                ? 'Select date & time to continue'
+                : !message.trim()
+                  ? 'Add your session goal to continue'
+                  : typeof recordingRequested !== 'boolean'
+                    ? 'Choose a recording preference to continue'
+                    : 'Complete the steps above to continue'}
             </Text>
           )}
 
@@ -1328,9 +1503,15 @@ export default function BookingScreen({ navigation, route }) {
               fees,
               selectedTime,
               message,
+              recordingRequested,
             })}
             onPress={handlePay}
-            disabled={!selectedTime || !message.trim() || paying}
+            disabled={
+              !selectedTime ||
+              !message.trim() ||
+              typeof recordingRequested !== 'boolean' ||
+              paying
+            }
             loading={paying}
             ready={readyToPay}
             size="checkout"
@@ -1348,8 +1529,19 @@ export default function BookingScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  screenRoot: { flex: 1, overflow: 'hidden' },
+function createBookingStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  return StyleSheet.create({
+  screenRoot: { flex: 1, overflow: 'hidden', backgroundColor: C.primary.void },
 
   backBtn: {
     width: 40,
@@ -1384,7 +1576,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: GLASS_BORDER,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: softFill(theme),
   },
   progressStepCol: { flex: 1, alignItems: 'center' },
   progressStepRow: {
@@ -1397,9 +1589,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: softFill(theme),
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: softBorder(theme),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1414,7 +1606,7 @@ const styles = StyleSheet.create({
   progressLine: {
     flex: 1,
     height: 2,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: softFillStrong(theme),
     marginHorizontal: 4,
     borderRadius: 1,
   },
@@ -1430,7 +1622,7 @@ const styles = StyleSheet.create({
   progressLabelActive: { color: GOLD },
 
   slotsPanel: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: softFill(theme),
     borderRadius: 16,
     padding: T.spacing.md,
     borderWidth: 1,
@@ -1443,7 +1635,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: T.spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: softBorder(theme),
   },
   slotsPanelHeaderText: { flex: 1, paddingRight: T.spacing.sm },
   slotsPanelDate: {
@@ -1527,8 +1719,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   timeSlotAvailable: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: softFill(theme),
+    borderColor: softBorder(theme),
   },
   timeSlotSelected: {
     borderColor: B.successBorder,
@@ -1594,6 +1786,71 @@ const styles = StyleSheet.create({
   },
   charCount: {
     fontSize: 11,
+    color: C.text.muted,
+  },
+
+  recordingChoices: {
+    gap: T.spacing.sm,
+  },
+  recordingChoice: {
+    minHeight: 78,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.spacing.md,
+    padding: T.spacing.md,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: softBorder(theme),
+    backgroundColor: softFill(theme),
+  },
+  recordingChoiceSelected: {
+    borderColor: 'rgba(94,234,212,0.5)',
+    backgroundColor: S.accentTeal,
+  },
+  recordingChoiceIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: softFillStrong(theme),
+    borderWidth: 1,
+    borderColor: softBorder(theme),
+  },
+  recordingChoiceIconSelected: {
+    borderColor: 'rgba(94,234,212,0.35)',
+    backgroundColor: 'rgba(94,234,212,0.12)',
+  },
+  recordingChoiceCopy: {
+    flex: 1,
+  },
+  recordingChoiceTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: C.text.secondary,
+    marginBottom: 3,
+  },
+  recordingChoiceTitleSelected: {
+    color: C.text.primary,
+  },
+  recordingChoiceSubtitle: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: C.text.muted,
+  },
+  recordingPrivacyNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: T.spacing.sm,
+    marginTop: T.spacing.md,
+    padding: T.spacing.md,
+    borderRadius: 12,
+    backgroundColor: softFill(theme),
+  },
+  recordingPrivacyText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
     color: C.text.muted,
   },
 
@@ -1704,3 +1961,4 @@ const styles = StyleSheet.create({
     }),
   },
 });
+}

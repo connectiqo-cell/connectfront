@@ -19,9 +19,10 @@ import { SafeScreen } from '../../components/SafeScreen';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import CosmicButton from '../../components/CosmicButton';
 import { useAuth } from '../../hooks/useAuth';
+import { useThemedStyles } from '../../hooks/useTheme';
 import { availabilityApi } from '../../api/availabilityApi';
 import {
-  scheduleStyles,
+  useScheduleStyles,
   ScheduleSectionBlock,
   SchedulePreviewBar,
   SchedulePreviewChip,
@@ -37,8 +38,6 @@ import {
 
 const T = UNIFIED_THEME;
 const B = T.colors.buttons;
-const S = T.colors.surface;
-const GLASS_BORDER = 'rgba(167,139,250,0.22)';
 const ENTRANCE_STEP_MS = 45;
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -114,6 +113,7 @@ function PressScale({
   scaleTo = 0.94,
   showGlow = false,
 }) {
+  const styles = useThemedStyles(createAvailabilityStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
 
@@ -175,6 +175,7 @@ function PressScale({
 }
 
 function PublishScheduleButton({ saving, loading, hasUnsavedChanges, justPublished, onPress }) {
+  const styles = useThemedStyles(createAvailabilityStyles);
   const btnScale = useRef(new Animated.Value(1)).current;
   const successGlow = useRef(new Animated.Value(0)).current;
   const successRing = useRef(new Animated.Value(0)).current;
@@ -305,7 +306,7 @@ const sk = StyleSheet.create({
     borderRadius: T.borderRadius.md,
   },
   wrap: { gap: T.spacing.md },
-  hero: { height: 96, borderRadius: 16 },
+  hero: { height: 64, borderRadius: 8 },
   preview: { height: 44, borderRadius: 14 },
   sectionTitle: { height: 36, width: '55%', borderRadius: 8 },
   calendar: { height: 280, borderRadius: 16 },
@@ -359,6 +360,7 @@ function groupTimeSlots(slots) {
 const GROUPED_TIME_SLOTS = groupTimeSlots(TIME_SLOTS);
 
 function SlotsLegend() {
+  const styles = useThemedStyles(createAvailabilityStyles);
   return (
     <View style={styles.slotsLegend}>
       <View style={styles.slotsLegendItem}>
@@ -382,6 +384,7 @@ function SlotsLegend() {
 }
 
 function ScheduleTimeChip({ startTime, endTime, state, onPress, delayIndex = 0 }) {
+  const styles = useThemedStyles(createAvailabilityStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
   const entrance = useRef(new Animated.Value(0)).current;
@@ -518,6 +521,7 @@ function ScheduleTimeChip({ startTime, endTime, state, onPress, delayIndex = 0 }
 }
 
 function SlotPeriodSection({ period, items, selectedDate, selectedSlots, bookedSlots, onToggle }) {
+  const styles = useThemedStyles(createAvailabilityStyles);
   if (!items.length) return null;
 
   const selectedInPeriod = items.filter(({ startTime }) => {
@@ -653,6 +657,8 @@ function buildSlotEntriesFromMap(allSlotsMap) {
 }
 
 export default function MentorAvailabilityScreen() {
+  const styles = useThemedStyles(createAvailabilityStyles);
+  const scheduleStyles = useScheduleStyles();
   const { profile, user, refreshProfile } = useAuth();
   const insets = useSafeAreaInsets();
   // Profile fetch is async after session bootstrap — use auth user id as fallback
@@ -775,7 +781,6 @@ export default function MentorAvailabilityScreen() {
   );
 
   const handleSelectDate = date => {
-    layoutSpring();
     setSelectedDate(date);
     setSelectedSlots(Array.isArray(allSlots[date]) ? allSlots[date] : []);
   };
@@ -885,11 +890,12 @@ export default function MentorAvailabilityScreen() {
         <FadeSlideIn delay={nextDelay()}>
           <ScheduleHeroBanner initial={mentorInitial} name={mentorName} label="Mentor schedule">
             <View style={scheduleStyles.metaRow}>
-              <View style={scheduleStyles.metaPill}>
+              <View style={scheduleStyles.metaItem}>
                 <MaterialIcons name="date-range" size={12} color={TEAL} />
                 <Text style={scheduleStyles.metaPillText}>Next 30 days</Text>
               </View>
-              <View style={scheduleStyles.metaPill}>
+              <Text style={scheduleStyles.metaSep}>·</Text>
+              <View style={scheduleStyles.metaItem}>
                 <MaterialIcons name="timelapse" size={12} color={GOLD} />
                 <Text style={scheduleStyles.metaPillText}>20 min slots</Text>
               </View>
@@ -1097,7 +1103,12 @@ export default function MentorAvailabilityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createAvailabilityStyles(theme) {
+  const T = theme;
+  const B = T.colors.buttons;
+  const S = T.colors.surface;
+  const C = T.colors;
+  return StyleSheet.create({
   screenRoot: { flex: 1 },
   pressHit: {
     position: 'relative',
@@ -1112,11 +1123,11 @@ const styles = StyleSheet.create({
     borderColor: PURPLE_LINK,
   },
   slotsPanel: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: S.panel,
     borderRadius: 16,
     padding: T.spacing.md,
     borderWidth: 1,
-    borderColor: GLASS_BORDER,
+    borderColor: C.border.light,
     gap: T.spacing.md,
   },
   slotsPanelHeader: {
@@ -1125,7 +1136,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: T.spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: C.border.light,
   },
   slotsPanelHeaderText: { flex: 1, paddingRight: T.spacing.sm },
   slotsPanelDate: {
@@ -1166,8 +1177,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   slotsLegendAvailable: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: S.chip,
+    borderColor: C.border.default,
   },
   slotsLegendSelected: {
     backgroundColor: 'rgba(52,211,153,0.35)',
@@ -1178,8 +1189,8 @@ const styles = StyleSheet.create({
     borderColor: B.warningBorder,
   },
   slotsLegendPast: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: S.sheet,
+    borderColor: C.border.light,
   },
   slotsLegendText: { fontSize: 11, fontWeight: '600', color: T.colors.text.muted },
   slotPeriodBlock: { gap: T.spacing.sm },
@@ -1241,8 +1252,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   timeSlotAvailable: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: S.chip,
+    borderColor: C.border.default,
   },
   timeSlotSelected: {
     borderColor: TEAL,
@@ -1253,8 +1264,8 @@ const styles = StyleSheet.create({
     borderColor: B.warningBorder,
   },
   timeSlotPast: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: S.sheet,
+    borderColor: C.border.light,
     opacity: 0.5,
   },
   timeSlotStatusIcon: { position: 'absolute', top: 6, right: 6 },
@@ -1319,4 +1330,5 @@ const styles = StyleSheet.create({
     borderColor: B.successText,
   },
   saveBtn: { marginVertical: 0, minHeight: 50 },
-});
+  });
+}

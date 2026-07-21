@@ -16,10 +16,13 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { mentorId, learnerId, slotId, message } = await req.json();
+    const { mentorId, learnerId, slotId, message, recordingRequested } = await req.json();
 
     if (!mentorId || !learnerId || !slotId) {
       throw new Error('Missing required fields: mentorId, learnerId, slotId');
+    }
+    if (typeof recordingRequested !== 'boolean') {
+      throw new Error('Choose whether you want the session to be recorded');
     }
 
     const keyId     = Deno.env.get('RAZORPAY_KEY_ID')!;

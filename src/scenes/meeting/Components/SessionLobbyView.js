@@ -19,8 +19,8 @@ import CosmicButton from '../../../components/CosmicButton';
 import IosGradientShell from '../../../components/IosGradientShell';
 import StackScreenHeader from '../../../components/StackScreenHeader';
 import CosmicBackground from '../../../components/CosmicBackground';
-import { scheduleStyles } from '../../../components/schedule/ScheduleUI';
-import { UNIFIED_THEME } from '../../../unifiedTheme';
+import { useScheduleStyles } from '../../../components/schedule/ScheduleUI';
+import { useTheme, useThemedStyles } from '../../../hooks/useTheme';
 import { formatTime, formatDateForDisplay } from '../../../utils/dateHelpers';
 import {
   formatCountdown,
@@ -35,19 +35,6 @@ import {
 } from '../../../utils/sessionLobbyRules';
 
 const ENTRANCE_STEP_MS = 50;
-
-const T = UNIFIED_THEME;
-const C = T.colors;
-const B = C.buttons;
-const S = C.surface;
-const PURPLE_LINK = B.nebulaGradient[0];
-const TEAL = C.accent.secondary;
-const GOLD = C.accent.primary;
-const ERROR = C.accent.error;
-const SUCCESS = C.accent.success;
-const GLASS_BG = S.chipStrong;
-const GLASS_BORDER = C.border.light;
-const PANEL = S.panel;
 
 function FadeSlideIn({ delay = 0, children, style, fromY = 16 }) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -85,6 +72,7 @@ function FadeSlideIn({ delay = 0, children, style, fromY = 16 }) {
 }
 
 function PressScale({ onPress, children, style, disabled, hitSlop }) {
+  const styles = useThemedStyles(createLobbyStyles);
   const scale = useRef(new Animated.Value(1)).current;
 
   const pressIn = () => {
@@ -114,7 +102,10 @@ function PressScale({ onPress, children, style, disabled, hitSlop }) {
   );
 }
 
-function PulseLoop({ children, style, color = TEAL, minOpacity = 0.35, maxOpacity = 1 }) {
+function PulseLoop({ children, style, color, minOpacity = 0.35, maxOpacity = 1 }) {
+  const styles = useThemedStyles(createLobbyStyles);
+  const { theme } = useTheme();
+  const haloColor = color ?? theme.colors.accent.secondary;
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -146,7 +137,7 @@ function PulseLoop({ children, style, color = TEAL, minOpacity = 0.35, maxOpacit
       <Animated.View
         style={[
           styles.pulseHalo,
-          { backgroundColor: color, opacity, transform: [{ scale }] },
+          { backgroundColor: haloColor, opacity, transform: [{ scale }] },
         ]}
       />
       {children}
@@ -155,6 +146,7 @@ function PulseLoop({ children, style, color = TEAL, minOpacity = 0.35, maxOpacit
 }
 
 function AnimatedProgressFill({ progress, colors }) {
+  const styles = useThemedStyles(createLobbyStyles);
   const widthAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -181,6 +173,7 @@ function AnimatedProgressFill({ progress, colors }) {
 }
 
 function LobbyShell({ insets, children, scroll = false }) {
+  const styles = useThemedStyles(createLobbyStyles);
   const body = scroll ? (
     <ScrollView
       style={styles.scroll}
@@ -202,6 +195,10 @@ function LobbyShell({ insets, children, scroll = false }) {
 }
 
 function LobbyHeader({ title, subtitle, onBack }) {
+  const styles = useThemedStyles(createLobbyStyles);
+  const scheduleStyles = useScheduleStyles();
+  const { theme } = useTheme();
+  const C = theme.colors;
   return (
     <StackScreenHeader insetTop={false}>
     <FadeSlideIn delay={0} fromY={10}>
@@ -223,6 +220,16 @@ function LobbyHeader({ title, subtitle, onBack }) {
 }
 
 function StatusBadge({ status }) {
+  const styles = useThemedStyles(createLobbyStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const GOLD = C.accent.primary;
+  const ERROR = C.accent.error;
+  const SUCCESS = C.accent.success;
   if (status === 'live') {
     return (
       <View style={[styles.statusBadge, styles.statusBadgeLive]}>
@@ -250,6 +257,16 @@ function StatusBadge({ status }) {
 }
 
 function SessionStatusCard({ timing, durationMin, animDelay = 0 }) {
+  const styles = useThemedStyles(createLobbyStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const GOLD = C.accent.primary;
+  const ERROR = C.accent.error;
+  const SUCCESS = C.accent.success;
   const { status, remainingSec, untilStartSec, elapsedSec, totalSec } = timing;
   const progress = totalSec > 0 ? Math.min(1, elapsedSec / totalSec) : 0;
 
@@ -325,6 +342,16 @@ function ParticipantCard({
   meetingReady = false,
   animDelay = 0,
 }) {
+  const styles = useThemedStyles(createLobbyStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const GOLD = C.accent.primary;
+  const ERROR = C.accent.error;
+  const SUCCESS = C.accent.success;
   const statusText = meetingReady
     ? `${otherLabel.charAt(0).toUpperCase() + otherLabel.slice(1)} is ready! Tap Join Call below.`
     : getParticipantStatusText({
@@ -389,6 +416,7 @@ function ParticipantCard({
 }
 
 function ActionsPanel({ title, children, animDelay = 0 }) {
+  const styles = useThemedStyles(createLobbyStyles);
   return (
     <FadeSlideIn delay={animDelay} style={styles.animBlock}>
       <View style={styles.actionsPanel}>
@@ -400,6 +428,16 @@ function ActionsPanel({ title, children, animDelay = 0 }) {
 }
 
 function OptionRow({ icon, title, subtitle, onPress, accent, danger }) {
+  const styles = useThemedStyles(createLobbyStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const GOLD = C.accent.primary;
+  const ERROR = C.accent.error;
+  const SUCCESS = C.accent.success;
   return (
     <PressScale onPress={onPress} style={styles.optionRow}>
       <View
@@ -425,6 +463,16 @@ function OptionRow({ icon, title, subtitle, onPress, accent, danger }) {
 }
 
 function LobbyControlBar({ micOn, camOn, onToggleMic, onToggleCam, onLeave, connecting, bottomInset, animDelay = 0 }) {
+  const styles = useThemedStyles(createLobbyStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const GOLD = C.accent.primary;
+  const ERROR = C.accent.error;
+  const SUCCESS = C.accent.success;
   const controls = [
     {
       key: 'mic',
@@ -498,6 +546,7 @@ function LobbyControlBar({ micOn, camOn, onToggleMic, onToggleCam, onLeave, conn
 }
 
 function CenteredState({ icon, iconColor, iconBg, title, subtitle, children, animDelay = 0 }) {
+  const styles = useThemedStyles(createLobbyStyles);
   return (
     <FadeSlideIn delay={animDelay} style={styles.centeredState}>
       <PulseLoop style={styles.stateIconPulseWrap} color={iconColor} minOpacity={0.15} maxOpacity={0.4}>
@@ -528,6 +577,17 @@ export default function SessionLobbyView({
   onJoinCall,
   startingSession = false,
 }) {
+  const styles = useThemedStyles(createLobbyStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const GOLD = C.accent.primary;
+  const ERROR = C.accent.error;
+  const SUCCESS = C.accent.success;
   const insets = useSafeAreaInsets();
   const slot = booking?.availability_slots || {};
   const durationMin = slotDurationMinutes(slot.start_time, slot.end_time);
@@ -805,9 +865,9 @@ export default function SessionLobbyView({
                 style={styles.joinCallGradient}
               >
                 {startingSession ? (
-                  <ActivityIndicator size="small" color="#000" />
+                  <ActivityIndicator size="small" color={B.successText} />
                 ) : (
-                  <MaterialIcons name="video-call" size={26} color="#000" />
+                  <MaterialIcons name="video-call" size={26} color={B.successText} />
                 )}
                 <Text style={styles.joinCallText}>
                   {startingSession ? 'Starting…' : 'Start Session'}
@@ -957,12 +1017,16 @@ export default function SessionLobbyView({
             style={[styles.joinCallBtn, meetingReady && styles.joinCallBtnReady]}
           >
             <IosGradientShell
-              colors={meetingReady ? B.successGradient : [PURPLE_LINK, 'rgba(99,102,241,0.45)']}
+              colors={meetingReady ? B.successGradient : B.nebulaGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.joinCallGradient}
             >
-              <MaterialIcons name="video-call" size={26} color={meetingReady ? '#000' : '#fff'} />
+              <MaterialIcons
+                name="video-call"
+                size={26}
+                color={meetingReady ? B.successText : B.nebulaText}
+              />
               <Text style={[styles.joinCallText, !meetingReady && styles.joinCallTextWaiting]}>
                 Join Call
               </Text>
@@ -1010,12 +1074,12 @@ export default function SessionLobbyView({
               style={({ pressed }) => [{ width: '100%', borderRadius: T.borderRadius.lg, overflow: 'hidden', opacity: pressed ? 0.88 : 1 }]}
             >
               <IosGradientShell
-                colors={[TEAL, PURPLE_LINK]}
+                colors={B.nebulaGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.notReadyBtn}
               >
-                <MaterialIcons name="check" size={18} color="#000" />
+                <MaterialIcons name="check" size={18} color={B.nebulaText} />
                 <Text style={styles.notReadyBtnText}>Got it, I'll wait</Text>
               </IosGradientShell>
             </Pressable>
@@ -1033,7 +1097,20 @@ export default function SessionLobbyView({
   );
 }
 
-const styles = StyleSheet.create({
+function createLobbyStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const GOLD = C.accent.primary;
+  const ERROR = C.accent.error;
+  const SUCCESS = C.accent.success;
+  const GLASS_BG = S.chipStrong;
+  const GLASS_BORDER = C.border.light;
+  const PANEL = S.panel;
+  return StyleSheet.create({
   root: {
     flex: 1,
   },
@@ -1050,10 +1127,10 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.82 },
   interactiveHover: {
-    backgroundColor: 'rgba(167,139,250,0.08)',
+    backgroundColor: S.accentViolet,
   },
   interactivePressed: {
-    backgroundColor: 'rgba(167,139,250,0.14)',
+    backgroundColor: C.component.buttonSecondary,
   },
   animBlock: {
     width: '100%',
@@ -1739,7 +1816,7 @@ const styles = StyleSheet.create({
     gap: T.spacing.xs,
     borderTopWidth: 1,
     borderTopColor: GLASS_BORDER,
-    backgroundColor: 'rgba(10,10,26,0.6)',
+    backgroundColor: S.checkoutBar,
   },
 
   heroAvatarRing: {
@@ -1751,11 +1828,19 @@ const styles = StyleSheet.create({
     borderRadius: T.borderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.45)',
+    borderColor: B.nebulaBorder,
   },
   joinCallBtnReady: {
-    borderColor: 'rgba(34,197,94,0.5)',
-    ...Platform.select({ ios: { shadowColor: '#22c55e', shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }, android: { elevation: 8 } }),
+    borderColor: B.successBorder,
+    ...Platform.select({
+      ios: {
+        shadowColor: SUCCESS,
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: { elevation: 8 },
+    }),
   },
   joinCallStack: {
     position: 'relative',
@@ -1776,7 +1861,7 @@ const styles = StyleSheet.create({
   joinCallText: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#060412',
+    color: B.successText,
     letterSpacing: 0.3,
     ...Platform.select({
       ios: {
@@ -1787,14 +1872,13 @@ const styles = StyleSheet.create({
       },
       default: {
         flex: 0,
-        color: '#000',
         fontWeight: '900',
         letterSpacing: 0.4,
       },
     }),
   },
   joinCallTextWaiting: {
-    color: '#fff',
+    color: B.nebulaText,
   },
   joinCallHint: {
     fontSize: 12,
@@ -1814,7 +1898,7 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: '#000',
+    backgroundColor: B.successText,
   },
 
   leaveLink: {
@@ -1839,7 +1923,7 @@ const styles = StyleSheet.create({
     paddingTop: T.spacing.lg,
     borderTopWidth: 1,
     borderTopColor: GLASS_BORDER,
-    backgroundColor: 'rgba(10,10,26,0.6)',
+    backgroundColor: S.checkoutBar,
   },
   mentorCtrlTile: {
     alignItems: 'center',
@@ -1880,22 +1964,27 @@ const styles = StyleSheet.create({
   /* ── Not Ready Modal ──────────────────────────── */
   notReadyOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
+    backgroundColor: C.component.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: T.spacing.xl,
   },
   notReadyCard: {
     width: '100%',
-    backgroundColor: '#161432',
+    backgroundColor: PANEL,
     borderRadius: 24,
     padding: T.spacing.xl,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.28)',
+    borderColor: C.border.default,
     gap: T.spacing.sm,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.55, shadowRadius: 24, shadowOffset: { width: 0, height: 8 } },
+      ios: {
+        shadowColor: C.text.primary,
+        shadowOpacity: 0.18,
+        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 8 },
+      },
       android: { elevation: 20 },
     }),
   },
@@ -1903,9 +1992,9 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: 'rgba(234,179,8,0.1)',
+    backgroundColor: S.accentGold,
     borderWidth: 1,
-    borderColor: 'rgba(234,179,8,0.22)',
+    borderColor: B.goldOutlineBorder,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: T.spacing.sm,
@@ -1914,7 +2003,7 @@ const styles = StyleSheet.create({
     width: 62,
     height: 62,
     borderRadius: 31,
-    backgroundColor: 'rgba(234,179,8,0.18)',
+    backgroundColor: S.accentWarning,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1937,7 +2026,7 @@ const styles = StyleSheet.create({
   notReadyDivider: {
     width: '100%',
     height: 1,
-    backgroundColor: 'rgba(167,139,250,0.15)',
+    backgroundColor: GLASS_BORDER,
     marginVertical: T.spacing.md,
   },
   notReadyBtn: {
@@ -1951,7 +2040,7 @@ const styles = StyleSheet.create({
   notReadyBtnText: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#000',
+    color: B.nebulaText,
     letterSpacing: 0.2,
     ...Platform.select({
       ios: {
@@ -1973,3 +2062,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+}

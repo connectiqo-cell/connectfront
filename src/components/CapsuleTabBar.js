@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 import { scaleUi } from '../utils/iosUiScale';
 
 const T = UNIFIED_THEME;
@@ -25,6 +26,14 @@ const TEAL = C.accent.secondary;
  * Material top tabs — cosmic sector layout with glass bar and rounded icon tiles.
  */
 export const CosmicTopTabBar = ({ state, descriptors, navigation, compact = false }) => {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const TB = C.tabBar;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
   const useScroll = state.routes.length > 4;
 
   const TabInner = ({ route, index }) => {
@@ -216,7 +225,15 @@ export const CosmicTopTabBar = ({ state, descriptors, navigation, compact = fals
   );
 };
 
-const styles = StyleSheet.create({
+function createThemedStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const TB = C.tabBar;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  return StyleSheet.create({
   skyRoot: {
     width: '100%',
     position: 'relative',
@@ -290,8 +307,8 @@ const styles = StyleSheet.create({
     width: StyleSheet.hairlineWidth * 2,
     alignSelf: 'stretch',
     marginVertical: T.spacing.md + 2,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    opacity: 0.6,
+    backgroundColor: C.border.light,
+    opacity: theme.mode === 'light' ? 1 : 0.6,
   },
   tabColumn: {
     flex: 1,
@@ -413,3 +430,5 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
 });
+}
+

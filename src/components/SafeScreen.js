@@ -2,11 +2,12 @@ import { ScrollView, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UNIFIED_THEME } from '../unifiedTheme';
 import { getFloatingTabBarContentInset } from './CosmicBottomTabBar';
-import CosmicBackground from './CosmicBackground';
 
 /**
  * SafeScreen - Uses react-native-safe-area-context for better safe area handling
  * Ensures all screens fit safely on any mobile device with notches, bottom bars, tabs, etc.
+ *
+ * Background comes from the root CosmicBackground in App.js; do not nest another here.
  *
  * iOS stack overlays: SafeScreen includeTopInset={false} + StackScreenHeader (single status-bar inset).
  * Android stack overlays: SafeScreen includeTopInset={true} (default); use STACK_OVERLAY_LAYOUT.
@@ -35,7 +36,7 @@ export const SafeScreen = ({
   };
 
   return (
-    <CosmicBackground style={styles.safeArea}>
+    <View style={styles.safeArea}>
       {scrollable ? (
         <ScrollView
           style={styles.flex1}
@@ -52,7 +53,7 @@ export const SafeScreen = ({
           {children}
         </View>
       )}
-    </CosmicBackground>
+    </View>
   );
 };
 

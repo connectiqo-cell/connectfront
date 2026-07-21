@@ -32,6 +32,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import Toast from 'react-native-simple-toast';
 import LinearGradient from 'react-native-linear-gradient';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { videoApi } from '../../api/videoApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
@@ -45,10 +46,6 @@ const TB = C.tabBar;
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
-const PANEL_BG = '#161432';
-const INPUT_BG = '#0f0e2a';
-const SHEET_BG = '#0f0e2a';
-const GLASS_BORDER = 'rgba(167,139,250,0.22)';
 const TITLE_MAX = 80;
 const DESC_MAX = 200;
 const MAX_VIDEO_MB = 80;
@@ -146,6 +143,7 @@ function HoverHighlight({
   hoverScale = 1.02,
   highlightRadius = 16,
 }) {
+  const styles = useThemedStyles(createMentorVideosStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const highlight = useRef(new Animated.Value(0)).current;
   const hovered = useRef(false);
@@ -222,6 +220,7 @@ function HoverHighlight({
 }
 
 function PulseGlow({ color = GOLD, size = 52 }) {
+  const styles = useThemedStyles(createMentorVideosStyles);
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -306,9 +305,10 @@ function formatRupee(amount) {
   return `₹${Number(amount || 0).toLocaleString('en-IN')}`;
 }
 
-const SectionLabel = ({ children }) => (
-  <Text style={styles.sectionLabel}>{children}</Text>
-);
+function SectionLabel({ children }) {
+  const styles = useThemedStyles(createMentorVideosStyles);
+  return <Text style={styles.sectionLabel}>{children}</Text>;
+}
 
 function UnlockPriceCard({
   price,
@@ -323,6 +323,18 @@ function UnlockPriceCard({
   onSave,
   replayToken = 0,
 }) {
+  const styles = useThemedStyles(createMentorVideosStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
   return (
     <HoverHighlight style={styles.unlockCard} highlightRadius={16} hoverScale={1.01} pressScale={0.995}>
       <LinearGradient
@@ -432,6 +444,18 @@ function UnlockPriceCard({
 }
 
 function VideoPlayerModal({ video, onClose }) {
+  const styles = useThemedStyles(createMentorVideosStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
   const videoRef = useRef(null);
   const insets = useSafeAreaInsets();
   const [paused, setPaused] = useState(false);
@@ -534,6 +558,18 @@ const playerStyles = StyleSheet.create({
 
 // ─── Video Card ───────────────────────────────────────────────────────────────
 function VideoCard({ video, index = 0, replayToken = 0, onToggleFree, onDelete, onPlay, onEdit }) {
+  const styles = useThemedStyles(createMentorVideosStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
   const [toggling, setToggling] = useState(false);
 
   const handleToggle = async (value) => {
@@ -604,8 +640,8 @@ function VideoCard({ video, index = 0, replayToken = 0, onToggleFree, onDelete, 
                 <Switch
                   value={video.is_free}
                   onValueChange={handleToggle}
-                  trackColor={{ false: 'rgba(255,255,255,0.15)', true: TEAL }}
-                  thumbColor={video.is_free ? GOLD : 'rgba(255,255,255,0.6)'}
+                  trackColor={{ false: C.surface.chipStrong, true: TEAL }}
+                  thumbColor={video.is_free ? GOLD : C.text.muted}
                   style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
                 />
               )}
@@ -627,6 +663,18 @@ function VideoCard({ video, index = 0, replayToken = 0, onToggleFree, onDelete, 
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 function EditModal({ video, onClose, onSaved }) {
+  const styles = useThemedStyles(createMentorVideosStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isFree, setIsFree] = useState(false);
@@ -722,8 +770,8 @@ function EditModal({ video, onClose, onSaved }) {
             <Switch
               value={isFree}
               onValueChange={setIsFree}
-              trackColor={{ false: 'rgba(255,255,255,0.15)', true: TEAL }}
-              thumbColor={isFree ? GOLD : 'rgba(255,255,255,0.6)'}
+              trackColor={{ false: C.surface.chipStrong, true: TEAL }}
+              thumbColor={isFree ? GOLD : C.text.muted}
             />
           </View>
 
@@ -767,6 +815,18 @@ function EditModal({ video, onClose, onSaved }) {
 
 // ─── Upload Modal ─────────────────────────────────────────────────────────────
 function UploadModal({ visible, onClose, onUploaded }) {
+  const styles = useThemedStyles(createMentorVideosStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [title, setTitle] = useState('');
@@ -1053,8 +1113,8 @@ function UploadModal({ visible, onClose, onUploaded }) {
                 value={isFree}
                 onValueChange={setIsFree}
                 disabled={uploading}
-                trackColor={{ false: 'rgba(255,255,255,0.15)', true: TEAL }}
-                thumbColor={isFree ? GOLD : 'rgba(255,255,255,0.6)'}
+                trackColor={{ false: C.surface.chipStrong, true: TEAL }}
+                thumbColor={isFree ? GOLD : C.text.muted}
               />
             </View>
 
@@ -1114,6 +1174,18 @@ function UploadModal({ visible, onClose, onUploaded }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function MentorVideosScreen({ embeddedInTab = false }) {
+  const styles = useThemedStyles(createMentorVideosStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
   const navigation = useNavigation();
   const bottomListPad = (TB.floating?.contentReserve ?? 115) + T.spacing.lg;
   const { user } = useAuth();
@@ -1283,10 +1355,10 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
       <View style={styles.screenHeader}>
         {!embeddedInTab ? (
           <AnimatedPressable onPress={handleGoBack} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
-            <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+            <MaterialIcons name="arrow-back" size={22} color={C.accent.primary} />
           </AnimatedPressable>
         ) : (
-          <View style={styles.backBtn} />
+          <View style={styles.headerSideSpacer} />
         )}
         <View style={styles.screenHeaderCenter}>
           <Text style={styles.screenTitle}>Upload</Text>
@@ -1314,7 +1386,9 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
       scrollable={false}
       padding={0}
       hasBottomTabs={false}
-      includeTopInset={embeddedInTab ? false : STACK_OVERLAY_LAYOUT.safeScreenIncludeTopInset}
+      includeTopInset={
+        embeddedInTab ? true : STACK_OVERLAY_LAYOUT.safeScreenIncludeTopInset
+      }
     >
       <View style={styles.screenBody}>
       {embeddedInTab ? headerBlock : (
@@ -1396,7 +1470,19 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createMentorVideosStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  return StyleSheet.create({
   screenBody: {
     flex: 1,
   },
@@ -1406,17 +1492,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: T.spacing.lg,
     paddingVertical: T.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(167,139,250,0.18)',
+    borderBottomColor: GLASS_BORDER,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: T.borderRadius.md,
-    backgroundColor: PANEL_BG,
+    backgroundColor: S.accentViolet,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: GLASS_BORDER,
+    borderColor: C.border.default,
+  },
+  headerSideSpacer: {
+    width: 40,
+    height: 40,
   },
   screenHeaderCenter: {
     flex: 1,
@@ -1426,7 +1516,7 @@ const styles = StyleSheet.create({
   screenTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: C.text.primary,
+    color: C.accent.primary,
   },
   screenSubtitle: {
     fontSize: 12,
@@ -1570,9 +1660,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: S.chip,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: GLASS_BORDER,
   },
   unlockInfoChipText: {
     color: C.text.secondary,
@@ -1760,7 +1850,7 @@ const styles = StyleSheet.create({
   cardInfo: { flex: 1, padding: 12 },
   cardTitle: { color: C.text.primary, fontSize: 14, fontWeight: '700' },
   cardDesc: { color: C.text.muted, fontSize: 12, marginBottom: 8, lineHeight: 17 },
-  cardDescMuted: { color: 'rgba(255,255,255,0.28)', fontSize: 12, fontStyle: 'italic', marginBottom: 8 },
+  cardDescMuted: { color: C.text.muted, fontSize: 12, fontStyle: 'italic', marginBottom: 8 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   freeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   freeLabel: { color: C.text.secondary, fontSize: 11, fontWeight: '600' },
@@ -1797,7 +1887,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(3,3,8,0.75)',
   },
   modalSheet: {
-    backgroundColor: SHEET_BG,
+    backgroundColor: PANEL_BG,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -1810,7 +1900,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: C.border.light,
     alignSelf: 'center',
     marginBottom: 14,
   },
@@ -2042,7 +2132,7 @@ const styles = StyleSheet.create({
   progressLabel: { color: C.text.secondary, fontSize: 12, fontWeight: '600' },
   progressTrack: {
     height: 6,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: S.chipStrong,
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -2101,3 +2191,5 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+}
+

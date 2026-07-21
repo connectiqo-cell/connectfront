@@ -1,4 +1,4 @@
-﻿import { createContext, useState, useEffect } from 'react';
+﻿import { createContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { registerFcmToken } from '../utils/fcmToken';
@@ -183,7 +183,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -194,18 +194,33 @@ export const AuthProvider = ({ children }) => {
       console.error('Sign out error:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const value = {
-    session,
-    user,
-    profile,
-    loading,
-    signOut,
-    refreshProfile: () => user && fetchProfile(user.id),
-    pendingPasswordReset,
-    setPendingPasswordReset,
-  };
+  const refreshProfile = useCallback(() => {
+    if (user) fetchProfile(user.id);
+  }, [user]);
+
+  const value = useMemo(
+    () => ({
+      session,
+      user,
+      profile,
+      loading,
+      signOut,
+      refreshProfile,
+      pendingPasswordReset,
+      setPendingPasswordReset,
+    }),
+    [
+      session,
+      user,
+      profile,
+      loading,
+      signOut,
+      refreshProfile,
+      pendingPasswordReset,
+    ],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

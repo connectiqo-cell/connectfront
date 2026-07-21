@@ -100,7 +100,7 @@ function ParticipantStatsViewer({ participantId }) {
     <View
       style={{
         flex: 1,
-        backgroundColor: "#2B3034",
+        backgroundColor: colors.sheet,
       }}
     >
       <View
@@ -119,6 +119,7 @@ function ParticipantStatsViewer({ participantId }) {
             fontFamily: ROBOTO_FONTS.RobotoBold,
             fontSize: 16,
             marginLeft: 8,
+            color: colors.primary[100],
           }}
         >
           {displayName} - Quality Metrics :{" "}

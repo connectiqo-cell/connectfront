@@ -1,24 +1,56 @@
 /**
- * @deprecated Import UNIFIED_THEME from '../unifiedTheme' in new code.
- * Kept for meeting module compatibility — values map to cosmic theme.
+ * @deprecated Prefer theme.colors.meeting via useTheme() in new code.
+ * Kept for meeting module compatibility — values follow live UNIFIED_THEME
+ * so light/dark meeting chrome updates when ThemeProvider syncs.
  */
 import { UNIFIED_THEME } from '../unifiedTheme';
 
-const M = UNIFIED_THEME.colors.meeting;
+function meeting() {
+  return UNIFIED_THEME.colors.meeting;
+}
 
 const colors = {
   primary: {
-    100: M[100],
-    200: M[200],
-    400: M[400],
-    500: M[500],
-    600: M[600],
-    700: M[700],
-    800: M[800],
-    900: M[900],
+    get 100() {
+      return meeting()[100];
+    },
+    get 200() {
+      return meeting()[200];
+    },
+    get 400() {
+      return meeting()[400];
+    },
+    get 500() {
+      return meeting()[500];
+    },
+    get 600() {
+      return meeting()[600];
+    },
+    get 700() {
+      return meeting()[700];
+    },
+    get 800() {
+      return meeting()[800];
+    },
+    get 900() {
+      return meeting()[900];
+    },
   },
-  black: UNIFIED_THEME.colors.primary.void,
-  purple: M.accent,
+  /** Call shell / root canvas (light in light theme). */
+  get black() {
+    return meeting()[900];
+  },
+  get purple() {
+    return meeting().accent;
+  },
+  /** Sheet / control border tone. */
+  get sheet() {
+    return meeting().sheet;
+  },
+  /** Ink on muted mic/cam pill. */
+  get ink() {
+    return meeting().ink;
+  },
 };
 
 export default colors;

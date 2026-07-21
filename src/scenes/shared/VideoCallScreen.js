@@ -15,7 +15,7 @@ import {
   MeetingConsumer,
 } from '@videosdk.live/react-native-sdk';
 import Toast from 'react-native-simple-toast';
-import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme } from '../../hooks/useTheme';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { getToken, createMeeting, fetchRecordingUrl } from '../../api/api';
 import { supabase } from '../../lib/supabase';
@@ -30,6 +30,7 @@ import {
   releaseIosCallAudioSession,
 } from '../../utils/iosCallAudioSession';
 import { scheduleMeetingLeaveNavigation } from '../../utils/meetingLeave';
+import { resolveSessionEndOutcome } from '../../utils/sessionEndOutcome';
 import MeetingContainer from '../meeting/MeetingContainer';
 import SessionLobbyView from '../meeting/Components/SessionLobbyView';
 
@@ -68,9 +69,13 @@ class CallErrorBoundary extends React.Component {
 }
 
 export default function VideoCallScreen({ navigation, route }) {
-  const { bookingId, isHost } = route.params;
+  const bookingId = route?.params?.bookingId ?? route?.params?.roomId;
   const { profile } = useAuth();
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  /** Live call chrome stays dark in both app themes (video convention). */
+  const meetingBg = theme.colors.meeting[900];
+  const lobbyBg = theme.colors.primary.void;
   const [ready, setReady] = useState(false);
   const [callParams, setCallParams] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -80,11 +85,25 @@ export default function VideoCallScreen({ navigation, route }) {
   const [meetingReady, setMeetingReady] = useState(false);
   const [pendingCallParams, setPendingCallParams] = useState(null);
   const [startingSession, setStartingSession] = useState(false);
+  const [mentorRecordingConsented, setMentorRecordingConsented] = useState(false);
   const [participantCount, setParticipantCount] = useState(1);
   const joinTimeRef = useRef(null); // Track when both participants joined (use Ref to persist across re-renders)
   const recordingRef = useRef();
   const sessionEndedRef = useRef(false);
   const leaveNavTimerRef = useRef(null);
+  // Host authority must come from booking membership, never route params.
+  const isMentorHost = Boolean(
+    profile?.id && booking?.mentor_id && profile.id === booking.mentor_id,
+  );
+  const isMentorHostRef = useRef(isMentorHost);
+  isMentorHostRef.current = isMentorHost;
+
+  useEffect(() => {
+    if (!bookingId) {
+      Toast.show('Missing booking — open the call from Sessions or Bookings');
+      navigation.goBack();
+    }
+  }, [bookingId, navigation]);
 
   useEffect(() => {
     return () => {
@@ -94,6 +113,7 @@ export default function VideoCallScreen({ navigation, route }) {
       }
     };
   }, []);
+
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== 'android' || ready) {
@@ -185,11 +205,20 @@ export default function VideoCallScreen({ navigation, route }) {
     try {
       const token = await getToken();
       const bookingRow = await bookingApi.getBooking(bookingId);
+      const isMentorUser = profile?.id === bookingRow?.mentor_id;
+      const isLearnerUser = profile?.id === bookingRow?.learner_id;
+
+      if (!profile?.id || (!isMentorUser && !isLearnerUser)) {
+        Toast.show('You are not a participant in this session');
+        navigation.goBack();
+        return;
+      }
+
       await enrichBookingProfiles(bookingRow);
       setBooking(bookingRow);
       setLobbyOnly(true);
 
-      if (isHost) {
+      if (isMentorUser) {
         // Mentor controls when the session starts — button is always green.
         setMeetingReady(true);
       } else {
@@ -208,6 +237,27 @@ export default function VideoCallScreen({ navigation, route }) {
     }
   };
 
+  const askMentorRecordingConsent = useCallback(() => (
+    new Promise(resolve => {
+      Alert.alert(
+        'Session recording permission',
+        'The learner requested a recording when booking. Do you agree to record this session?',
+        [
+          {
+            text: 'Join without recording',
+            style: 'cancel',
+            onPress: () => resolve(false),
+          },
+          {
+            text: 'Agree & record',
+            onPress: () => resolve(true),
+          },
+        ],
+        { cancelable: false },
+      );
+    })
+  ), []);
+
   const handleStartSession = async () => {
     try {
       setStartingSession(true);
@@ -225,7 +275,18 @@ export default function VideoCallScreen({ navigation, route }) {
       // Mentor may be rejoining after a network drop — reuse same meeting_id
       // so the learner (still in the old room) doesn't end up in a different session.
       const freshBooking = await bookingApi.getBooking(bookingId);
+      if (profile?.id !== freshBooking?.mentor_id) {
+        Toast.show('Only the mentor can start this session');
+        return;
+      }
+
       const existingMid = freshBooking?.meeting_id || meetingIdFromBooking(freshBooking);
+      setBooking(freshBooking);
+
+      const recordingConsent = freshBooking?.recording_requested === true
+        ? await askMentorRecordingConsent()
+        : false;
+      setMentorRecordingConsented(recordingConsent);
 
       let meetingId;
       if (existingMid) {
@@ -236,8 +297,8 @@ export default function VideoCallScreen({ navigation, route }) {
         await bookingApi.setMeetingId({ bookingId, meetingId });
         await recordingsApi.upsertSessionForBooking({
           bookingId,
-          mentorId: booking?.mentor_id || profile.id,
-          learnerId: booking?.learner_id,
+          mentorId: freshBooking.mentor_id,
+          learnerId: freshBooking.learner_id,
           meetingId,
         });
       }
@@ -253,7 +314,7 @@ export default function VideoCallScreen({ navigation, route }) {
   };
 
   useEffect(() => {
-    if (!lobbyOnly || isHost) return undefined;
+    if (!lobbyOnly || isMentorHost) return undefined;
 
     const applyRow = async (row) => {
       try {
@@ -295,7 +356,7 @@ export default function VideoCallScreen({ navigation, route }) {
       supabase.removeChannel(channel);
       clearInterval(fallbackId);
     };
-  }, [lobbyOnly, isHost, bookingId]);
+  }, [lobbyOnly, isMentorHost, bookingId]);
 
   const handleJoinCall = async () => {
     if (!meetingReady || !pendingCallParams) {
@@ -320,13 +381,31 @@ export default function VideoCallScreen({ navigation, route }) {
   };
 
   const runPostCallCleanup = async (snapshotCallParams) => {
-    const endTime = new Date();
-    const callDuration = joinTimeRef.current ? Math.round((endTime - joinTimeRef.current) / 1000) : 0;
-    const MIN_DURATION_SECONDS = 300; // 5 minutes
-    const shouldMarkComplete = !!joinTimeRef.current && callDuration >= MIN_DURATION_SECONDS;
+    const mentorHost = isMentorHostRef.current;
+    const outcome = resolveSessionEndOutcome({
+      bothJoinedAt: joinTimeRef.current,
+      isMentorHost: mentorHost,
+    });
 
-    if (shouldMarkComplete) {
-      if (isHost) {
+    // Stop cloud recording only when the mentor ends the meeting.
+    if (
+      outcome.shouldStopRecording &&
+      snapshotCallParams?.meetingId &&
+      snapshotCallParams?.token
+    ) {
+      const { stopOneToOneRecordingSession } = require('../../utils/recordingConfig');
+      try {
+        await stopOneToOneRecordingSession({
+          token: snapshotCallParams.token,
+          meetingId: snapshotCallParams.meetingId,
+        });
+      } catch (stopErr) {
+        console.warn('[Recording] stop on leave failed:', stopErr?.message);
+      }
+    }
+
+    if (outcome.kind === 'completed') {
+      if (outcome.shouldMarkCompleted) {
         try {
           await bookingApi.updateBookingStatus({
             bookingId,
@@ -337,17 +416,11 @@ export default function VideoCallScreen({ navigation, route }) {
         }
       }
 
-      if (isHost && snapshotCallParams?.meetingId && snapshotCallParams?.token) {
-        const { stopOneToOneRecordingSession } = require('../../utils/recordingConfig');
-        try {
-          await stopOneToOneRecordingSession({
-            token: snapshotCallParams.token,
-            meetingId: snapshotCallParams.meetingId,
-          });
-        } catch (stopErr) {
-          console.warn('[Recording] stop on leave failed:', stopErr?.message);
-        }
-
+      if (
+        outcome.shouldFetchRecording &&
+        snapshotCallParams?.meetingId &&
+        snapshotCallParams?.token
+      ) {
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
         let recordingUrl = null;
 
@@ -377,24 +450,20 @@ export default function VideoCallScreen({ navigation, route }) {
         }
       }
 
-      Toast.show('Session completed');
+      Toast.show(outcome.toast);
       return;
     }
 
-    if (!joinTimeRef.current) {
-      if (isHost) {
-        try {
-          await bookingApi.clearMeetingId(bookingId);
-        } catch (cleanupError) {
-          console.error('⚠️ Failed to clean up meeting_id:', cleanupError);
-        }
+    if (outcome.shouldClearMeetingId) {
+      try {
+        await bookingApi.clearMeetingId(bookingId);
+      } catch (cleanupError) {
+        console.error('⚠️ Failed to clean up meeting_id:', cleanupError);
       }
-      Toast.show('Session ended - Meeting abandoned');
-      return;
     }
 
-    if (callDuration < MIN_DURATION_SECONDS) {
-      Toast.show('Session ended — minimum 5 minutes required for completion');
+    if (outcome.toast) {
+      Toast.show(outcome.toast);
     }
   };
 
@@ -416,9 +485,7 @@ export default function VideoCallScreen({ navigation, route }) {
     });
   }, [navigation, callParams]);
 
-  const VOID_BG = UNIFIED_THEME.colors.primary.void;
-
-  const screenShell = (children, bg = VOID_BG) => {
+  const screenShell = (children, bg = meetingBg) => {
     if (Platform.OS === 'ios') {
       return (
         <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: bg }}>
@@ -441,13 +508,12 @@ export default function VideoCallScreen({ navigation, route }) {
   };
 
   if (loading) {
-    return screenShell(<LoadingOverlay visible message="Preparing your call..." />, UNIFIED_THEME.colors.primary.dark);
+    return screenShell(<LoadingOverlay visible message="Preparing your call..." />, meetingBg);
   }
 
-  const isMentor = Boolean(isHost || profile?.id === booking?.mentor_id);
   const resolvedOtherUser = resolveLobbyPartner({
     booking,
-    isMentor,
+    isMentor: isMentorHost,
     otherUser: otherProfile,
   });
 
@@ -455,10 +521,10 @@ export default function VideoCallScreen({ navigation, route }) {
     return screenShell(
       <SessionLobbyView
         booking={booking}
-        isMentor={isMentor}
+        isMentor={isMentorHost}
         otherUser={resolvedOtherUser}
         meetingReady={meetingReady}
-        onJoinCall={isHost ? handleStartSession : handleJoinCall}
+        onJoinCall={isMentorHost ? handleStartSession : handleJoinCall}
         startingSession={startingSession}
         onLeave={() => navigation.goBack()}
         onReschedule={async () => {
@@ -471,12 +537,12 @@ export default function VideoCallScreen({ navigation, route }) {
         }}
         onCancelRefund={() => navigation.goBack()}
       />,
-      UNIFIED_THEME.colors.primary.dark,
+      lobbyBg,
     );
   }
 
   if (!ready || !callParams) {
-    return screenShell(<LoadingOverlay visible message="Connecting..." />, UNIFIED_THEME.colors.primary.dark);
+    return screenShell(<LoadingOverlay visible message="Connecting..." />, meetingBg);
   }
 
   return screenShell(
@@ -494,17 +560,18 @@ export default function VideoCallScreen({ navigation, route }) {
       }}
       token={callParams.token}
     >
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, backgroundColor: meetingBg }}>
         <CallErrorBoundary onLeave={handleMeetingLeft}>
           <MeetingConsumer>
             {() => (
               <MeetingContainer
                 meetingType="ONE_TO_ONE"
                 onParticipantCountChange={setParticipantCount}
-                isHost={isHost}
-                isMentor={isMentor}
+                isHost={isMentorHost}
+                isMentor={isMentorHost}
                 booking={booking}
                 otherUser={resolvedOtherUser}
+                autoStartRecording={isMentorHost && mentorRecordingConsented}
                 onLeaveSession={handleMeetingLeft}
                 maxDurationMs={20 * 60 * 1000}
               />
@@ -513,5 +580,6 @@ export default function VideoCallScreen({ navigation, route }) {
         </CallErrorBoundary>
       </View>
     </MeetingProvider>,
+    meetingBg,
   );
 }

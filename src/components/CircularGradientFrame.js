@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Image, StyleSheet, Pressable } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useAvatarPreviewOptional } from '../contexts/AvatarPreviewContext';
+import { useTheme } from '../hooks/useTheme';
+import { avatarWell, ringBorder } from '../theme/surfaceStyles';
 
 /**
  * Gradient ring with a circular inner clip.
@@ -13,11 +15,14 @@ export function CircularGradientFrame({
   colors,
   start = { x: 0, y: 0 },
   end = { x: 1, y: 1 },
-  innerBg = '#0f0e2a',
-  borderColor = 'rgba(255,255,255,0.35)',
+  innerBg,
+  borderColor,
   style,
   children,
 }) {
+  const { theme } = useTheme();
+  const resolvedInnerBg = innerBg ?? avatarWell(theme);
+  const resolvedBorder = borderColor ?? ringBorder(theme);
   const radius = size / 2;
   const innerSize = size - ringWidth * 2;
   const innerRadius = innerSize / 2;
@@ -30,7 +35,7 @@ export function CircularGradientFrame({
           width: size,
           height: size,
           borderRadius: radius,
-          borderColor,
+          borderColor: resolvedBorder,
         },
         style,
       ]}
@@ -51,7 +56,7 @@ export function CircularGradientFrame({
             width: innerSize,
             height: innerSize,
             borderRadius: innerRadius,
-            backgroundColor: innerBg,
+            backgroundColor: resolvedInnerBg,
           },
         ]}
       >
@@ -69,7 +74,7 @@ export function CircularProfileImage({
   colors,
   start,
   end,
-  innerBg = '#0f0e2a',
+  innerBg,
   borderColor,
   style,
   fallback,

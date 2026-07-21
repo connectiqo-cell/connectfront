@@ -22,18 +22,14 @@ import { SearchBar } from '../../components/SearchBar';
 import { MentorImageCard } from '../../components/MentorImageCard';
 import { MentorDetailSheet } from '../../components/MentorDetailSheet';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
 import { mentorApi } from '../../api/mentorApi';
 import { useAuth } from '../../hooks/useAuth';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { mentorHasCategory } from '../../utils/mentorCategories';
 
 const T = UNIFIED_THEME;
-const C = T.colors;
-const B = C.buttons;
-const S = C.surface;
-
-const PURPLE_LINK = B.nebulaGradient[0];
-const TEAL = C.accent.secondary;
 
 const PAGE_SIZE = 12;
 const GRID_COLS = 3;
@@ -59,6 +55,7 @@ function useShimmer() {
 }
 
 function SkeletonBone({ style }) {
+  const skeletonStyles = useThemedStyles(createCategorySkeletonStyles);
   const opacity = useShimmer();
   return (
     <Animated.View
@@ -72,6 +69,7 @@ function SkeletonBone({ style }) {
 }
 
 function SkeletonGrid({ cardWidth, cardHeight }) {
+  const skeletonStyles = useThemedStyles(createCategorySkeletonStyles);
   return (
     <View style={skeletonStyles.grid}>
       {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
@@ -84,22 +82,25 @@ function SkeletonGrid({ cardWidth, cardHeight }) {
   );
 }
 
-const skeletonStyles = StyleSheet.create({
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: T.spacing.lg,
-    paddingTop: T.spacing.md,
-    gap: T.spacing.sm,
-  },
-  card: {
-    borderRadius: 16,
-  },
-  bone: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 16,
-  },
-});
+function createCategorySkeletonStyles(theme) {
+  const T = theme;
+  return StyleSheet.create({
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: T.spacing.lg,
+      paddingTop: T.spacing.md,
+      gap: T.spacing.sm,
+    },
+    card: {
+      borderRadius: 16,
+    },
+    bone: {
+      backgroundColor: softFillStrong(theme),
+      borderRadius: 16,
+    },
+  });
+}
 
 function PressScale({ onPress, style, hitSlop, children, accessibilityLabel }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -169,6 +170,10 @@ function FadeSlideIn({ children, delay = 0, style, offsetY = 12 }) {
 }
 
 function SortChip({ opt, active, onPress }) {
+  const styles = useThemedStyles(createCategoryMentorsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => {
@@ -226,6 +231,12 @@ function applySortFn(arr, sortBy) {
 }
 
 export default function CategoryMentorsScreen({ route, navigation }) {
+  const styles = useThemedStyles(createCategoryMentorsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const TEAL = C.accent.secondary;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const GOLD = C.accent.primary;
   const { category } = route.params;
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
@@ -526,150 +537,159 @@ export default function CategoryMentorsScreen({ route, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: T.spacing.lg,
-    paddingBottom: T.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(167,139,250,0.22)',
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
-  },
-  topBarTitleWrap: {
-    flex: 1,
-    marginHorizontal: T.spacing.sm,
-  },
-  topBarTitle: {
-    fontSize: 17,
-    color: C.text.primary,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: -0.3,
-  },
-  topBarSpacer: {
-    width: 40,
-  },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    paddingHorizontal: T.spacing.lg,
-    paddingBottom: T.spacing.xxxl,
-  },
-  listHeader: {
-    marginBottom: T.spacing.sm,
-  },
-  searchWrap: {
-    paddingHorizontal: T.spacing.lg,
-    paddingTop: T.spacing.md,
-    paddingBottom: T.spacing.sm,
-  },
-  searchBar: {
-    marginBottom: 0,
-  },
-  pageSubtitle: {
-    fontSize: 13,
-    color: C.text.muted,
-    fontWeight: '600',
-    lineHeight: 18,
-    marginBottom: T.spacing.md,
-  },
-  sortBar: {
-    gap: T.spacing.sm,
-    paddingBottom: T.spacing.md,
-  },
-  sortChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: T.spacing.md,
-    paddingVertical: 8,
-    borderRadius: T.borderRadius.chip,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  sortChipActive: {
-    backgroundColor: S.accentViolet,
-    borderColor: 'rgba(167,139,250,0.35)',
-  },
-  sortChipTxt: {
-    fontSize: 12,
-    color: C.text.muted,
-    fontWeight: '600',
-  },
-  sortChipTxtActive: {
-    color: PURPLE_LINK,
-    fontWeight: '800',
-  },
-  row: {
-    gap: T.spacing.sm,
-    marginBottom: T.spacing.sm,
-  },
-  loadMoreWrap: {
-    marginTop: T.spacing.sm,
-  },
-  loadMoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: T.spacing.sm,
-    paddingVertical: T.spacing.md,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  loadMoreTxt: {
-    fontSize: 13,
-    color: PURPLE_LINK,
-    fontWeight: '700',
-  },
-  emptyPanel: {
-    alignItems: 'center',
-    paddingVertical: T.spacing.xxxl,
-    paddingHorizontal: T.spacing.lg,
-    marginTop: T.spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  emptyIconRing: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: S.accentViolet,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: T.spacing.lg,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: C.text.primary,
-    textAlign: 'center',
-    marginBottom: T.spacing.sm,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: C.text.muted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});
+function createCategoryMentorsStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  return StyleSheet.create({
+    safe: {
+      flex: 1,
+    },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: T.spacing.lg,
+      paddingBottom: T.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: softBorder(theme),
+    },
+    backBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: softFill(theme),
+      borderWidth: 1,
+      borderColor: softBorder(theme),
+    },
+    topBarTitleWrap: {
+      flex: 1,
+      marginHorizontal: T.spacing.sm,
+    },
+    topBarTitle: {
+      fontSize: 17,
+      color: C.text.primary,
+      fontWeight: '800',
+      textAlign: 'center',
+      letterSpacing: -0.3,
+    },
+    topBarSpacer: {
+      width: 40,
+    },
+    list: {
+      flex: 1,
+    },
+    listContent: {
+      paddingHorizontal: T.spacing.lg,
+      paddingBottom: T.spacing.xxxl,
+    },
+    listHeader: {
+      marginBottom: T.spacing.sm,
+    },
+    searchWrap: {
+      paddingHorizontal: T.spacing.lg,
+      paddingTop: T.spacing.md,
+      paddingBottom: T.spacing.sm,
+    },
+    searchBar: {
+      marginBottom: 0,
+    },
+    pageSubtitle: {
+      fontSize: 13,
+      color: C.text.muted,
+      fontWeight: '600',
+      lineHeight: 18,
+      marginBottom: T.spacing.md,
+    },
+    sortBar: {
+      gap: T.spacing.sm,
+      paddingBottom: T.spacing.md,
+    },
+    sortChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: T.spacing.md,
+      paddingVertical: 8,
+      borderRadius: T.borderRadius.chip,
+      borderWidth: 1,
+      borderColor: softBorder(theme),
+      backgroundColor: softFill(theme),
+    },
+    sortChipActive: {
+      backgroundColor: S.accentViolet,
+      borderColor: softBorder(theme),
+    },
+    sortChipTxt: {
+      fontSize: 12,
+      color: C.text.muted,
+      fontWeight: '600',
+    },
+    sortChipTxtActive: {
+      color: PURPLE_LINK,
+      fontWeight: '800',
+    },
+    row: {
+      gap: T.spacing.sm,
+      marginBottom: T.spacing.sm,
+    },
+    loadMoreWrap: {
+      marginTop: T.spacing.sm,
+    },
+    loadMoreBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: T.spacing.sm,
+      paddingVertical: T.spacing.md,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: softBorder(theme),
+      backgroundColor: softFill(theme),
+    },
+    loadMoreTxt: {
+      fontSize: 13,
+      color: PURPLE_LINK,
+      fontWeight: '700',
+    },
+    emptyPanel: {
+      alignItems: 'center',
+      paddingVertical: T.spacing.xxxl,
+      paddingHorizontal: T.spacing.lg,
+      marginTop: T.spacing.lg,
+      borderWidth: 1,
+      borderColor: softBorder(theme),
+      borderRadius: 16,
+      backgroundColor: softFill(theme),
+    },
+    emptyIconRing: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      backgroundColor: S.accentViolet,
+      borderWidth: 1,
+      borderColor: softBorder(theme),
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: T.spacing.lg,
+    },
+    emptyTitle: {
+      fontSize: 17,
+      fontWeight: '800',
+      color: C.text.primary,
+      textAlign: 'center',
+      marginBottom: T.spacing.sm,
+    },
+    emptySubtitle: {
+      fontSize: 13,
+      color: C.text.muted,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+  });
+}

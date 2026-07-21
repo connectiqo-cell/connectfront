@@ -12,6 +12,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -22,8 +23,8 @@ const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
 
-const GLASS_BG = 'rgba(255,255,255,0.07)';
-const GLASS_BORDER = 'rgba(167,139,250,0.22)';
+const GLASS_BG = C.surface.panel;
+const GLASS_BORDER = C.border.light;
 
 export const CALENDAR_DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -35,7 +36,18 @@ export function padCalendarWeeks(weeks = []) {
     return padded.slice(0, 7);
   });
 }
-export const scheduleStyles = StyleSheet.create({
+function createScheduleStyles(theme) {
+  const T = theme;
+  const C = T.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const GLASS_BG = C.surface.panel;
+  const GLASS_BORDER = C.border.light;
+
+  return StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -46,13 +58,13 @@ export const scheduleStyles = StyleSheet.create({
   topBarCenter: { flex: 1, alignItems: 'center' },
   topBarTitle: {
     fontSize: 15,
-    color: C.text.primary,
+    color: C.accent.primary,
     fontWeight: '800',
     textAlign: 'center',
   },
   topBarSub: {
     fontSize: 11,
-    color: PURPLE_LINK,
+    color: C.text.secondary,
     fontWeight: '600',
     marginTop: 2,
     textAlign: 'center',
@@ -60,21 +72,16 @@ export const scheduleStyles = StyleSheet.create({
   },
 
   heroBanner: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: GLASS_BORDER,
-    backgroundColor: GLASS_BG,
-    overflow: 'hidden',
     marginBottom: T.spacing.md,
-    padding: T.spacing.lg,
-    ...Platform.select({ ios: T.shadows.medium, android: { elevation: 6 } }),
+    paddingVertical: T.spacing.sm,
+    paddingHorizontal: 0,
   },
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: T.spacing.md },
   heroBody: { flex: 1, minWidth: 0 },
   heroLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: PURPLE_LINK,
+    color: C.accent.primary,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
@@ -85,19 +92,29 @@ export const scheduleStyles = StyleSheet.create({
     marginTop: 2,
     letterSpacing: -0.4,
   },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  metaPill: {
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: T.borderRadius.chip,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
-  metaPillText: { fontSize: 10, fontWeight: '700', color: C.text.primary },
+  metaSep: {
+    color: C.text.muted,
+    fontSize: 11,
+    fontWeight: '600',
+    marginHorizontal: 8,
+  },
+  metaPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.text.secondary,
+    letterSpacing: 0.15,
+  },
 
   avatarRing: {
     width: 52,
@@ -107,7 +124,7 @@ export const scheduleStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: C.border.light,
   },
   avatarInner: {
     width: 46,
@@ -145,9 +162,9 @@ export const scheduleStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: T.borderRadius.chip,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: C.surface.chip,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: C.border.light,
   },
   previewChipReady: {
     backgroundColor: S.accentSuccess,
@@ -201,15 +218,15 @@ export const scheduleStyles = StyleSheet.create({
     marginBottom: T.spacing.md,
     paddingBottom: T.spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    borderBottomColor: C.border.light,
   },
   monthNavBtn: {
     width: 36,
     height: 36,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: C.border.light,
+    backgroundColor: C.surface.chip,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -234,10 +251,10 @@ export const scheduleStyles = StyleSheet.create({
     textAlign: 'center',
   },
   calendarGrid: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: C.surface.chipStrong,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: C.border.light,
     padding: T.spacing.sm,
   },
   dayHeadersRow: {
@@ -245,7 +262,7 @@ export const scheduleStyles = StyleSheet.create({
     marginBottom: T.spacing.xs,
     paddingBottom: T.spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: C.border.light,
   },
   dayHeader: {
     flex: 1,
@@ -273,13 +290,13 @@ export const scheduleStyles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: C.surface.chip,
     borderWidth: 1,
     borderColor: 'transparent',
     position: 'relative',
   },
   dayButtonAvailable: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: C.surface.chip,
     borderColor: S.dayAvailableBorder,
   },
   dayButtonPast: {
@@ -288,7 +305,7 @@ export const scheduleStyles = StyleSheet.create({
   },
   dayButtonToday: {
     borderColor: 'rgba(94,234,212,0.55)',
-    backgroundColor: 'rgba(94,234,212,0.08)',
+    backgroundColor: C.surface.accentViolet,
   },
   dayButtonSelected: {
     width: '100%',
@@ -328,7 +345,7 @@ export const scheduleStyles = StyleSheet.create({
     backgroundColor: C.accent.warning,
   },
   slotIndicatorSelected: {
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: C.surface.panel,
   },
   calendarLegend: {
     flexDirection: 'row',
@@ -337,7 +354,7 @@ export const scheduleStyles = StyleSheet.create({
     marginTop: T.spacing.md,
     paddingTop: T.spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: C.border.light,
   },
   legendItem: {
     flexDirection: 'row',
@@ -377,9 +394,17 @@ export const scheduleStyles = StyleSheet.create({
     paddingHorizontal: T.spacing.lg,
     paddingTop: T.spacing.md,
   },
-});
+  });
+}
+
+export function useScheduleStyles() {
+  return useThemedStyles(createScheduleStyles);
+}
+
+export const scheduleStyles = createScheduleStyles(UNIFIED_THEME);
 
 export function ScheduleSectionBlock({ step, title, subtitle, children, accent = 'gold' }) {
+  const scheduleStyles = useScheduleStyles();
   const accentStyle =
     accent === 'teal'
       ? scheduleStyles.sectionAccentTeal
@@ -404,6 +429,7 @@ export function ScheduleSectionBlock({ step, title, subtitle, children, accent =
 }
 
 export function SchedulePreviewBar({ children }) {
+  const scheduleStyles = useScheduleStyles();
   return (
     <View style={scheduleStyles.previewBar}>
       <LinearGradient
@@ -426,6 +452,7 @@ export function SchedulePreviewBar({ children }) {
 }
 
 export function SchedulePreviewChip({ icon, label, variant = 'default', textStyle }) {
+  const scheduleStyles = useScheduleStyles();
   const chipStyle =
     variant === 'ready'
       ? scheduleStyles.previewChipReady
@@ -444,6 +471,7 @@ export function SchedulePreviewChip({ icon, label, variant = 'default', textStyl
 }
 
 export function ScheduleCalendarLegend() {
+  const scheduleStyles = useScheduleStyles();
   return (
     <View style={scheduleStyles.calendarLegend}>
       <View style={scheduleStyles.legendItem}>
@@ -473,6 +501,7 @@ export function ScheduleDayCell({
   muteLabel,
   onPress,
 }) {
+  const scheduleStyles = useScheduleStyles();
   const scale = useRef(new Animated.Value(1)).current;
   const pressScale = useRef(new Animated.Value(1)).current;
   const showSlotIndicator = Boolean(hasSlots && Number(slotCount) > 0);
@@ -584,15 +613,10 @@ export function ScheduleDayCell({
 }
 
 export function ScheduleHeroBanner({ initial, name, label, avatarUrl, children }) {
+  const scheduleStyles = useScheduleStyles();
+  const { theme: liveTheme } = useTheme();
   return (
     <View style={scheduleStyles.heroBanner}>
-      <LinearGradient
-        colors={S.heroGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
       <View style={scheduleStyles.heroRow}>
         <LinearGradient colors={B.premiumGradient} style={scheduleStyles.avatarRing}>
           <View style={scheduleStyles.avatarInner}>
@@ -604,8 +628,8 @@ export function ScheduleHeroBanner({ initial, name, label, avatarUrl, children }
           </View>
         </LinearGradient>
         <View style={scheduleStyles.heroBody}>
-          <Text style={scheduleStyles.heroLabel}>{label}</Text>
-          <Text style={scheduleStyles.heroName} numberOfLines={1}>
+          <Text style={[scheduleStyles.heroLabel, { color: liveTheme.colors.accent.primary }]}>{label}</Text>
+          <Text style={[scheduleStyles.heroName, { color: liveTheme.colors.text.primary }]} numberOfLines={1}>
             {name}
           </Text>
           {children}

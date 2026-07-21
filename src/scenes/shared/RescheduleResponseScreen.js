@@ -16,6 +16,8 @@ import CosmicBackground from '../../components/CosmicBackground';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import CosmicButton from '../../components/CosmicButton';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
 import { rescheduleApi } from '../../api/rescheduleApi';
 import { formatDateForDisplay, formatTime } from '../../utils/dateHelpers';
 
@@ -31,6 +33,15 @@ const GLASS_BORDER = C.border.light;
 const PANEL = S.panel;
 
 export default function RescheduleResponseScreen({ navigation, route }) {
+  const styles = useThemedStyles(createRescheduleResponseStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const { proposal } = route.params;
   // proposal: reschedule_requests row with bookings relation attached
   const insets = useSafeAreaInsets();
@@ -281,7 +292,18 @@ export default function RescheduleResponseScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createRescheduleResponseStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
   scroll: { flex: 1 },
   content: {
     paddingHorizontal: T.spacing.md,
@@ -448,9 +470,9 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: T.borderRadius.md,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: softFill(theme),
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: softBorder(theme),
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: T.spacing.xs,
@@ -497,3 +519,4 @@ const styles = StyleSheet.create({
 
   cta: { marginTop: T.spacing.xs },
 });
+}

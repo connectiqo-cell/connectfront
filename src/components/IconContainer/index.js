@@ -1,5 +1,4 @@
-import React from "react";
-import { TouchableOpacity, View } from "react-native";
+import colors from "../../styles/colors";
 import { DownArrow } from "../../assets/icons";
 
 const buttonStyle = {
@@ -25,7 +24,7 @@ const IconContainer = ({
         flexDirection: "row",
         borderRadius: 14,
         borderWidth: 1.5,
-        borderColor: "#2B3034",
+        borderColor: colors.sheet,
         backgroundColor: backgroundColor,
         ...style,
       }}

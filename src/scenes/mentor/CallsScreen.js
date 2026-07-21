@@ -16,6 +16,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-simple-toast';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
 import { BookingCard } from '../../components/BookingCard';
 import { useAuth } from '../../hooks/useAuth';
 import { bookingApi } from '../../api/bookingApi';
@@ -58,6 +60,7 @@ const normalize = b => ({
 const isSessionPast = isBookingSessionPast;
 
 function SkeletonBone({ style }) {
+  const sk = useThemedStyles(createCallsSkeletonStyles);
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -74,6 +77,7 @@ function SkeletonBone({ style }) {
 }
 
 function SessionsSkeleton() {
+  const sk = useThemedStyles(createCallsSkeletonStyles);
   return (
     <View style={sk.wrap}>
       <SkeletonBone style={sk.statsBar} />
@@ -92,26 +96,29 @@ function SessionsSkeleton() {
   );
 }
 
-const sk = StyleSheet.create({
-  bone: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: T.borderRadius.md,
-  },
-  wrap: {
-    padding: T.spacing.lg,
-    gap: T.spacing.md,
-  },
-  statsBar: { height: 72, borderRadius: 14 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: T.spacing.sm,
-    marginTop: T.spacing.xs,
-  },
-  sectionIcon: { width: 26, height: 26, borderRadius: 8 },
-  sectionTitle: { height: 14, width: 120, borderRadius: 6 },
-  card: { height: 120, borderRadius: 16 },
-});
+function createCallsSkeletonStyles(theme) {
+  const T = theme;
+  return StyleSheet.create({
+    bone: {
+      backgroundColor: softFillStrong(theme),
+      borderRadius: T.borderRadius.md,
+    },
+    wrap: {
+      padding: T.spacing.lg,
+      gap: T.spacing.md,
+    },
+    statsBar: { height: 72, borderRadius: 14 },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: T.spacing.sm,
+      marginTop: T.spacing.xs,
+    },
+    sectionIcon: { width: 26, height: 26, borderRadius: 8 },
+    sectionTitle: { height: 14, width: 120, borderRadius: 6 },
+    card: { height: 120, borderRadius: 16 },
+  });
+}
 
 function FadeSlideIn({ delay = 0, children, style }) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -155,6 +162,15 @@ function FadeSlideIn({ delay = 0, children, style }) {
 }
 
 function PressScale({ onPress, children, style, disabled, pill = false }) {
+  const styles = useThemedStyles(createMentorCallsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
   const bg = useRef(new Animated.Value(0)).current;
@@ -239,6 +255,15 @@ function PressScale({ onPress, children, style, disabled, pill = false }) {
 }
 
 function PulseIconRing({ children, ringStyle }) {
+  const styles = useThemedStyles(createMentorCallsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -280,6 +305,15 @@ function PulseIconRing({ children, ringStyle }) {
 }
 
 function StatSegment({ icon, iconColor, value, label, delay = 0 }) {
+  const styles = useThemedStyles(createMentorCallsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(12)).current;
   const played = useRef(false);
@@ -321,6 +355,15 @@ function StatSegment({ icon, iconColor, value, label, delay = 0 }) {
 }
 
 function SectionHeader({ title, icon, isFirst, delay }) {
+  const styles = useThemedStyles(createMentorCallsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const iconScale = useRef(new Animated.Value(0.85)).current;
 
   useEffect(() => {
@@ -346,6 +389,15 @@ function SectionHeader({ title, icon, isFirst, delay }) {
 }
 
 export default function MentorCallsScreen({ navigation }) {
+  const styles = useThemedStyles(createMentorCallsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const { profile } = useAuth();
   const [upcomingAll, setUpcomingAll] = useState([]);
   const [upcomingShown, setUpcomingShown] = useState(PAGE_SIZE);
@@ -822,7 +874,17 @@ export default function MentorCallsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createMentorCallsStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  return StyleSheet.create({
   list: { flex: 1 },
   listContent: {
     paddingHorizontal: T.spacing.lg,
@@ -1075,3 +1137,4 @@ const styles = StyleSheet.create({
     color: '#000',
   },
 });
+}

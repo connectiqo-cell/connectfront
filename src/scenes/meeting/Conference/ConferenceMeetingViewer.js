@@ -220,7 +220,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
   }, [enableScreenShare, disableScreenShare]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.primary[900] }}>
       <View
         style={{
           flexDirection: "row",
@@ -498,16 +498,16 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
           }}
           Icon={() => {
             return localMicOn ? (
-              <MicOn height={24} width={24} fill="#FFF" />
+              <MicOn height={24} width={24} fill={colors.primary[100]} />
             ) : (
-              <MicOff height={28} width={28} fill="#1D2939" />
+              <MicOff height={28} width={28} fill={colors.ink} />
             );
           }}
         />
         <IconContainer
           style={{
             borderWidth: 1.5,
-            borderColor: "#2B3034",
+            borderColor: colors.sheet,
           }}
           backgroundColor={!localWebcamOn ? colors.primary[100] : "transparent"}
           onPress={() => {
@@ -515,9 +515,9 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
           }}
           Icon={() => {
             return localWebcamOn ? (
-              <VideoOn height={24} width={24} fill="#FFF" />
+              <VideoOn height={24} width={24} fill={colors.primary[100]} />
             ) : (
-              <VideoOff height={36} width={36} fill="#1D2939" />
+              <VideoOff height={36} width={36} fill={colors.ink} />
             );
           }}
         />
@@ -526,10 +526,10 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
             onPress={openChatPanel}
             style={{
               borderWidth: 1.5,
-              borderColor: "#2B3034",
+              borderColor: colors.sheet,
             }}
             Icon={() => {
-              return <Chat height={22} width={22} fill="#FFF" />;
+              return <Chat height={22} width={22} fill={colors.primary[100]} />;
             }}
           />
           {unreadCount > 0 ? (
@@ -556,19 +556,19 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
         <IconContainer
           style={{
             borderWidth: 1.5,
-            borderColor: "#2B3034",
+            borderColor: colors.sheet,
             transform: [{ rotate: "90deg" }],
           }}
           onPress={() => {
             moreOptionsMenu.current.show();
           }}
           Icon={() => {
-            return <More height={18} width={18} fill="#FFF" />;
+            return <More height={18} width={18} fill={colors.primary[100]} />;
           }}
         />
       </View>
       <BottomSheet
-        sheetBackgroundColor={"#2B3034"}
+        sheetBackgroundColor={colors.sheet}
         draggable={false}
         radius={12}
         hasDraggableIcon

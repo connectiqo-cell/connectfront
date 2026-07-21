@@ -77,7 +77,12 @@ serve(async (req) => {
       learnerId,
       slotId,
       message,
+      recordingRequested,
     } = await req.json();
+
+    if (typeof recordingRequested !== 'boolean') {
+      throw new Error('Recording preference is required');
+    }
 
     // ── 1. Verify signature ───────────────────────────────────────────────────
     const keySecret   = Deno.env.get('RAZORPAY_KEY_SECRET')!;
@@ -125,6 +130,7 @@ serve(async (req) => {
         learner_id: learnerId,
         slot_id:    slotId,
         message:    message || null,
+        recording_requested: recordingRequested,
         status:     'confirmed',
       })
       .select()

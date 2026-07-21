@@ -20,9 +20,15 @@ export const paymentApi = {
    * Step 1: Create a Razorpay order via Supabase Edge Function.
    * Returns { orderId, amount, currency, keyId }
    */
-  createOrder: async ({ mentorId, learnerId, slotId, message }) => {
+  createOrder: async ({ mentorId, learnerId, slotId, message, recordingRequested }) => {
     try {
-      return await invokeFunction('create-razorpay-order', { mentorId, learnerId, slotId, message });
+      return await invokeFunction('create-razorpay-order', {
+        mentorId,
+        learnerId,
+        slotId,
+        message,
+        recordingRequested,
+      });
     } catch (error) {
       console.error('💳 createOrder error:', error?.message);
       throw new Error(error?.message || 'Failed to create order');
@@ -42,6 +48,7 @@ export const paymentApi = {
     learnerId,
     slotId,
     message,
+    recordingRequested,
   }) => {
     try {
       return await invokeFunction('verify-razorpay-payment', {
@@ -52,6 +59,7 @@ export const paymentApi = {
         learnerId,
         slotId,
         message,
+        recordingRequested,
       });
     } catch (error) {
       console.error('💳 verifyAndBook error:', error?.message);

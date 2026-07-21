@@ -12,20 +12,19 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import CosmicBackground from '../../components/CosmicBackground';
 import CosmicButton from '../../components/CosmicButton';
-import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { createAuthFormStyles } from '../../utils/authFormStyles';
 import { authApi } from '../../api/authApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
-const T = UNIFIED_THEME;
-const C = T.colors;
-const B = C.buttons;
-
-import { AUTH_FORM_STYLES } from '../../utils/authFormStyles';
-
-const PURPLE_LINK = B.nebulaGradient[0];
-const GOLD = C.accent.primary;
-
 export default function LoginScreen({ navigation }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const cursorColor = theme.mode === 'light' ? C.text.primary : '#ffffff';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -108,7 +107,7 @@ export default function LoginScreen({ navigation }) {
                 autoCapitalize="none"
                 keyboardType="email-address"
                 editable={!loading}
-                cursorColor="#ffffff"
+                cursorColor={cursorColor}
                 selectionColor={PURPLE_LINK}
                 selectionHandleColor="transparent"
                 underlineColorAndroid="transparent"
@@ -127,7 +126,7 @@ export default function LoginScreen({ navigation }) {
                 onChangeText={handlePasswordChange}
                 secureTextEntry={!showPassword}
                 editable={!loading}
-                cursorColor="#ffffff"
+                cursorColor={cursorColor}
                 selectionColor={PURPLE_LINK}
                 selectionHandleColor="transparent"
                 underlineColorAndroid="transparent"
@@ -186,100 +185,108 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  background: { flex: 1 },
-  overlay: { flex: 1 },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: T.spacing.lg,
-    paddingVertical: T.spacing.lg,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: T.spacing.xxxl,
-  },
-  logoIcon: {
-    marginBottom: T.spacing.lg,
-  },
-  title: {
-    ...T.typography.headingLg,
-    color: C.text.primary,
-    textAlign: 'center',
-    fontWeight: '800',
-    marginBottom: T.spacing.sm,
-  },
-  subtitle: {
-    ...T.typography.bodySm,
-    color: C.text.secondary,
-    textAlign: 'center',
-  },
-  formContainer: {
-    marginBottom: T.spacing.xxxl,
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.35)',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: T.spacing.md,
-    gap: 8,
-  },
-  errorIcon: {
-    flexShrink: 0,
-  },
-  errorText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#ef4444',
-    lineHeight: 18,
-    fontWeight: '500',
-  },
-  inputWrapper: AUTH_FORM_STYLES.inputWrapper,
-  inputIconSlot: AUTH_FORM_STYLES.inputIconSlot,
-  input: AUTH_FORM_STYLES.input,
-  eyeIcon: AUTH_FORM_STYLES.eyeIcon,
-  forgotWrap: {
-    alignSelf: 'flex-end',
-    marginBottom: T.spacing.lg,
-    marginTop: T.spacing.sm,
-  },
-  forgotText: {
-    ...T.typography.bodySm,
-    color: GOLD,
-    fontWeight: '600',
-  },
-  loginBtn: {
-    marginTop: T.spacing.lg,
-    ...AUTH_FORM_STYLES.fullWidthButton,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: T.spacing.xl,
-    gap: T.spacing.sm,
-  },
-  footerText: {
-    ...T.typography.bodySm,
-    color: C.text.secondary,
-  },
-  signupLink: {
-    ...T.typography.bodySm,
-    color: PURPLE_LINK,
-    fontWeight: '600',
-  },
-  backButton: {
-    alignSelf: 'center',
-    paddingVertical: T.spacing.md,
-  },
-  backButtonText: {
-    ...T.typography.bodySm,
-    color: PURPLE_LINK,
-    fontWeight: '600',
-  },
-});
+function createThemedStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const form = createAuthFormStyles(theme);
+
+  return StyleSheet.create({
+    background: { flex: 1 },
+    overlay: { flex: 1 },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      paddingHorizontal: T.spacing.lg,
+      paddingVertical: T.spacing.lg,
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: T.spacing.xxxl,
+    },
+    logoIcon: {
+      marginBottom: T.spacing.lg,
+    },
+    title: {
+      ...T.typography.headingLg,
+      color: C.text.primary,
+      textAlign: 'center',
+      fontWeight: '800',
+      marginBottom: T.spacing.sm,
+    },
+    subtitle: {
+      ...T.typography.bodySm,
+      color: C.text.secondary,
+      textAlign: 'center',
+    },
+    formContainer: {
+      marginBottom: T.spacing.xxxl,
+    },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(239,68,68,0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(239,68,68,0.35)',
+      borderRadius: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      marginBottom: T.spacing.md,
+      gap: 8,
+    },
+    errorIcon: {
+      flexShrink: 0,
+    },
+    errorText: {
+      flex: 1,
+      fontSize: 13,
+      color: '#ef4444',
+      lineHeight: 18,
+      fontWeight: '500',
+    },
+    inputWrapper: form.inputWrapper,
+    inputIconSlot: form.inputIconSlot,
+    input: form.input,
+    eyeIcon: form.eyeIcon,
+    forgotWrap: {
+      alignSelf: 'flex-end',
+      marginBottom: T.spacing.lg,
+      marginTop: T.spacing.sm,
+    },
+    forgotText: {
+      ...T.typography.bodySm,
+      color: GOLD,
+      fontWeight: '600',
+    },
+    loginBtn: {
+      marginTop: T.spacing.lg,
+      ...form.fullWidthButton,
+    },
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: T.spacing.xl,
+      gap: T.spacing.sm,
+    },
+    footerText: {
+      ...T.typography.bodySm,
+      color: C.text.secondary,
+    },
+    signupLink: {
+      ...T.typography.bodySm,
+      color: PURPLE_LINK,
+      fontWeight: '600',
+    },
+    backButton: {
+      alignSelf: 'center',
+      paddingVertical: T.spacing.md,
+    },
+    backButtonText: {
+      ...T.typography.bodySm,
+      color: PURPLE_LINK,
+      fontWeight: '600',
+    },
+  });
+}

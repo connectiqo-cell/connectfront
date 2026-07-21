@@ -19,6 +19,8 @@ import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
 import { profileApi } from '../../api/profileApi';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -30,9 +32,9 @@ const S = C.surface;
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
-const PANEL_BG = 'rgba(22, 20, 50, 0.72)';
-const INPUT_BG = '#0f0e2a';
-const GLASS_BORDER = 'rgba(167,139,250,0.22)';
+const PANEL_BG = C.surface.panel;
+const INPUT_BG = C.surface.sheet;
+const GLASS_BORDER = C.border.light;
 
 function firstRow(obj) {
   if (obj == null) return null;
@@ -65,6 +67,15 @@ function buildDistribution(reviews) {
 }
 
 function GoldStarsRow({ rating, size = 14 }) {
+  const styles = useThemedStyles(createMentorReviewsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const filled = Math.min(5, Math.max(0, Math.round(Number(rating) || 0)));
   return (
     <View style={styles.starRow}>
@@ -119,6 +130,15 @@ function FadeInBlock({ delay = 0, children, style }) {
 }
 
 function ReviewCard({ review, index }) {
+  const styles = useThemedStyles(createMentorReviewsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const learner = firstRow(review.profiles);
   const name = learner?.name || 'Learner';
   const avatar = learner?.avatar_url || null;
@@ -158,6 +178,15 @@ function ReviewCard({ review, index }) {
 }
 
 function DistributionRow({ star, count, pct, maxCount }) {
+  const styles = useThemedStyles(createMentorReviewsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const barAnim = useRef(new Animated.Value(0)).current;
   const widthPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
 
@@ -189,6 +218,15 @@ function DistributionRow({ star, count, pct, maxCount }) {
 }
 
 export default function MentorReviewsScreen({ navigation, route }) {
+  const styles = useThemedStyles(createMentorReviewsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const { profile } = useAuth();
   const paramMentorId = route.params?.mentorId || profile?.id;
   const paramMentorName = route.params?.mentorName?.trim?.() || '';
@@ -346,7 +384,18 @@ export default function MentorReviewsScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createMentorReviewsStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
   root: { flex: 1, minHeight: 0 },
   header: {
     flexDirection: 'row',
@@ -372,7 +421,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: C.text.primary,
+    color: C.accent.primary,
   },
   intro: {
     fontSize: 13,
@@ -420,9 +469,9 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: 'rgba(240,216,117,0.12)',
+    backgroundColor: S.accentGold,
     borderWidth: 1,
-    borderColor: 'rgba(240,216,117,0.28)',
+    borderColor: softBorder(theme),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -436,7 +485,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingTop: T.spacing.md,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: softBorder(theme),
   },
   distRow: {
     flexDirection: 'row',
@@ -454,7 +503,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: softFill(theme),
     overflow: 'hidden',
   },
   distFill: {
@@ -501,7 +550,7 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     backgroundColor: INPUT_BG,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: softBorder(theme),
   },
   cardAvatarPh: {
     alignItems: 'center',
@@ -574,3 +623,4 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
 });
+}

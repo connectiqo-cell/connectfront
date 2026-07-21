@@ -19,6 +19,7 @@ import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { notificationApi } from '../../api/notificationApi';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
@@ -32,7 +33,6 @@ const S = C.surface;
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
-const PANEL_BG = '#161432';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -52,7 +52,7 @@ const ACCENT_BG = {
   teal: S.accentTeal,
   purple: S.accentViolet,
   error: 'rgba(248,113,113,0.12)',
-  muted: 'rgba(255,255,255,0.06)',
+  muted: S.chip,
 };
 
 function runEntrance(opacity, translateY, delay = 0) {
@@ -149,6 +149,16 @@ function groupNotifications(items) {
 }
 
 function FilterChip({ label, active, onPress }) {
+  const styles = useThemedStyles(createNotificationsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const GLASS_BORDER = C.border.light;
   const glow = useRef(new Animated.Value(active ? 1 : 0)).current;
 
   useEffect(() => {
@@ -162,12 +172,12 @@ function FilterChip({ label, active, onPress }) {
 
   const borderColor = glow.interpolate({
     inputRange: [0, 1],
-    outputRange: ['rgba(167,139,250,0.18)', 'rgba(94,234,212,0.55)'],
+    outputRange: [C.border.light, C.accent.primary],
   });
 
   const backgroundColor = glow.interpolate({
     inputRange: [0, 1],
-    outputRange: [PANEL_BG, 'rgba(94,234,212,0.12)'],
+    outputRange: [PANEL_BG, C.surface.accentViolet],
   });
 
   return (
@@ -180,6 +190,16 @@ function FilterChip({ label, active, onPress }) {
 }
 
 function NotificationRow({ item, isRead, onPress, index, animateKey }) {
+  const styles = useThemedStyles(createNotificationsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const GLASS_BORDER = C.border.light;
   const accent = ACCENT_COLORS[item.accent] || PURPLE_LINK;
   const accentBg = ACCENT_BG[item.accent] || S.accentViolet;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -247,6 +267,16 @@ function NotificationRow({ item, isRead, onPress, index, animateKey }) {
 }
 
 function SectionHeader({ title }) {
+  const styles = useThemedStyles(createNotificationsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const GLASS_BORDER = C.border.light;
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -264,6 +294,16 @@ function SectionHeader({ title }) {
 }
 
 function EmptyState() {
+  const styles = useThemedStyles(createNotificationsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const GLASS_BORDER = C.border.light;
   const opacity = useRef(new Animated.Value(0)).current;
   const floatY = useRef(new Animated.Value(0)).current;
   const iconScale = useRef(new Animated.Value(1)).current;
@@ -302,6 +342,16 @@ function EmptyState() {
 }
 
 export default function NotificationsScreen({ navigation }) {
+  const styles = useThemedStyles(createNotificationsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const GLASS_BORDER = C.border.light;
   const { profile } = useAuth();
   const { markAsRead, markAllRead, syncUnreadCount, isRead } = useNotification();
   const [notifications, setNotifications] = useState([]);
@@ -408,7 +458,7 @@ export default function NotificationsScreen({ navigation }) {
         style={[styles.header, { opacity: headerOpacity, transform: [{ translateY: headerY }] }]}
       >
         <AnimatedPressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+          <MaterialIcons name="arrow-back" size={22} color={C.accent.primary} />
         </AnimatedPressable>
         <Text style={styles.headerTitle}>Notifications</Text>
         <AnimatedPressable
@@ -474,7 +524,19 @@ export default function NotificationsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createNotificationsStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const SHEET_BG = C.surface.sheet;
+  const GLASS_BORDER = C.border.light;
+  return StyleSheet.create({
   headerShell: {
     paddingHorizontal: T.spacing.lg,
   },
@@ -492,15 +554,15 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: T.borderRadius.md,
-    backgroundColor: PANEL_BG,
+    backgroundColor: S.accentViolet,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.default,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 17,
-    color: C.text.primary,
+    color: C.accent.primary,
     fontWeight: '800',
   },
   markReadBtn: {
@@ -534,7 +596,7 @@ const styles = StyleSheet.create({
     color: C.text.secondary,
   },
   chipTextActive: {
-    color: TEAL,
+    color: C.accent.primary,
   },
   filterSpinner: {
     marginLeft: 'auto',
@@ -562,13 +624,13 @@ const styles = StyleSheet.create({
     backgroundColor: PANEL_BG,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.18)',
+    borderColor: GLASS_BORDER,
     padding: T.spacing.md,
     marginBottom: T.spacing.sm,
   },
   rowUnread: {
-    borderColor: 'rgba(94,234,212,0.28)',
-    backgroundColor: 'rgba(22,20,50,0.95)',
+    borderColor: C.border.default,
+    backgroundColor: S.accentViolet,
   },
   rowLeft: {
     position: 'relative',
@@ -580,13 +642,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.15)',
+    borderColor: GLASS_BORDER,
   },
   avatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: S.chip,
   },
   unreadDot: {
     position: 'absolute',
@@ -636,7 +698,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: PANEL_BG,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: GLASS_BORDER,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: T.spacing.lg,
@@ -654,3 +716,5 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+}
+

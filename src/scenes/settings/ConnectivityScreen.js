@@ -7,6 +7,7 @@ import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import Button from '../../components/Button';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { SUPABASE_URL } from '../../lib/supabase';
 
 const T = UNIFIED_THEME;
@@ -17,8 +18,8 @@ const S = C.surface;
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
-const PANEL_BG = '#161432';
-const INPUT_BG = '#0f0e2a';
+const PANEL_BG = C.surface.panel;
+const INPUT_BG = C.surface.sheet;
 
 function maskHost(url) {
   if (!url) return 'Not configured';
@@ -31,6 +32,15 @@ function maskHost(url) {
 }
 
 function Row({ icon, title, subtitle, accent, accentBg }) {
+  const styles = useThemedStyles(createConnectivityStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   return (
     <View style={styles.row}>
       <View style={[styles.rowIconBg, { backgroundColor: accentBg }]}>
@@ -47,6 +57,15 @@ function Row({ icon, title, subtitle, accent, accentBg }) {
 }
 
 export default function ConnectivityScreen({ navigation }) {
+  const styles = useThemedStyles(createConnectivityStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const endpoints = useMemo(
     () => ({
       supabase: maskHost(SUPABASE_URL),
@@ -60,7 +79,7 @@ export default function ConnectivityScreen({ navigation }) {
       <StackScreenHeader insetTop={STACK_OVERLAY_LAYOUT.headerInsetTop} style={styles.headerShell}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={12}>
-          <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+          <MaterialIcons name="arrow-back" size={22} color={C.accent.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Connectivity</Text>
         <View style={styles.headerSpacer} />
@@ -114,7 +133,18 @@ export default function ConnectivityScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createConnectivityStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
   headerShell: {
     paddingHorizontal: T.spacing.lg,
   },
@@ -128,15 +158,15 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: T.borderRadius.md,
-    backgroundColor: PANEL_BG,
+    backgroundColor: S.accentViolet,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.default,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 17,
-    color: C.text.primary,
+    color: C.accent.primary,
     fontWeight: '800',
   },
   headerSpacer: { width: 40 },
@@ -187,3 +217,4 @@ const styles = StyleSheet.create({
   },
   checkBtnThemed: { marginVertical: T.spacing.sm },
 });
+}

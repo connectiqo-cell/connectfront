@@ -2,24 +2,27 @@ import { Alert, Platform } from 'react-native';
 import ImagePicker from 'react-native-image-crop-picker';
 import { UNIFIED_THEME } from '../unifiedTheme';
 
-const C = UNIFIED_THEME.colors;
-
 const AVATAR_SIZE = 512;
 const COVER_WIDTH = 1200;
 const COVER_HEIGHT = 400;
 
-const sharedCropStyle = {
-  mediaType: 'photo',
-  includeBase64: true,
-  cropperChooseText: 'Use photo',
-  cropperCancelText: 'Cancel',
-  cropperToolbarColor: C.primary.void,
-  cropperToolbarWidgetColor: C.text.primary,
-  cropperActiveWidgetColor: C.accent.primary,
-  cropperStatusBarLight: false,
-  cropperNavigationBarLight: false,
-  forceJpg: Platform.OS === 'ios',
-};
+/** Build cropper chrome from the live theme (not module-load freeze). */
+function getCropperStyle() {
+  const C = UNIFIED_THEME.colors;
+  const isLight = UNIFIED_THEME.mode === 'light';
+  return {
+    mediaType: 'photo',
+    includeBase64: true,
+    cropperChooseText: 'Use photo',
+    cropperCancelText: 'Cancel',
+    cropperToolbarColor: isLight ? C.surface.panel : C.primary.void,
+    cropperToolbarWidgetColor: isLight ? C.accent.primary : C.text.primary,
+    cropperActiveWidgetColor: C.accent.primary,
+    cropperStatusBarLight: isLight,
+    cropperNavigationBarLight: isLight,
+    forceJpg: Platform.OS === 'ios',
+  };
+}
 
 function toPickedImage(image) {
   if (!image?.data) return null;
@@ -74,7 +77,7 @@ export async function pickProfileAvatar({ source } = {}) {
 
   try {
     const image = await openProfileImage(resolvedSource, {
-      ...sharedCropStyle,
+      ...getCropperStyle(),
       width: AVATAR_SIZE,
       height: AVATAR_SIZE,
       cropping: true,
@@ -107,7 +110,7 @@ export async function pickProfileCover({ source } = {}) {
 
   try {
     const image = await openProfileImage(resolvedSource, {
-      ...sharedCropStyle,
+      ...getCropperStyle(),
       width: COVER_WIDTH,
       height: COVER_HEIGHT,
       cropping: true,

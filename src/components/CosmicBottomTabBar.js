@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,28 +8,43 @@ import {
   Animated,
   Easing,
   useWindowDimensions,
+  AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { useTheme } from '../hooks/useTheme';
 import { scaleUi } from '../utils/iosUiScale';
 
-const C = UNIFIED_THEME.colors;
 const S = UNIFIED_THEME.spacing;
-const T = UNIFIED_THEME;
-const TB = C.tabBar;
+const TB = UNIFIED_THEME.colors.tabBar;
 const FAB_SIZE = TB.uploadFabSize ?? 52;
 const FAB_LIFT = TB.uploadFabLift ?? 22;
 const FAB_RING_INSET = 2;
 const FAB_INNER = FAB_SIZE - FAB_RING_INSET * 2;
-const FAB_SPIN_COLORS = [
-  C.accent.primary,
-  C.accent.secondary,
-  'rgba(167, 139, 250, 0.95)',
-  '#ec4899',
-  C.accent.primary,
-];
+
+/** Upload FAB circle stays gold/teal; outer chrome adapts so light mode isn’t a black ring. */
+const FAB_LOOK = {
+  circleGradient: ['#f0d875', '#5eead4'],
+  iconColor: '#060412',
+  shadowColor: '#f0d875',
+  spinColors: [
+    '#f0d875',
+    '#5eead4',
+    'rgba(167, 139, 250, 0.95)',
+    '#ec4899',
+    '#f0d875',
+  ],
+  dark: {
+    outerBg: '#161432',
+    outerBorder: 'rgba(167, 139, 250, 0.22)',
+  },
+  light: {
+    outerBg: '#ffffff',
+    outerBorder: '#ffffff',
+  },
+};
 
 /** Fixed row geometry — all tabs share the same slots */
 const INDICATOR_H = scaleUi(6);
@@ -52,6 +67,17 @@ export function getFloatingTabBarContentInset(insets) {
   return TAB_ROW_H + bottomPad;
 }
 
+function useAppActive() {
+  const [active, setActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      setActive(next === 'active');
+    });
+    return () => sub.remove();
+  }, []);
+  return active;
+}
+
 function resolveLabel(route, options, focused) {
   const raw =
     options.tabBarLabel !== undefined
@@ -66,11 +92,17 @@ function resolveLabel(route, options, focused) {
   return route.name;
 }
 
-function BarTopShimmer() {
+function BarTopShimmer({ appActive }) {
+  const { theme } = useTheme();
   const { width } = useWindowDimensions();
   const shimmer = useRef(new Animated.Value(0)).current;
+  const [a0, a1] = theme.colors.tabBar.activeIndicatorGradient;
 
   useEffect(() => {
+    if (!appActive) {
+      shimmer.stopAnimation();
+      return undefined;
+    }
     const loop = Animated.loop(
       Animated.timing(shimmer, {
         toValue: 1,
@@ -81,7 +113,7 @@ function BarTopShimmer() {
     );
     loop.start();
     return () => loop.stop();
-  }, [shimmer]);
+  }, [shimmer, appActive]);
 
   const translateX = shimmer.interpolate({
     inputRange: [0, 1],
@@ -94,8 +126,8 @@ function BarTopShimmer() {
         <LinearGradient
           colors={[
             'transparent',
-            'rgba(240, 216, 117, 0.55)',
-            'rgba(94, 234, 212, 0.45)',
+            `${a0}99`,
+            `${a1}73`,
             'transparent',
           ]}
           locations={[0, 0.35, 0.65, 1]}
@@ -109,6 +141,8 @@ function BarTopShimmer() {
 }
 
 function TabIndicator({ active }) {
+  const { theme } = useTheme();
+  const tabBar = theme.colors.tabBar;
   const progress = useRef(new Animated.Value(active ? 1 : 0)).current;
 
   useEffect(() => {
@@ -134,7 +168,7 @@ function TabIndicator({ active }) {
         }}
       >
         <LinearGradient
-          colors={TB.activeIndicatorGradient}
+          colors={tabBar.activeIndicatorGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.activeIndicator}
@@ -144,11 +178,17 @@ function TabIndicator({ active }) {
   );
 }
 
-function UploadFabVisual() {
+function UploadFabVisual({ appActive }) {
+  const { theme } = useTheme();
   const spin = useRef(new Animated.Value(0)).current;
   const breathe = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (!appActive) {
+      spin.stopAnimation();
+      breathe.stopAnimation();
+      return undefined;
+    }
     const spinLoop = Animated.loop(
       Animated.timing(spin, {
         toValue: 1,
@@ -179,7 +219,7 @@ function UploadFabVisual() {
       spinLoop.stop();
       breatheLoop.stop();
     };
-  }, [spin, breathe]);
+  }, [spin, breathe, appActive]);
 
   const rotate = spin.interpolate({
     inputRange: [0, 1],
@@ -192,9 +232,24 @@ function UploadFabVisual() {
 
   const spinGradSize = FAB_SIZE * 1.55;
   const spinOffset = (FAB_SIZE - spinGradSize) / 2;
+  const chrome = theme.mode === 'light' ? FAB_LOOK.light : FAB_LOOK.dark;
 
   return (
-    <Animated.View style={[styles.fabOuterRing, { transform: [{ scale: fabScale }] }]}>
+    <Animated.View style={[styles.fabOuterRing, {
+      borderRadius: theme.borderRadius.lg,
+      backgroundColor: chrome.outerBg,
+      borderColor: chrome.outerBorder,
+      borderWidth: theme.mode === 'light' ? 0 : 1,
+      ...Platform.select({
+        ios: {
+          shadowColor: FAB_LOOK.shadowColor,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: theme.mode === 'light' ? 0.35 : 0.45,
+          shadowRadius: 12,
+        },
+        android: { elevation: 14 },
+      }),
+    }, { transform: [{ scale: fabScale }] }]}>
       <View style={styles.fabRingClip}>
         <Animated.View
           style={[
@@ -209,19 +264,19 @@ function UploadFabVisual() {
           ]}
         >
           <LinearGradient
-            colors={FAB_SPIN_COLORS}
+            colors={FAB_LOOK.spinColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
         </Animated.View>
         <LinearGradient
-          colors={C.buttons.primaryGradient}
+          colors={FAB_LOOK.circleGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.fabCircle}
         >
-          <MaterialIcons name="file-upload" size={scaleUi(22)} color={C.text.onAccent} />
+          <MaterialIcons name="file-upload" size={scaleUi(22)} color={FAB_LOOK.iconColor} />
         </LinearGradient>
       </View>
     </Animated.View>
@@ -239,6 +294,8 @@ function TabColumn({
   icon,
   isUpload,
 }) {
+  const { theme } = useTheme();
+  const tabBar = theme.colors.tabBar;
   const press = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -284,7 +341,11 @@ function TabColumn({
       </Animated.View>
       {typeof label === 'string' ? (
         <Text
-          style={[styles.label, { color }, isFocused && styles.labelFocused]}
+          style={[
+            styles.label,
+            { color },
+            isFocused && [styles.labelFocused, { textShadowColor: tabBar.labelShadow }],
+          ]}
           numberOfLines={1}
         >
           {label}
@@ -300,8 +361,12 @@ function TabColumn({
  * Bottom tabs: cosmic sky + glass bar; center upload FAB floats above the strip.
  */
 export function CosmicBottomTabBar({ state, descriptors, navigation }) {
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const TB = C.tabBar;
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, 8);
+  const appActive = useAppActive();
 
   const activeColor = C.accent.primary;
   const inactiveColor = C.text.muted;
@@ -325,7 +390,7 @@ export function CosmicBottomTabBar({ state, descriptors, navigation }) {
   };
 
   return (
-    <View style={styles.tabRoot} pointerEvents="box-none">
+    <View style={[styles.tabRoot, { backgroundColor: C.surface.panel }]} pointerEvents="box-none">
       <LinearGradient
         colors={[C.surface.sheet, C.surface.panel, C.surface.sheet]}
         locations={[0, 0.5, 1]}
@@ -335,7 +400,23 @@ export function CosmicBottomTabBar({ state, descriptors, navigation }) {
       />
 
       <View
-        style={[styles.barWrap, { paddingBottom: bottomPad }]}
+        style={[
+          styles.barWrap,
+          {
+            paddingBottom: bottomPad,
+            backgroundColor: TB.flatBarBase,
+            borderTopColor: C.border.light,
+            ...Platform.select({
+              ios: {
+                shadowColor: theme.shadows.large.shadowColor,
+                shadowOffset: { width: 0, height: -4 },
+                shadowOpacity: theme.shadows.large.shadowOpacity * 0.6,
+                shadowRadius: theme.shadows.large.shadowRadius,
+              },
+              android: { elevation: theme.shadows.large.elevation },
+            }),
+          },
+        ]}
         pointerEvents="box-none"
       >
         <View style={styles.barTint} pointerEvents="none">
@@ -355,7 +436,7 @@ export function CosmicBottomTabBar({ state, descriptors, navigation }) {
           style={styles.topEdge}
           pointerEvents="none"
         />
-        <BarTopShimmer />
+        <BarTopShimmer appActive={appActive} />
 
         <View style={styles.barRow}>
           {state.routes.map((route, index) => {
@@ -371,7 +452,7 @@ export function CosmicBottomTabBar({ state, descriptors, navigation }) {
             const Icon = options.tabBarIcon;
             const icon = isUpload ? (
               <View style={styles.fabFloatWrap} pointerEvents="none">
-                <UploadFabVisual />
+                <UploadFabVisual appActive={appActive} />
               </View>
             ) : Icon ? (
               <View style={styles.iconFrame}>
@@ -415,25 +496,13 @@ const styles = StyleSheet.create({
     width: '100%',
     position: 'relative',
     overflow: 'visible',
-    backgroundColor: C.surface.panel,
   },
   barWrap: {
     width: '100%',
     position: 'relative',
     overflow: 'visible',
-    backgroundColor: TB.flatBarBase,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: C.border.light,
     paddingTop: S.sm,
-    ...Platform.select({
-      ios: {
-        shadowColor: T.shadows.large.shadowColor,
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: T.shadows.large.shadowOpacity * 0.6,
-        shadowRadius: T.shadows.large.shadowRadius,
-      },
-      android: { elevation: T.shadows.large.elevation },
-    }),
   },
   barTint: {
     ...StyleSheet.absoluteFillObject,
@@ -515,7 +584,6 @@ const styles = StyleSheet.create({
   },
   labelFocused: {
     fontWeight: '800',
-    textShadowColor: TB.labelShadow,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 8,
   },
@@ -536,24 +604,11 @@ const styles = StyleSheet.create({
   fabOuterRing: {
     width: FAB_SIZE + 6,
     height: FAB_SIZE + 6,
-    borderRadius: T.borderRadius.lg,
     padding: 2,
-    backgroundColor: TB.flatBarBase,
-    borderWidth: 1,
-    borderColor: TB.glassBorder,
-    ...Platform.select({
-      ios: {
-        shadowColor: C.accent.primary,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.45,
-        shadowRadius: 12,
-      },
-      android: { elevation: 14 },
-    }),
   },
   fabRingClip: {
     flex: 1,
-    borderRadius: T.borderRadius.md + 2,
+    borderRadius: UNIFIED_THEME.borderRadius.md + 2,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -564,7 +619,7 @@ const styles = StyleSheet.create({
   fabCircle: {
     width: FAB_INNER,
     height: FAB_INNER,
-    borderRadius: T.borderRadius.md,
+    borderRadius: UNIFIED_THEME.borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,

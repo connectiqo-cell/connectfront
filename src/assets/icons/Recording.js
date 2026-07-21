@@ -25,8 +25,14 @@ function Recording(props) {
         <Path fill="#D9D9D9" d="M0 0H24V24H0z" />
       </Mask>
       <G mask="url(#a)">
-        <Circle cx={12} cy={12} r={5} fill="#fff" />
-        <Circle cx={12} cy={12} r={10} stroke="#fff" strokeWidth={2} />
+        <Circle cx={12} cy={12} r={5} fill={props.fill || "#fff"} />
+        <Circle
+          cx={12}
+          cy={12}
+          r={10}
+          stroke={props.fill || "#fff"}
+          strokeWidth={2}
+        />
       </G>
     </Svg>
   );

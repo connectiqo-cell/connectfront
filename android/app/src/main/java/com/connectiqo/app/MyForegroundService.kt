@@ -1,4 +1,4 @@
-package com.myapp
+package com.connectiqo.app
 
 import android.app.*
 import android.content.Intent
@@ -11,12 +11,12 @@ class MyForegroundService : Service() {
 
     companion object {
         const val NOTIFICATION_ID = 1001
-        const val CHANNEL_ID = "MyAppChannelID"
+        const val CHANNEL_ID = "ConnectiqoChannelID"
         private const val TAG = "MyForegroundService"
 
         // Actions
-        const val ACTION_START = "com.myapp.START_FOREGROUND_SERVICE"
-        const val ACTION_STOP = "com.myapp.STOP_FOREGROUND_SERVICE"
+        const val ACTION_START = "com.connectiqo.app.START_FOREGROUND_SERVICE"
+        const val ACTION_STOP = "com.connectiqo.app.STOP_FOREGROUND_SERVICE"
     }
 
     override fun onCreate() {
@@ -86,7 +86,7 @@ class MyForegroundService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("MyApp Foreground Service")
+            .setContentTitle("Connectiqo Foreground Service")
             .setContentText("Camera and microphone are active")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
@@ -99,7 +99,7 @@ class MyForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "MyApp Foreground Service",
+                "Connectiqo Foreground Service",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Channel for foreground service notifications"

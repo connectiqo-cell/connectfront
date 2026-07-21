@@ -9,7 +9,7 @@ function ParticipantListViewer({ participantIds }) {
       style={{
         flex: 1,
         paddingHorizontal: 12,
-        backgroundColor: "#2B3034",
+        backgroundColor: colors.sheet,
       }}
     >
       <View

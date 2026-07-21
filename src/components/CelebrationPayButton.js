@@ -13,6 +13,8 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { useTheme } from '../hooks/useTheme';
+import { softFill } from '../theme/surfaceStyles';
 import IosGradientShell from './IosGradientShell';
 
 const T = UNIFIED_THEME;
@@ -323,6 +325,8 @@ export default function CelebrationPayButton({
   style,
   onOriginMeasure,
 }) {
+  const { theme } = useTheme();
+  const buttons = theme.colors.buttons;
   const isCheckout = size === 'checkout';
   const buttonRef = useRef(null);
 
@@ -491,9 +495,9 @@ export default function CelebrationPayButton({
             <IosGradientShell
               colors={
                 isActive
-                  ? B.successGradient
+                  ? buttons.successGradient
                   : disabled || loading
-                    ? ['rgba(255, 255, 255, 0.07)', 'rgba(255, 255, 255, 0.04)']
+                    ? [softFill(theme), theme.colors.component.disabled]
                     : ['rgba(167, 139, 250, 0.22)', 'rgba(124, 58, 237, 0.16)']
               }
               start={{ x: 0, y: 0.5 }}

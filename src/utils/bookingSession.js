@@ -1,4 +1,4 @@
-/** True when the booked slot is past and no active session is running. */
+/** True when the booked slot has ended (Join/Start no longer available). */
 export function isBookingSessionPast(booking) {
   const date = booking?.availability_slots?.date;
   if (!date) return false;
@@ -18,19 +18,14 @@ export function isBookingSessionPast(booking) {
       const endDt = new Date(`${date}T${endTime}`);
       // Past end_time — always expired (even if meeting_id is stale)
       if (endDt < now) return true;
-      // Within the scheduled window — keep in Upcoming only if session is live
-      return !booking?.meeting_id;
+      // Within the scheduled window — keep Join/Start so mentor can create the room
+      return false;
     }
 
-    // No end_time: if mentor created a room treat as live for up to 2 hours
-    if (booking?.meeting_id) {
-      const cutoff = new Date(startDt);
-      cutoff.setHours(cutoff.getHours() + 2);
-      return cutoff < now;
-    }
-
-    // No meeting_id and start passed — session was never started, expired
-    return true;
+    // No end_time: allow joining for up to 2 hours after start
+    const cutoff = new Date(startDt);
+    cutoff.setHours(cutoff.getHours() + 2);
+    return cutoff < now;
   }
 
   if (endTime) {

@@ -36,7 +36,7 @@ export default function TextInputContainer({
             placeholder={"Write your message"}
             style={{
               flex: 1,
-              color: "white",
+              color: colors.primary[100],
               marginLeft: 12,
               fontFamily: ROBOTO_FONTS.RobotoMedium,
               margin: 4,
@@ -47,8 +47,8 @@ export default function TextInputContainer({
             autoCorrect
             spellCheck
             autoCapitalize="sentences"
-            selectionColor={"white"}
-            placeholderTextColor={"#9FA0A7"}
+            selectionColor={colors.purple}
+            placeholderTextColor={colors.primary[400]}
           />
         </View>
 
@@ -73,7 +73,11 @@ export default function TextInputContainer({
               paddingVertical: 4,
             }}
           >
-            <Send fill="#FFF" width={20} height={20} />
+            <Send
+              fill={message.length > 0 ? colors.onBrand : colors.primary[100]}
+              width={20}
+              height={20}
+            />
           </TouchableOpacity>
         </View>
       </View>

@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicBackground from '../../components/CosmicBackground';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import Button from '../../components/Button';
 import { authApi } from '../../api/authApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
@@ -29,6 +30,15 @@ const FORM = createFormFieldStyles({
 
 // ── Step indicators ────────────────────────────────────────────────────────────
 function StepDots({ current }) {
+  const styles = useThemedStyles(createForgotPasswordStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   return (
     <View style={styles.dots}>
       {[1, 2, 3].map(n => (
@@ -52,6 +62,15 @@ function StepDots({ current }) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default function ForgotPasswordScreen({ navigation }) {
+  const styles = useThemedStyles(createForgotPasswordStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const { setPendingPasswordReset, signOut } = useContext(AuthContext);
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
@@ -336,7 +355,18 @@ export default function ForgotPasswordScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createForgotPasswordStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
   background: { flex: 1 },
   overlay: { flex: 1 },
   flex: { flex: 1 },
@@ -427,3 +457,4 @@ const styles = StyleSheet.create({
   resendTxt: { ...T.typography.bodySm, color: T.colors.text.secondary },
   resendLink: { ...T.typography.bodySm, color: T.colors.accent.primary, fontWeight: '600' },
 });
+}

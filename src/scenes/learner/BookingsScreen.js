@@ -17,6 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeScreen } from '../../components/SafeScreen';
 import { getFloatingTabBarContentInset } from '../../components/CosmicBottomTabBar';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
 import { BookingCard } from '../../components/BookingCard';
 import { useAuth } from '../../hooks/useAuth';
 import { bookingApi } from '../../api/bookingApi';
@@ -30,6 +32,7 @@ import { rescheduleApi } from '../../api/rescheduleApi';
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonBone({ style }) {
+  const sk = useThemedStyles(createBookingsSkeletonStyles);
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -46,6 +49,7 @@ function SkeletonBone({ style }) {
 }
 
 function SkeletonBookingCard() {
+  const sk = useThemedStyles(createBookingsSkeletonStyles);
   return (
     <View style={sk.card}>
       <View style={sk.cardTop}>
@@ -66,6 +70,7 @@ function SkeletonBookingCard() {
 }
 
 function SkeletonSectionHeader() {
+  const sk = useThemedStyles(createBookingsSkeletonStyles);
   return (
     <View style={sk.sectionHeader}>
       <SkeletonBone style={sk.sectionIcon} />
@@ -88,52 +93,55 @@ function BookingsSkeleton() {
   );
 }
 
-const sk = StyleSheet.create({
-  bone: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: UNIFIED_THEME.borderRadius.md,
-  },
-  wrap: {
-    padding: UNIFIED_THEME.spacing.lg,
-    gap: UNIFIED_THEME.spacing.md,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: UNIFIED_THEME.spacing.sm,
-    marginTop: UNIFIED_THEME.spacing.sm,
-    marginBottom: UNIFIED_THEME.spacing.xs,
-  },
-  sectionIcon: { width: 26, height: 26, borderRadius: 8 },
-  sectionTitle: { height: 14, width: 140, borderRadius: 6 },
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    padding: UNIFIED_THEME.spacing.md,
-    gap: UNIFIED_THEME.spacing.md,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: UNIFIED_THEME.spacing.md,
-  },
-  avatar: { width: 44, height: 44, borderRadius: 22 },
-  cardMeta: { flex: 1, gap: 8 },
-  nameLine: { height: 13, width: '65%', borderRadius: 6 },
-  dateLine: { height: 11, width: '80%', borderRadius: 6 },
-  statusBadge: { height: 20, width: 70, borderRadius: 6 },
-  amountLine: { height: 18, width: 52, borderRadius: 6 },
-  cardActions: {
-    flexDirection: 'row',
-    gap: UNIFIED_THEME.spacing.sm,
-    paddingTop: UNIFIED_THEME.spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: UNIFIED_THEME.colors.border.light,
-  },
-  actionBtn: { flex: 1, height: 36, borderRadius: UNIFIED_THEME.borderRadius.md },
-});
+function createBookingsSkeletonStyles(theme) {
+  const T = theme;
+  return StyleSheet.create({
+    bone: {
+      backgroundColor: softFillStrong(theme),
+      borderRadius: T.borderRadius.md,
+    },
+    wrap: {
+      padding: T.spacing.lg,
+      gap: T.spacing.md,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: T.spacing.sm,
+      marginTop: T.spacing.sm,
+      marginBottom: T.spacing.xs,
+    },
+    sectionIcon: { width: 26, height: 26, borderRadius: 8 },
+    sectionTitle: { height: 14, width: 140, borderRadius: 6 },
+    card: {
+      backgroundColor: softFill(theme),
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: softBorder(theme),
+      padding: T.spacing.md,
+      gap: T.spacing.md,
+    },
+    cardTop: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: T.spacing.md,
+    },
+    avatar: { width: 44, height: 44, borderRadius: 22 },
+    cardMeta: { flex: 1, gap: 8 },
+    nameLine: { height: 13, width: '65%', borderRadius: 6 },
+    dateLine: { height: 11, width: '80%', borderRadius: 6 },
+    statusBadge: { height: 20, width: 70, borderRadius: 6 },
+    amountLine: { height: 18, width: 52, borderRadius: 6 },
+    cardActions: {
+      flexDirection: 'row',
+      gap: T.spacing.sm,
+      paddingTop: T.spacing.xs,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border.light,
+    },
+    actionBtn: { flex: 1, height: 36, borderRadius: T.borderRadius.md },
+  });
+}
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -182,6 +190,15 @@ function FadeSlideIn({ delay = 0, children, style }) {
 }
 
 function PressScale({ onPress, children, style, disabled }) {
+  const styles = useThemedStyles(createBookingsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => {
@@ -218,6 +235,15 @@ function PressScale({ onPress, children, style, disabled }) {
 }
 
 function SectionHeader({ title, icon, isFirst, delay }) {
+  const styles = useThemedStyles(createBookingsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   return (
     <FadeSlideIn delay={delay} style={[styles.secHdrRow, isFirst && styles.secHdrRowFirst]}>
       <View style={styles.secHdrLeft}>
@@ -231,6 +257,16 @@ function SectionHeader({ title, icon, isFirst, delay }) {
 }
 
 export default function LearnerBookingsScreen({ navigation }) {
+  const styles = useThemedStyles(createBookingsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const sk = useThemedStyles(createBookingsSkeletonStyles);
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
   const bottomListPad = getFloatingTabBarContentInset(insets) + T.spacing.md;
@@ -714,7 +750,17 @@ export default function LearnerBookingsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createBookingsStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  return StyleSheet.create({
   listContent: {
     paddingHorizontal: T.spacing.lg,
     paddingTop: T.spacing.md,
@@ -885,3 +931,4 @@ const styles = StyleSheet.create({
     color: C.text.muted,
   },
 });
+}

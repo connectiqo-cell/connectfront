@@ -9,6 +9,7 @@ export const SCREEN_NAMES = {
   Login: "Login_Screen",
   ForgotPassword: "ForgotPassword_Screen",
   ResetPassword: "ResetPassword_Screen",
+  InterestsOnboarding: "InterestsOnboarding_Screen",
 
   /** Root stack — main tabs (must match RootNavigator screen name) */
   RootUnifiedTabs: "UnifiedTabs",

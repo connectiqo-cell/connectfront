@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "7159617830",
-    "project_id": "connectiqo-a2611",
-    "storage_bucket": "connectiqo-a2611.firebasestorage.app"
+    "project_number": "191149851689",
+    "project_id": "connectiqo-dff47",
+    "storage_bucket": "connectiqo-dff47.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:7159617830:android:438488ab92dfa6d75ac9e7",
+        "mobilesdk_app_id": "1:191149851689:android:e3ab555c2a1657ab264838",
         "android_client_info": {
-          "package_name": "com.myapp"
+          "package_name": "com.connectiqo.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAg6VZMn5-gvu9xbFywfTOetmMChPe8xFU"
+          "current_key": "AIzaSyDoHAzLKeagaKUHBHOmsnV3eB2z86DfVDs"
         }
       ],
       "services": {

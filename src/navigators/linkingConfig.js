@@ -6,7 +6,7 @@
  * Supported links:
  *   connectiqo://mentor/:mentorId       → Mentor profile modal
  *   connectiqo://booking/:mentorId      → Book a session with a mentor
- *   connectiqo://call/:roomId           → Join a live video call
+ *   connectiqo://call/:bookingId        → Join a live video call
  *   connectiqo://review/:bookingId      → Leave a review
  *   connectiqo://wallet                 → Wallet screen
  *   connectiqo://transactions           → Transaction history
@@ -60,7 +60,7 @@ export const linking = {
       // ── Modal overlays (root stack) ──
       [SCREEN_NAMES.MentorProfile]:      'mentor/:mentorId',
       [SCREEN_NAMES.Booking]:            'booking/:mentorId',
-      [SCREEN_NAMES.VideoCall]:          'call/:roomId',
+      [SCREEN_NAMES.VideoCall]:          'call/:bookingId',
       [SCREEN_NAMES.Review]:             'review/:bookingId',
       [SCREEN_NAMES.MentorReviews]:        'mentor/:mentorId/reviews',
       [SCREEN_NAMES.Wallet]:             'wallet',

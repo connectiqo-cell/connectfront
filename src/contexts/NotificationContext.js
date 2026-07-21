@@ -1,4 +1,12 @@
-import React, { createContext, useState, useCallback, useRef, useEffect, useContext } from 'react';
+import React, {
+  createContext,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useContext,
+  useMemo,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContext } from './AuthContext';
 
@@ -68,15 +76,29 @@ export const NotificationProvider = ({ children }) => {
     setUnreadCount(count);
   }, [hydrateReadIds]);
 
-  const value = {
-    unreadCount,
-    setUnreadCount,
-    markAsRead,
-    markAllRead,
-    syncUnreadCount,
-    isRead,
-    incrementUnreadCount: () => setUnreadCount((c) => c + 1),
-  };
+  const incrementUnreadCount = useCallback(() => {
+    setUnreadCount((c) => c + 1);
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      unreadCount,
+      setUnreadCount,
+      markAsRead,
+      markAllRead,
+      syncUnreadCount,
+      isRead,
+      incrementUnreadCount,
+    }),
+    [
+      unreadCount,
+      markAsRead,
+      markAllRead,
+      syncUnreadCount,
+      isRead,
+      incrementUnreadCount,
+    ],
+  );
 
   return (
     <NotificationContext.Provider value={value}>

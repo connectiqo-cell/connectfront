@@ -11,6 +11,8 @@ import Toast from 'react-native-simple-toast';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { SafeScreen } from '../../components/SafeScreen';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { LearnerMentorCard } from '../../components/LearnerMentorCard';
 import { mentorApi } from '../../api/mentorApi';
@@ -26,6 +28,15 @@ const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
 
 function SectionHeaderRow({ title, count }) {
+  const styles = useThemedStyles(createBrowseMentorsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   return (
     <View style={styles.secHdrRow}>
       <Text style={styles.secHdrTitle}>{title}</Text>
@@ -39,6 +50,15 @@ function SectionHeaderRow({ title, count }) {
 }
 
 function StatSegment({ icon, iconColor, value, label }) {
+  const styles = useThemedStyles(createBrowseMentorsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   return (
     <View style={styles.statSeg}>
       <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
@@ -55,6 +75,15 @@ function StatSegment({ icon, iconColor, value, label }) {
 }
 
 export default function BrowseMentorsScreen({ navigation }) {
+  const styles = useThemedStyles(createBrowseMentorsStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const [mentorsByCategory, setMentorsByCategory] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -178,7 +207,18 @@ export default function BrowseMentorsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createBrowseMentorsStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
   statsBar: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -186,9 +226,9 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 4,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: softFill(theme),
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: softBorder(theme),
   },
   statSeg: {
     flex: 1,
@@ -219,7 +259,7 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: softFillStrong(theme),
     marginVertical: 6,
     alignSelf: 'stretch',
   },
@@ -251,7 +291,7 @@ const styles = StyleSheet.create({
     borderRadius: T.borderRadius.chip,
     backgroundColor: S.accentViolet,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor: softBorder(theme),
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -272,9 +312,9 @@ const styles = StyleSheet.create({
     paddingVertical: T.spacing.xxxl,
     paddingHorizontal: T.spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: softBorder(theme),
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: softFill(theme),
   },
   emptyIconRing: {
     width: 88,
@@ -282,7 +322,7 @@ const styles = StyleSheet.create({
     borderRadius: 44,
     backgroundColor: S.accentViolet,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor: softBorder(theme),
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: T.spacing.lg,
@@ -300,3 +340,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+}

@@ -86,7 +86,7 @@ export function iosAvatarClip(size, extra = {}) {
         height: size,
         borderRadius: radius,
         overflow: 'hidden',
-        backgroundColor: '#0f0e2a',
+        backgroundColor: T.colors.surface.sheet,
         ...extra,
       }
     : extra;

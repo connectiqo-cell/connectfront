@@ -19,6 +19,8 @@ export const UnifiedTabNavigator = () => {
         headerShown: false,
         tabBarShowLabel: true,
         lazy: true,
+        // Pause inactive tab trees so decorative animations / effects stop.
+        freezeOnBlur: true,
         tabBarStyle: {
           position: 'absolute',
           left: 0,

@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { View, Dimensions } from "react-native";
 import { CosmicLoader } from "../../../components/LoadingSpinner";
 import BottomSheet from "../../../components/BottomSheet";
+import colors from "../../../styles/colors";
 import { useOrientation } from "../../../utils/useOrientation";
 import ParticipantStatsViewer from "../Components/ParticipantStatsViewer";
 import ParticipantView from "./ParticipantView";
@@ -62,7 +63,7 @@ function ConferenceParticipantGrid({ participantIds, isPresenting }) {
                 );
               })}
             <BottomSheet
-              sheetBackgroundColor={"#2B3034"}
+              sheetBackgroundColor={colors.sheet}
               draggable={false}
               radius={12}
               hasDraggableIcon

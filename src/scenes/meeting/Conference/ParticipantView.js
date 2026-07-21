@@ -61,11 +61,12 @@ export default function ParticipantView({
   };
 
   useEffect(() => {
-    setInterval(() => {
+    const intervalId = setInterval(() => {
       if (!isLocal) {
         updateStats();
       }
     }, 4000);
+    return () => clearInterval(intervalId);
   }, []);
 
   useEffect(() => {

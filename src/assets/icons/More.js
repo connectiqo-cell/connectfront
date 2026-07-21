@@ -1,32 +1,13 @@
 import * as React from "react";
-import Svg, { Defs, G, Circle } from "react-native-svg";
+import Svg, { G, Circle } from "react-native-svg";
 
-function More(props) {
+function More({ fill = "#FFF", ...props }) {
   return (
-    <Svg width={20} height={6} fill={"#FFF"} viewBox="0 0 16 4" {...props}>
-      <Defs></Defs>
-      <G transform="translate(-303 -610)">
-        <Circle
-          className="a"
-          cx={2}
-          cy={2}
-          r={2}
-          transform="translate(309 610)"
-        />
-        <Circle
-          className="a"
-          cx={2}
-          cy={2}
-          r={2}
-          transform="translate(315 610)"
-        />
-        <Circle
-          className="a"
-          cx={2}
-          cy={2}
-          r={2}
-          transform="translate(303 610)"
-        />
+    <Svg width={20} height={6} viewBox="0 0 16 4" {...props}>
+      <G fill={fill}>
+        <Circle cx={2} cy={2} r={2} />
+        <Circle cx={8} cy={2} r={2} />
+        <Circle cx={14} cy={2} r={2} />
       </G>
     </Svg>
   );

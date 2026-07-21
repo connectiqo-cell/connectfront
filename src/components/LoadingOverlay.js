@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { CosmicLoader } from './LoadingSpinner';
-import { UNIFIED_THEME } from '../unifiedTheme';
+import { useTheme } from '../hooks/useTheme';
 
 /**
  * In-screen overlay (not a Modal) so preloaded tab screens cannot block the whole app.
@@ -8,20 +8,40 @@ import { UNIFIED_THEME } from '../unifiedTheme';
 export const LoadingOverlay = ({
   visible = false,
   message = 'Loading...',
-  backdropOpacity = 0.75,
+  backdropOpacity,
 }) => {
+  const { theme, isDark } = useTheme();
+  const opacity = backdropOpacity ?? (isDark ? 0.75 : 0.55);
+
   if (!visible) return null;
 
   return (
     <View style={styles.overlay} pointerEvents="auto">
       <View
-        style={[styles.backdrop, { opacity: backdropOpacity }]}
+        style={[
+          styles.backdrop,
+          {
+            opacity,
+            backgroundColor: theme.colors.primary.void,
+          },
+        ]}
         pointerEvents="none"
       />
       <View style={styles.center} pointerEvents="none">
         <CosmicLoader size={56} />
         {message ? (
-          <Text style={styles.message}>{message}</Text>
+          <Text
+            style={[
+              styles.message,
+              {
+                ...theme.typography.bodyMd,
+                color: theme.colors.text.secondary,
+                marginTop: theme.spacing.md,
+              },
+            ]}
+          >
+            {message}
+          </Text>
         ) : null}
       </View>
     </View>
@@ -36,7 +56,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: UNIFIED_THEME.colors.primary.void,
   },
   center: {
     flex: 1,
@@ -44,10 +63,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   message: {
-    ...UNIFIED_THEME.typography.bodyMd,
-    color: UNIFIED_THEME.colors.text.secondary,
     textAlign: 'center',
-    marginTop: UNIFIED_THEME.spacing.md,
     letterSpacing: 0.2,
   },
 });

@@ -29,7 +29,7 @@ export const MentorCard = ({ mentor, onPress }) => {
           />
         ) : (
           <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <MaterialIcons name="person" size={32} color={UNIFIED_THEME.colors.primary.light} />
+            <MaterialIcons name="person" size={32} color={UNIFIED_THEME.colors.text.muted} />
           </View>
         )}
 
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     marginHorizontal: UNIFIED_THEME.spacing.md,
     marginVertical: UNIFIED_THEME.spacing.sm,
     borderWidth: 1,
-    borderColor: UNIFIED_THEME.colors.primary.light,
+    borderColor: UNIFIED_THEME.colors.border.light,
   },
   header: {
     flexDirection: 'row',
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     marginRight: UNIFIED_THEME.spacing.md,
   },
   avatarPlaceholder: {
-    backgroundColor: UNIFIED_THEME.colors.primary.light,
+    backgroundColor: UNIFIED_THEME.colors.surface.chip,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   },
   specialization: {
     ...UNIFIED_THEME.typography.bodySm,
-    color: UNIFIED_THEME.colors.text.primary,
+    color: UNIFIED_THEME.colors.text.secondary,
     marginBottom: 4,
   },
   ratingContainer: {

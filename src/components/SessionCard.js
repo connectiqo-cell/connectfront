@@ -19,7 +19,7 @@ export const SessionCard = ({ session, onJoinPress, onMorePress }) => {
           <MaterialIcons
             name="access-time"
             size={20}
-            color={UNIFIED_THEME.colors.primary.light}
+            color={UNIFIED_THEME.colors.text.secondary}
             style={styles.icon}
           />
           <View style={styles.timeInfo}>
@@ -32,7 +32,7 @@ export const SessionCard = ({ session, onJoinPress, onMorePress }) => {
           <MaterialIcons
             name="person"
             size={20}
-            color={UNIFIED_THEME.colors.primary.light}
+            color={UNIFIED_THEME.colors.text.secondary}
             style={styles.icon}
           />
           <Text style={styles.learnerName} numberOfLines={1}>{learnerName}</Text>
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     marginHorizontal: UNIFIED_THEME.spacing.md,
     marginVertical: UNIFIED_THEME.spacing.sm,
     borderWidth: 1,
-    borderColor: UNIFIED_THEME.colors.primary.light,
+    borderColor: UNIFIED_THEME.colors.border.light,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     ...UNIFIED_THEME.typography.bodySm,
-    color: UNIFIED_THEME.colors.primary.light,
+    color: UNIFIED_THEME.colors.text.onAccent,
     fontWeight: '600',
   },
   actions: {

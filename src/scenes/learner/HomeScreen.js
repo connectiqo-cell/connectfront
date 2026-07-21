@@ -16,13 +16,19 @@ import Toast from 'react-native-simple-toast';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { SafeScreen } from '../../components/SafeScreen';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { SearchBar } from '../../components/SearchBar';
 import { MentorImageCard } from '../../components/MentorImageCard';
 import { MentorDetailSheet } from '../../components/MentorDetailSheet';
 import { mentorApi } from '../../api/mentorApi';
+import { profileApi } from '../../api/profileApi';
 import { fetchActiveCategories } from '../../api/contentApi';
 import { useAuth } from '../../hooks/useAuth';
+import { softFillStrong } from '../../theme/surfaceStyles';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
+import { orderCategoriesByInterests } from '../../utils/mentorCategories';
+
+import { resolveMaterialIconName } from '../../constants/categoryInterestMeta';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -58,24 +64,21 @@ const CATEGORY_ICONS_FALLBACK = {
   security:     'security',
   sales:        'point-of-sale',
   others:       'auto-awesome',
+  other:        'auto-awesome',
 };
-
-function normalizeMaterialIcon(icon = '') {
-  // MaterialIcons expects lowercase with hyphens: "account_balance" → "account-balance"
-  return icon.trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-');
-}
 
 function getCategoryIcon(category = '', dbIconMap = {}) {
   const name = category.toLowerCase().trim();
-  if (dbIconMap[name]) return normalizeMaterialIcon(dbIconMap[name]);
+  if (dbIconMap[name]) return resolveMaterialIconName(dbIconMap[name], 'category');
   for (const [k, v] of Object.entries(CATEGORY_ICONS_FALLBACK)) {
     if (name.includes(k)) return v;
   }
-  return 'auto-awesome';
+  return 'category';
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonBone({ style }) {
+  const { theme } = useTheme();
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -88,7 +91,16 @@ function SkeletonBone({ style }) {
     return () => loop.stop();
   }, [anim]);
   const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.45] });
-  return <Animated.View style={[sk.bone, style, { opacity }]} />;
+  return (
+    <Animated.View
+      style={[
+        sk.bone,
+        { backgroundColor: softFillStrong(theme) },
+        style,
+        { opacity },
+      ]}
+    />
+  );
 }
 
 function SkeletonImageCard() {
@@ -122,7 +134,7 @@ function HomeScreenSkeleton() {
 }
 
 const sk = StyleSheet.create({
-  bone: { backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: T.borderRadius.lg },
+  bone: { borderRadius: T.borderRadius.lg },
   imageCard: {
     width: 120,
     height: 172,
@@ -143,6 +155,9 @@ const sk = StyleSheet.create({
 });
 
 function SectionHeader({ title, icon, onSeeAll }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const PURPLE_LINK = theme.colors.buttons.nebulaGradient[0];
   const scale = useRef(new Animated.Value(1)).current;
   const chevronX = useRef(new Animated.Value(0)).current;
 
@@ -210,6 +225,7 @@ function SectionHeader({ title, icon, onSeeAll }) {
 }
 
 function AnimatedPageHeader({ isSearching }) {
+  const styles = useThemedStyles(createThemedStyles);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-8)).current;
 
@@ -238,13 +254,14 @@ function AnimatedPageHeader({ isSearching }) {
       <Text style={styles.pageSubtitle}>
         {isSearching
           ? 'Mentors matching your search'
-          : 'Browse mentors by skill and category'}
+          : 'Mentors in your interested categories first'}
       </Text>
     </Animated.View>
   );
 }
 
 function AnimatedCategorySection({ sectionIndex, children }) {
+  const styles = useThemedStyles(createThemedStyles);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(18)).current;
   const delay = sectionIndex * 70;
@@ -276,9 +293,17 @@ function AnimatedCategorySection({ sectionIndex, children }) {
 }
 
 export default function LearnerHomeScreen({ navigation }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const PANEL_BG = C.surface.panel;
   const { profile } = useAuth();
   const [mentorsByCategory, setMentorsByCategory] = useState({});
   const [categoryIconMap, setCategoryIconMap] = useState({});
+  const [interestedCategories, setInterestedCategories] = useState([]);
   const [searchResults, setSearchResults] = useState(null); // null = not searching
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -308,15 +333,21 @@ export default function LearnerHomeScreen({ navigation }) {
   const loadMentors = async () => {
     try {
       setLoading(true);
-      const [grouped, dbCategories] = await Promise.all([
+      const [grouped, dbCategories, learner] = await Promise.all([
         mentorApi.getMentorsByCategory(),
         fetchActiveCategories(),
+        profile?.id
+          ? profileApi.getLearnerProfile(profile.id).catch(() => null)
+          : Promise.resolve(null),
       ]);
       const iconMap = {};
       (dbCategories || []).forEach(c => {
         if (c.name && c.icon) iconMap[c.name.toLowerCase().trim()] = c.icon;
       });
       setCategoryIconMap(iconMap);
+      setInterestedCategories(
+        Array.isArray(learner?.interests) ? learner.interests : [],
+      );
       const filtered = {};
       Object.entries(grouped).forEach(([category, mentors]) => {
         const withoutSelf = mentors.filter(m => m.id !== profile?.id);
@@ -395,7 +426,9 @@ export default function LearnerHomeScreen({ navigation }) {
 
   const isSearching = searchQuery.trim().length > 0;
   const groupedMentors = getFilteredMentors();
-  const filteredCategories = groupedMentors ? Object.keys(groupedMentors).sort() : [];
+  const filteredCategories = groupedMentors
+    ? orderCategoriesByInterests(Object.keys(groupedMentors), interestedCategories)
+    : [];
 
   const renderCategorySection = (category, mentors, isSearch = false, sectionIndex = 0) => (
     <AnimatedCategorySection
@@ -506,11 +539,21 @@ export default function LearnerHomeScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createThemedStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  return StyleSheet.create({
   pageHeader: {
     marginBottom: T.spacing.md,
   },
   pageTitle: {
+    ...T.typography.headingMd,
     fontSize: 22,
     fontWeight: '800',
     color: C.text.primary,
@@ -518,6 +561,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   pageSubtitle: {
+    ...T.typography.bodySm,
     fontSize: 13,
     color: C.text.muted,
     fontWeight: '600',
@@ -552,15 +596,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: S.accentViolet,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor: C.border.default,
     justifyContent: 'center',
     alignItems: 'center',
   },
   secHdrTitle: {
-    fontSize: 15,
+    ...T.typography.headingXs,
+    fontSize: 16,
     fontWeight: '800',
     color: C.text.primary,
     flexShrink: 1,
+    letterSpacing: -0.1,
   },
   seeAllBtn: {
     flexDirection: 'row',
@@ -585,9 +631,9 @@ const styles = StyleSheet.create({
     paddingVertical: T.spacing.xxxl,
     paddingHorizontal: T.spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.light,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: theme.colors.surface.panel,
   },
   emptyIconRing: {
     width: 88,
@@ -595,7 +641,7 @@ const styles = StyleSheet.create({
     borderRadius: 44,
     backgroundColor: S.accentViolet,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor: C.border.default,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: T.spacing.lg,
@@ -614,3 +660,5 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+}
+

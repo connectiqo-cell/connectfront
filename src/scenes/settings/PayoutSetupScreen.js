@@ -19,79 +19,85 @@ import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
-import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill } from '../../theme/surfaceStyles';
 import { payoutApi } from '../../api/payoutApi';
 import { useAuth } from '../../hooks/useAuth';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
-const T = UNIFIED_THEME;
-const C = T.colors;
-const B = C.buttons;
-const S = C.surface;
-
-const PURPLE_LINK = B.nebulaGradient[0];
-const GOLD = C.accent.primary;
-const TEAL = C.accent.secondary;
-const PANEL_BG = '#161432';
-const INPUT_BG = '#0f0e2a';
-
-const STATUS_CONFIG = {
-  active: {
-    color: C.accent.success,
-    bg: S.accentSuccess,
-    border: 'rgba(52,211,153,0.3)',
-    icon: 'verified',
-    label: 'Active',
-    heroGradient: ['rgba(52,211,153,0.35)', 'rgba(94,234,212,0.18)', PANEL_BG],
-    glow: C.accent.success,
-    title: 'Payouts are live',
-    subtitle: 'Your session earnings are split to your Razorpay account automatically.',
-  },
-  pending: {
-    color: C.accent.warning,
-    bg: S.accentWarning,
-    border: 'rgba(251,191,36,0.35)',
-    icon: 'hourglass-top',
-    label: 'KYC pending',
-    heroGradient: ['rgba(251,191,36,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
-    glow: C.accent.warning,
-    title: 'Almost there',
-    subtitle: 'Razorpay has emailed you to complete KYC. Check your inbox, then pull to refresh here.',
-  },
-  needs_clarification: {
-    color: C.accent.warning,
-    bg: S.accentWarning,
-    border: 'rgba(251,191,36,0.35)',
-    icon: 'help-outline',
-    label: 'Action needed',
-    heroGradient: ['rgba(251,191,36,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
-    glow: C.accent.warning,
-    title: 'Razorpay needs more info',
-    subtitle: 'Check the email from Razorpay for what needs clarifying, then pull to refresh here.',
-  },
-  suspended: {
-    color: C.accent.danger || '#ef4444',
-    bg: S.accentWarning,
-    border: 'rgba(239,68,68,0.35)',
-    icon: 'error-outline',
-    label: 'Suspended',
-    heroGradient: ['rgba(239,68,68,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
-    glow: '#ef4444',
-    title: 'Account suspended',
-    subtitle: 'Your Razorpay account was suspended. Contact Razorpay support to resolve this.',
-  },
-  not_started: {
-    color: C.text.muted,
-    bg: 'rgba(255,255,255,0.06)',
-    border: 'rgba(255,255,255,0.12)',
-    icon: 'account-balance',
-    label: 'Not set up',
-    heroGradient: ['rgba(124,58,237,0.4)', 'rgba(94,234,212,0.18)', PANEL_BG],
-    glow: TEAL,
-    title: 'Set up payouts',
-    subtitle: 'Link your account so session earnings can reach your bank.',
-  },
-};
+function getStatusConfig(theme) {
+  const C = theme.colors;
+  const S = C.surface;
+  const PANEL_BG = S.panel;
+  const isLight = theme.mode === 'light';
+  return {
+    active: {
+      color: C.accent.success,
+      bg: S.accentSuccess,
+      border: 'rgba(52,211,153,0.3)',
+      icon: 'verified',
+      label: 'Active',
+      heroGradient: isLight
+        ? ['rgba(16,185,129,0.18)', 'rgba(109,74,255,0.08)', PANEL_BG]
+        : ['rgba(52,211,153,0.35)', 'rgba(94,234,212,0.18)', PANEL_BG],
+      glow: C.accent.success,
+      title: 'Payouts are live',
+      subtitle: 'Withdrawals from your wallet will be sent to your UPI.',
+    },
+    pending: {
+      color: C.accent.warning,
+      bg: S.accentWarning,
+      border: 'rgba(251,191,36,0.35)',
+      icon: 'hourglass-top',
+      label: 'KYC pending',
+      heroGradient: isLight
+        ? ['rgba(245,158,11,0.16)', 'rgba(109,74,255,0.08)', PANEL_BG]
+        : ['rgba(251,191,36,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
+      glow: C.accent.warning,
+      title: 'Almost there',
+      subtitle: 'Razorpay has emailed you to complete KYC. Check your inbox, then pull to refresh here.',
+    },
+    needs_clarification: {
+      color: C.accent.warning,
+      bg: S.accentWarning,
+      border: 'rgba(251,191,36,0.35)',
+      icon: 'help-outline',
+      label: 'Action needed',
+      heroGradient: isLight
+        ? ['rgba(245,158,11,0.16)', 'rgba(109,74,255,0.08)', PANEL_BG]
+        : ['rgba(251,191,36,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
+      glow: C.accent.warning,
+      title: 'Razorpay needs more info',
+      subtitle: 'Check the email from Razorpay for what needs clarifying, then pull to refresh here.',
+    },
+    suspended: {
+      color: C.accent.danger || '#ef4444',
+      bg: S.accentWarning,
+      border: 'rgba(239,68,68,0.35)',
+      icon: 'error-outline',
+      label: 'Suspended',
+      heroGradient: isLight
+        ? ['rgba(239,68,68,0.16)', 'rgba(109,74,255,0.08)', PANEL_BG]
+        : ['rgba(239,68,68,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
+      glow: '#ef4444',
+      title: 'Account suspended',
+      subtitle: 'Your Razorpay account was suspended. Contact Razorpay support to resolve this.',
+    },
+    not_started: {
+      color: C.text.muted,
+      bg: softFill(theme),
+      border: softBorder(theme),
+      icon: 'account-balance',
+      label: 'Not set up',
+      heroGradient: isLight
+        ? ['rgba(109,74,255,0.16)', 'rgba(139,92,246,0.08)', PANEL_BG]
+        : ['rgba(124,58,237,0.4)', 'rgba(94,234,212,0.18)', PANEL_BG],
+      glow: C.accent.secondary,
+      title: 'Set up payouts',
+      subtitle: 'Link your UPI so session earnings can reach your bank.',
+    },
+  };
+}
 
 const PAYOUT_STEPS = [
   { icon: 'payments', text: 'Learner pays when they book your session.' },
@@ -143,6 +149,7 @@ function FadeSlideIn({ children, delay = 0, style, replayToken = 0 }) {
 }
 
 function HoverHighlight({ children, style, onPress, disabled, pressScale = 0.98, hoverScale = 1.02 }) {
+  const styles = useThemedStyles(createPayoutStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const highlight = useRef(new Animated.Value(0)).current;
   const hovered = useRef(false);
@@ -253,7 +260,10 @@ function AnimatedPressable({
   );
 }
 
-function PulseGlow({ color = TEAL, size = 72 }) {
+function PulseGlow({ color, size = 72 }) {
+  const styles = useThemedStyles(createPayoutStyles);
+  const { theme } = useTheme();
+  const ringColor = color ?? theme.colors.accent.secondary;
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -289,7 +299,7 @@ function PulseGlow({ color = TEAL, size = 72 }) {
           width: size,
           height: size,
           borderRadius: size / 2,
-          borderColor: color,
+          borderColor: ringColor,
           opacity: ringOpacity,
           transform: [{ scale: ringScale }],
         },
@@ -331,6 +341,9 @@ function PulseBadge({ children, style, animate = true }) {
 }
 
 function StatusBadge({ status, large = false }) {
+  const styles = useThemedStyles(createPayoutStyles);
+  const { theme } = useTheme();
+  const STATUS_CONFIG = getStatusConfig(theme);
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.not_started;
   const inner = (
     <View style={[styles.statusBadge, large && styles.statusBadgeLarge, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
@@ -345,6 +358,7 @@ function StatusBadge({ status, large = false }) {
 }
 
 function AnimatedHeroTitle({ text }) {
+  const styles = useThemedStyles(createPayoutStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
 
@@ -363,6 +377,15 @@ function AnimatedHeroTitle({ text }) {
 }
 
 function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay = 0, replayToken = 0 }) {
+  const styles = useThemedStyles(createPayoutStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(14)).current;
   const iconScale = useRef(new Animated.Value(1)).current;
@@ -415,6 +438,9 @@ function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay
 }
 
 function StepRow({ icon, text, index = 0, replayToken = 0 }) {
+  const styles = useThemedStyles(createPayoutStyles);
+  const { theme } = useTheme();
+  const TEAL = theme.colors.accent.secondary;
   const opacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(-10)).current;
   const hasEntered = useRef(false);
@@ -453,6 +479,10 @@ function StepRow({ icon, text, index = 0, replayToken = 0 }) {
 }
 
 function Field({ icon, label, value, onChangeText, placeholder, keyboardType, autoCapitalize, hint, index = 0 }) {
+  const styles = useThemedStyles(createPayoutStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const TEAL = C.accent.secondary;
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(8)).current;
   const borderGlow = useRef(new Animated.Value(0)).current;
@@ -499,6 +529,7 @@ function Field({ icon, label, value, onChangeText, placeholder, keyboardType, au
 }
 
 function InfoRow({ label, value, mono, index = 0, replayToken = 0 }) {
+  const styles = useThemedStyles(createPayoutStyles);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(10)).current;
   const hasEntered = useRef(false);
@@ -534,6 +565,7 @@ function InfoRow({ label, value, mono, index = 0, replayToken = 0 }) {
 }
 
 function NoticeCard({ variant, children }) {
+  const styles = useThemedStyles(createPayoutStyles);
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.96)).current;
 
@@ -554,6 +586,10 @@ function NoticeCard({ variant, children }) {
 }
 
 function WalletLinkRow({ onPress }) {
+  const styles = useThemedStyles(createPayoutStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const TEAL = C.accent.secondary;
   const chevron = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -581,6 +617,9 @@ function WalletLinkRow({ onPress }) {
 }
 
 function GradientButton({ label, icon, onPress, disabled, loading, colors, textColor, borderColor }) {
+  const styles = useThemedStyles(createPayoutStyles);
+  const { theme } = useTheme();
+  const B = theme.colors.buttons;
   return (
     <AnimatedPressable
       onPress={onPress}
@@ -609,6 +648,8 @@ function GradientButton({ label, icon, onPress, disabled, loading, colors, textC
 }
 
 function RotatingRefreshIcon({ spinning }) {
+  const { theme } = useTheme();
+  const TEAL = theme.colors.accent.secondary;
   const spin = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -639,6 +680,20 @@ function RotatingRefreshIcon({ spinning }) {
 }
 
 export default function PayoutSetupScreen({ navigation }) {
+  const styles = useThemedStyles(createPayoutStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const STATUS_CONFIG = getStatusConfig(theme);
+  const isLight = theme.mode === 'light';
+  const heroFade = isLight
+    ? ['transparent', 'rgba(248,249,255,0.92)', PANEL_BG]
+    : ['transparent', 'rgba(15,14,42,0.92)', PANEL_BG];
   const { profile } = useAuth();
   const [status, setStatus] = useState('not_started');
   const [accountId, setAccountId] = useState(null);
@@ -765,7 +820,7 @@ export default function PayoutSetupScreen({ navigation }) {
       <FadeSlideIn delay={0} replayToken={replayToken}>
         <View style={styles.header}>
           <AnimatedPressable onPress={() => navigation.goBack()} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
-            <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+            <MaterialIcons name="arrow-back" size={22} color={C.accent.primary} />
           </AnimatedPressable>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Payout Setup</Text>
@@ -805,7 +860,7 @@ export default function PayoutSetupScreen({ navigation }) {
               pointerEvents="none"
               style={[styles.heroShimmer, { transform: [{ translateX: bannerShimmerX }] }]}
             />
-            <LinearGradient colors={['transparent', 'rgba(15,14,42,0.92)', PANEL_BG]} style={styles.heroFade} />
+            <LinearGradient colors={heroFade} style={styles.heroFade} />
 
             <View style={styles.heroTop}>
               <View style={styles.heroIconWrap}>
@@ -997,7 +1052,17 @@ export default function PayoutSetupScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createPayoutStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  return StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1010,11 +1075,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: T.borderRadius.md,
-    backgroundColor: PANEL_BG,
+    backgroundColor: S.accentViolet,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.default,
   },
   headerCenter: {
     flex: 1,
@@ -1024,7 +1089,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: C.text.primary,
+    color: C.accent.primary,
   },
   headerSubtitle: {
     fontSize: 12,
@@ -1072,7 +1137,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 90,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: softFill(theme),
     transform: [{ skewX: '-16deg' }],
   },
   heroBanner: { ...StyleSheet.absoluteFillObject },
@@ -1184,7 +1249,7 @@ const styles = StyleSheet.create({
     backgroundColor: PANEL_BG,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: softBorder(theme),
     padding: T.spacing.lg,
     gap: T.spacing.sm,
     overflow: 'hidden',
@@ -1206,7 +1271,7 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     backgroundColor: S.accentViolet,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor: softBorder(theme),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1338,7 +1403,7 @@ const styles = StyleSheet.create({
     backgroundColor: INPUT_BG,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: softBorder(theme),
     paddingHorizontal: T.spacing.md,
   },
   inputIcon: { marginRight: T.spacing.sm },
@@ -1401,3 +1466,4 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
 });
+}

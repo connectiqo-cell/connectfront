@@ -17,7 +17,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Video from 'react-native-video';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { useNotification } from '../../hooks/useNotification';
 import { notificationApi } from '../../api/notificationApi';
@@ -28,21 +28,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeScreen } from '../../components/SafeScreen';
 import { ThunderTransition } from '../../components/ThunderTransition';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { iosFlexChild, HOME_TAB_LAYOUT } from '../../utils/platformLayout';
 import { scaleUi } from '../../utils/iosUiScale';
+import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
 const B = C.buttons;
-const TB = C.tabBar;
 
 /** Match mentor profile accent cycle (reserved for future category chips) */
 const PURPLE_LINK = B.nebulaGradient[0];
 const GOLD = C.accent.primary;
 const SESSION_CARD_W = 160;
 const THUMB_PLACEHOLDER = ['#3d3666', '#16122c'];
+/** Skip Home network reload when returning to the tab within this window. */
+const HOME_STALE_MS = 45_000;
 
 const HOW_IT_WORKS_STEPS = [
   { icon: 'travel-explore', label: 'Discover' },
@@ -106,8 +109,13 @@ function AnimatedPressable({
 
 function TrustIcon({ name, color, delay = 0 }) {
   const floatY = useRef(new Animated.Value(0)).current;
+  const isFocused = useIsFocused();
 
   useEffect(() => {
+    if (!isFocused) {
+      floatY.setValue(0);
+      return undefined;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.delay(delay),
@@ -127,7 +135,7 @@ function TrustIcon({ name, color, delay = 0 }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [floatY, delay]);
+  }, [floatY, delay, isFocused]);
 
   const translateY = floatY.interpolate({
     inputRange: [0, 1],
@@ -142,6 +150,9 @@ function TrustIcon({ name, color, delay = 0 }) {
 }
 
 function SectionHeaderRow({ title, onSeeAll, icon }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const PURPLE_LINK = theme.colors.buttons.nebulaGradient[0];
   return (
     <View style={styles.secHdrRow}>
       <View style={styles.secHdrLeft}>
@@ -167,6 +178,12 @@ function SectionHeaderRow({ title, onSeeAll, icon }) {
 }
 
 function IntroPlayButton({ playGlowOpacity, playGlowScale }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
   const glowTransform =
     Platform.OS === 'ios' ? [] : [{ scale: playGlowScale }];
 
@@ -206,12 +223,22 @@ function IntroPlayButton({ playGlowOpacity, playGlowScale }) {
 }
 
 function HowItWorksCard({ video, onPress }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const isLight = theme.mode === 'light';
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
   const stepLine = HOW_IT_WORKS_STEPS.map(s => s.label).join(' · ');
   const cardScale = useRef(new Animated.Value(1)).current;
   const breathe = useRef(new Animated.Value(0)).current;
   const navigatingRef = useRef(false);
+  const isFocused = useIsFocused();
 
   useEffect(() => {
+    if (!isFocused) {
+      breathe.setValue(0);
+      return undefined;
+    }
     const glowLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(breathe, {
@@ -230,11 +257,11 @@ function HowItWorksCard({ video, onPress }) {
     );
     glowLoop.start();
     return () => glowLoop.stop();
-  }, [breathe]);
+  }, [breathe, isFocused]);
 
   const haloOpacity = breathe.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.12, 0.38],
+    outputRange: isLight ? [0.06, 0.18] : [0.12, 0.38],
   });
   const haloScale = breathe.interpolate({
     inputRange: [0, 1],
@@ -242,7 +269,7 @@ function HowItWorksCard({ video, onPress }) {
   });
   const playGlowOpacity = breathe.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.22, 0.58],
+    outputRange: isLight ? [0.14, 0.36] : [0.22, 0.58],
   });
   const playGlowScale = breathe.interpolate({
     inputRange: [0, 1],
@@ -289,6 +316,14 @@ function HowItWorksCard({ video, onPress }) {
   const haloScaleTransform =
     Platform.OS === 'ios' ? [] : [{ scale: haloScale }];
 
+  const haloColors = isLight
+    ? ['rgba(109,74,255,0.18)', 'rgba(139,92,246,0.1)', 'rgba(99,102,241,0.06)']
+    : ['rgba(167,139,250,0.5)', 'rgba(240,216,117,0.25)', 'rgba(94,234,212,0.15)'];
+
+  const cardWash = isLight
+    ? ['#ffffff', '#faf9ff', '#f5f3ff']
+    : ['rgba(124,58,237,0.2)', 'rgba(12,12,40,0.72)', 'rgba(94,234,212,0.08)'];
+
   return (
     <View style={styles.howItWorksOuter}>
       <Animated.View
@@ -299,7 +334,7 @@ function HowItWorksCard({ video, onPress }) {
         ]}
       >
         <LinearGradient
-          colors={['rgba(167,139,250,0.5)', 'rgba(240,216,117,0.25)', 'rgba(94,234,212,0.15)']}
+          colors={haloColors}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -322,7 +357,7 @@ function HowItWorksCard({ video, onPress }) {
           />
           <View style={styles.howItWorksCard}>
             <LinearGradient
-              colors={['rgba(124,58,237,0.2)', 'rgba(12,12,40,0.72)', 'rgba(94,234,212,0.08)']}
+              colors={cardWash}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={StyleSheet.absoluteFillObject}
@@ -362,58 +397,61 @@ function HowItWorksCard({ video, onPress }) {
   );
 }
 
-function SessionOverlayCard({ item, onPress }) {
+const SessionOverlayCard = React.memo(function SessionOverlayCard({ item, onPress }) {
+  const styles = useThemedStyles(createThemedStyles);
   const cardH = Math.round(SESSION_CARD_W * 1.28);
   const { scale, onInteractIn, onInteractOut } = usePressScale(0.95);
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable
-        style={[styles.sessionCard, { width: SESSION_CARD_W, height: cardH }]}
-        onPress={() => onPress(item)}
-        onPressIn={onInteractIn}
-        onPressOut={onInteractOut}
-        onHoverIn={onInteractIn}
-        onHoverOut={onInteractOut}
-        accessibilityRole="button"
-        accessibilityLabel={`Browse ${item.label}`}
-      >
-        {item.thumbnail_url ? (
-          <Image
-            source={{ uri: item.thumbnail_url }}
-            style={styles.sessionCardImg}
-            resizeMode="cover"
-          />
-        ) : (
+      <View style={[styles.sessionCardOuter, { width: SESSION_CARD_W, height: cardH }]}>
+        <Pressable
+          style={styles.sessionCard}
+          onPress={() => onPress(item)}
+          onPressIn={onInteractIn}
+          onPressOut={onInteractOut}
+          onHoverIn={onInteractIn}
+          onHoverOut={onInteractOut}
+          accessibilityRole="button"
+          accessibilityLabel={`Browse ${item.label}`}
+        >
+          {item.thumbnail_url ? (
+            <Image
+              source={{ uri: item.thumbnail_url }}
+              style={styles.sessionCardImg}
+              resizeMode="cover"
+            />
+          ) : (
+            <LinearGradient
+              colors={THUMB_PLACEHOLDER}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.sessionCardImg}
+            >
+              <MaterialIcons name="videocam" size={30} color="rgba(255,255,255,0.32)" />
+            </LinearGradient>
+          )}
           <LinearGradient
-            colors={THUMB_PLACEHOLDER}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.sessionCardImg}
-          >
-            <MaterialIcons name="videocam" size={30} color="rgba(255,255,255,0.32)" />
-          </LinearGradient>
-        )}
-        <LinearGradient
-          colors={['transparent', 'rgba(3,2,12,0.88)']}
-          style={styles.sessionCardGrad}
-          pointerEvents="none"
-        />
-        <View style={styles.sessionCardPlay} pointerEvents="none">
-          <MaterialIcons name="play-circle-outline" size={26} color="rgba(255,255,255,0.92)" />
-        </View>
-        <View style={styles.sessionCardMeta} pointerEvents="none">
-          <Text style={styles.sessionCardTitle} numberOfLines={2}>
-            {item.title || item.label}
-          </Text>
-          <Text style={styles.sessionCardSub} numberOfLines={1}>
-            {item.profiles?.name || 'Featured'}
-          </Text>
-        </View>
-      </Pressable>
+            colors={['transparent', 'rgba(3,2,12,0.88)']}
+            style={styles.sessionCardGrad}
+            pointerEvents="none"
+          />
+          <View style={styles.sessionCardPlay} pointerEvents="none">
+            <MaterialIcons name="play-circle-outline" size={26} color="rgba(255,255,255,0.92)" />
+          </View>
+          <View style={styles.sessionCardMeta} pointerEvents="none">
+            <Text style={styles.sessionCardTitle} numberOfLines={2}>
+              {item.title || item.label}
+            </Text>
+            <Text style={styles.sessionCardSub} numberOfLines={1}>
+              {item.profiles?.name || 'Featured'}
+            </Text>
+          </View>
+        </Pressable>
+      </View>
     </Animated.View>
   );
-}
+});
 const SLIDE_H = 200;
 const SLIDE_GAP = T.spacing.md;
 const SLIDE_SIDE = T.spacing.lg;
@@ -444,26 +482,40 @@ const FALLBACK_SLIDES = [
 function useShimmer() {
   const anim = useRef(new Animated.Value(0.3)).current;
   useEffect(() => {
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(anim, { toValue: 0.7, duration: 800, useNativeDriver: true }),
         Animated.timing(anim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      anim.stopAnimation();
+    };
+  }, [anim]);
   return anim;
 }
 
 function SkeletonBox({ style }) {
+  const { theme } = useTheme();
   const opacity = useShimmer();
   return (
     <Animated.View
-      style={[{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8 }, style, { opacity }]}
+      style={[
+        {
+          backgroundColor: softFillStrong(theme),
+          borderRadius: 8,
+        },
+        style,
+        { opacity },
+      ]}
     />
   );
 }
 
 function HomeSkeleton({ screenWidth }) {
+  const styles = useThemedStyles(createThemedStyles);
   return (
     <>
       <SkeletonBox
@@ -502,54 +554,56 @@ function HomeSkeleton({ screenWidth }) {
 }
 
 function HeroSlide({ slide, slideWidth, isRemote }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
   const [imgLoading, setImgLoading] = useState(!!slide.image_url);
   const source = slide.image_url ? { uri: slide.image_url } : slide.image;
 
   return (
-    <View style={[styles.heroSlide, { width: slideWidth }]}>
-      {isRemote ? (
-        <Image
-          source={source}
-          style={styles.heroSlideImage}
-          resizeMode="cover"
-          onLoadStart={() => setImgLoading(true)}
-          onLoadEnd={() => setImgLoading(false)}
-          onError={() => setImgLoading(false)}
-        />
-      ) : (
-        <View style={styles.heroSlideFallbackBg}>
-          <Image source={source} style={styles.heroSlideLogo} resizeMode="contain" />
-        </View>
-      )}
+    <View style={[styles.heroSlideOuter, { width: slideWidth }]}>
+      <View style={styles.heroSlide}>
+        {isRemote ? (
+          <Image
+            source={source}
+            style={styles.heroSlideImage}
+            resizeMode="cover"
+            onLoadStart={() => setImgLoading(true)}
+            onLoadEnd={() => setImgLoading(false)}
+            onError={() => setImgLoading(false)}
+          />
+        ) : (
+          <View style={styles.heroSlideFallbackBg}>
+            <Image source={source} style={styles.heroSlideLogo} resizeMode="contain" />
+          </View>
+        )}
 
-      {imgLoading ? (
-        <View style={styles.heroSlideLoader}>
-          <ActivityIndicator size="small" color={C.accent.secondary} />
-        </View>
-      ) : null}
+        {imgLoading ? (
+          <View style={styles.heroSlideLoader}>
+            <ActivityIndicator size="small" color={C.accent.secondary} />
+          </View>
+        ) : null}
 
-      <LinearGradient
-        colors={['transparent', 'rgba(3,3,8,0.55)', 'rgba(3,3,8,0.92)']}
-        locations={[0.35, 0.72, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-
-      {(slide.title || slide.subtitle) ? (
-        <View style={styles.heroSlideCaption} pointerEvents="none">
-          {slide.title ? (
-            <Text style={styles.heroSlideTitle} numberOfLines={1}>{slide.title}</Text>
-          ) : null}
-          {slide.subtitle ? (
-            <Text style={styles.heroSlideSub} numberOfLines={2}>{slide.subtitle}</Text>
-          ) : null}
-        </View>
-      ) : null}
+        {(slide.title || slide.subtitle) ? (
+          <View style={styles.heroSlideCaption} pointerEvents="none">
+            {slide.title ? (
+              <Text style={styles.heroSlideTitle} numberOfLines={1}>{slide.title}</Text>
+            ) : null}
+            {slide.subtitle ? (
+              <Text style={styles.heroSlideSub} numberOfLines={2}>{slide.subtitle}</Text>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 function HeroDot({ active, onPress, index, count }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const isLight = theme.mode === 'light';
+  const wash = theme.colors.tabBar.topNavActiveWash;
   const { scale, onInteractIn, onInteractOut } = usePressScale(0.88);
 
   return (
@@ -566,12 +620,16 @@ function HeroDot({ active, onPress, index, count }) {
         accessibilityLabel={`Banner ${index + 1} of ${count}`}
       >
         {active ? (
-          <LinearGradient
-            colors={TB.topNavActiveWash}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroDotActive}
-          />
+          isLight ? (
+            <View style={[styles.heroDotActive, styles.heroDotActiveLight]} />
+          ) : (
+            <LinearGradient
+              colors={wash}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroDotActive}
+            />
+          )
         ) : (
           <View style={styles.heroDot} />
         )}
@@ -581,6 +639,7 @@ function HeroDot({ active, onPress, index, count }) {
 }
 
 function HeroPagination({ count, activeIndex, onSelect }) {
+  const styles = useThemedStyles(createThemedStyles);
   if (count <= 1) return null;
   return (
     <View style={styles.heroDots} accessibilityRole="tablist">
@@ -598,10 +657,12 @@ function HeroPagination({ count, activeIndex, onSelect }) {
 }
 
 function HeroSlider({ screenWidth, slides }) {
+  const styles = useThemedStyles(createThemedStyles);
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef(null);
   const userDragging = useRef(false);
   const autoTimer = useRef(null);
+  const isFocused = useIsFocused();
 
   const slideWidth = screenWidth - SLIDE_SIDE * 2;
   const snapInterval = slideWidth + SLIDE_GAP;
@@ -639,9 +700,13 @@ function HeroSlider({ screenWidth, slides }) {
   }, [clearAutoPlay, slides.length, snapInterval]);
 
   useEffect(() => {
+    if (!isFocused) {
+      clearAutoPlay();
+      return undefined;
+    }
     startAutoPlay();
     return clearAutoPlay;
-  }, [startAutoPlay, clearAutoPlay]);
+  }, [startAutoPlay, clearAutoPlay, isFocused]);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -651,19 +716,15 @@ function HeroSlider({ screenWidth, slides }) {
   if (!slides.length) {
     return (
       <View style={[styles.heroSliderWrap, styles.heroSliderEmpty]}>
-        <View style={[styles.heroSlide, styles.heroSlideEmpty, { width: slideWidth }]}>
-          <View style={styles.heroSlideFallbackBg}>
-            <Image source={FALLBACK_SLIDES[0].image} style={styles.heroSlideLogo} resizeMode="contain" />
-          </View>
-          <LinearGradient
-            colors={['transparent', 'rgba(3,3,8,0.55)', 'rgba(3,3,8,0.92)']}
-            locations={[0.35, 0.72, 1]}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
-          <View style={styles.heroSlideCaption} pointerEvents="none">
-            <Text style={styles.heroSlideTitle}>Discover mentors</Text>
-            <Text style={styles.heroSlideSub}>Live 1-on-1 sessions on Connectiqo</Text>
+        <View style={[styles.heroSlideOuter, styles.heroSlideEmpty, { width: slideWidth }]}>
+          <View style={styles.heroSlide}>
+            <View style={styles.heroSlideFallbackBg}>
+              <Image source={FALLBACK_SLIDES[0].image} style={styles.heroSlideLogo} resizeMode="contain" />
+            </View>
+            <View style={styles.heroSlideCaption} pointerEvents="none">
+              <Text style={styles.heroSlideTitle}>Discover mentors</Text>
+              <Text style={styles.heroSlideSub}>Live 1-on-1 sessions on Connectiqo</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -760,10 +821,27 @@ const BORDER_SPIN_COLORS = [
 ];
 
 function RotatingBorderIconButton({ onPress, accessibilityLabel, children }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const GOLD = C.accent.primary;
+  const BORDER_SPIN_COLORS = [
+    B.premiumGradient[0],
+    GOLD,
+    C.accent.secondary,
+    '#f9a8d4',
+    B.premiumGradient[0],
+  ];
   const spin = useRef(new Animated.Value(0)).current;
   const { scale, onInteractIn, onInteractOut } = usePressScale(0.92);
+  const isFocused = useIsFocused();
 
   useEffect(() => {
+    if (!isFocused) {
+      spin.stopAnimation();
+      return undefined;
+    }
     const loop = Animated.loop(
       Animated.timing(spin, {
         toValue: 1,
@@ -774,7 +852,7 @@ function RotatingBorderIconButton({ onPress, accessibilityLabel, children }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [spin]);
+  }, [spin, isFocused]);
 
   const rotate = spin.interpolate({
     inputRange: [0, 1],
@@ -810,6 +888,12 @@ function RotatingBorderIconButton({ onPress, accessibilityLabel, children }) {
 }
 
 export default function HomeScreen() {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
   const navigation = useNavigation();
   const { profile } = useAuth();
   const { unreadCount, syncUnreadCount } = useNotification();
@@ -829,6 +913,7 @@ export default function HomeScreen() {
   const thunderBusy = useRef(false);
   const thunderBtnRef = useRef(null);
   const boltPulse = useRef(new Animated.Value(1)).current;
+  const lastHomeFetchAt = useRef(0);
 
   const s0 = useEntrance(); // app bar
   const s1 = useEntrance(); // hero
@@ -879,6 +964,7 @@ export default function HomeScreen() {
         const slides = slidesResult.value?.length ? slidesResult.value : FALLBACK_SLIDES;
         setHeroSlides(slides);
       }
+      lastHomeFetchAt.current = Date.now();
       setDataLoaded(true);
       setRefreshing(false);
     });
@@ -889,7 +975,10 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      const cancelLoad = loadHome(false);
+      const stale =
+        lastHomeFetchAt.current === 0 ||
+        Date.now() - lastHomeFetchAt.current > HOME_STALE_MS;
+      const cancelLoad = stale ? loadHome(false) : () => {};
       if (profile?.id) {
         notificationApi.getNotifications(profile.id).then(syncUnreadCount).catch(() => {});
       }
@@ -941,6 +1030,16 @@ export default function HomeScreen() {
     setThunderVisible(false);
     thunderBusy.current = false;
   }, []);
+
+  const openSessionVideo = useCallback(
+    (cat) => {
+      navigation.navigate(SCREEN_NAMES.LearnerSection, {
+        screen: SCREEN_NAMES.LearnerVideos,
+        params: { startVideoId: cat.id, filterMentorId: null },
+      });
+    },
+    [navigation],
+  );
 
   return (
     <SafeScreen scrollable={false} padding={HOME_TAB_LAYOUT.safeScreenPadding} hasBottomTabs={false}>
@@ -1044,12 +1143,7 @@ export default function HomeScreen() {
               <SessionOverlayCard
                 key={item.id}
                 item={item}
-                onPress={cat => {
-                  navigation.navigate(SCREEN_NAMES.LearnerSection, {
-                    screen: SCREEN_NAMES.LearnerVideos,
-                    params: { startVideoId: cat.id, filterMentorId: null },
-                  });
-                }}
+                onPress={openSessionVideo}
               />
             ))}
           </ScrollView>
@@ -1133,7 +1227,16 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createThemedStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  return StyleSheet.create({
   page: {
     flexGrow: 0,
   },
@@ -1202,7 +1305,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(12,12,40,0.92)',
+    backgroundColor: T.mode === 'light' ? '#ffffff' : 'rgba(12,12,40,0.92)',
     position: 'relative',
   },
   appBarBtnIconPulse: {
@@ -1219,7 +1322,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     backgroundColor: C.accent.error,
     borderWidth: 1.5,
-    borderColor: 'rgba(12,12,40,0.95)',
+    borderColor: T.mode === 'light' ? '#ffffff' : 'rgba(12,12,40,0.95)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1249,14 +1352,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: T.spacing.lg,
   },
 
+  heroSlideOuter: {
+    height: SLIDE_H,
+    borderRadius: T.borderRadius.lg,
+    backgroundColor: C.primary.dark,
+    ...Platform.select({
+      ios:
+        T.mode === 'light'
+          ? {
+              shadowColor: '#6d4aff',
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.32,
+              shadowRadius: 16,
+            }
+          : T.shadows.medium,
+      android:
+        T.mode === 'light'
+          ? {
+              elevation: 10,
+              shadowColor: '#6d4aff',
+            }
+          : { elevation: 8 },
+    }),
+  },
   heroSlide: {
     height: SLIDE_H,
     borderRadius: T.borderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: softBorder(theme),
     backgroundColor: C.primary.dark,
-    ...Platform.select({ ios: T.shadows.medium, android: { elevation: 8 } }),
   },
   heroSlideImage: {
     ...StyleSheet.absoluteFillObject,
@@ -1278,7 +1403,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(1,0,14,0.35)',
+    backgroundColor: T.mode === 'light' ? 'rgba(248,249,255,0.45)' : 'rgba(1,0,14,0.35)',
   },
   heroSlideCaption: {
     position: 'absolute',
@@ -1291,14 +1416,20 @@ const styles = StyleSheet.create({
   },
   heroSlideTitle: {
     ...T.typography.headingSm,
-    color: C.text.primary,
+    color: T.mode === 'light' ? C.text.primary : '#ffffff',
     fontWeight: '800',
     marginBottom: 4,
+    textShadowColor: T.mode === 'light' ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   heroSlideSub: {
     ...T.typography.bodySm,
-    color: C.text.secondary,
+    color: T.mode === 'light' ? C.text.secondary : 'rgba(255,255,255,0.88)',
     lineHeight: 18,
+    textShadowColor: T.mode === 'light' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   heroDots: {
     flexDirection: 'row',
@@ -1315,14 +1446,20 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor:
+      T.mode === 'light' ? 'rgba(109, 74, 255, 0.28)' : softFillStrong(theme),
   },
   heroDotActive: {
     width: 22,
     height: 7,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor:
+      T.mode === 'light' ? 'rgba(109, 74, 255, 0.45)' : 'rgba(167,139,250,0.35)',
+  },
+  heroDotActiveLight: {
+    backgroundColor: C.accent.primary,
+    borderColor: 'rgba(109, 74, 255, 0.55)',
   },
 
   secHdrRow: {
@@ -1348,9 +1485,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   secHdrTitle: {
-    fontSize: 15,
+    ...T.typography.headingXs,
+    fontSize: 16,
     fontWeight: '800',
     color: C.text.primary,
+    letterSpacing: -0.1,
   },
   secHdrLink: {
     fontSize: 13,
@@ -1395,19 +1534,31 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: T.borderRadius.md,
     borderWidth: 1,
-    borderColor: 'rgba(240,216,117,0.55)',
+    borderColor:
+      T.mode === 'light' ? 'rgba(109,74,255,0.28)' : 'rgba(240,216,117,0.55)',
     zIndex: 2,
   },
   howItWorksCard: {
     borderRadius: T.borderRadius.md,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: softBorder(theme),
+    backgroundColor: T.mode === 'light' ? '#ffffff' : 'transparent',
     position: 'relative',
     width: '100%',
     ...Platform.select({
-      ios: { minHeight: scaleUi(80) },
-      default: {},
+      ios: {
+        minHeight: scaleUi(80),
+        ...(T.mode === 'light'
+          ? {
+              shadowColor: 'rgba(109,74,255,0.18)',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 1,
+              shadowRadius: 10,
+            }
+          : {}),
+      },
+      default: T.mode === 'light' ? { elevation: 2 } : {},
     }),
   },
   howItWorksRow: {
@@ -1483,7 +1634,7 @@ const styles = StyleSheet.create({
   howItWorksEyebrowTxt: {
     fontSize: Platform.OS === 'ios' ? scaleUi(11) : 9,
     fontWeight: '700',
-    color: GOLD,
+    color: T.mode === 'light' ? C.accent.primary : GOLD,
     letterSpacing: 0.35,
     textTransform: 'uppercase',
     marginBottom: Platform.OS === 'ios' ? scaleUi(3) : 0,
@@ -1511,14 +1662,35 @@ const styles = StyleSheet.create({
     paddingRight: T.spacing.xs,
     paddingTop: 2,
   },
+  sessionCardOuter: {
+    borderRadius: T.borderRadius.lg,
+    backgroundColor: C.primary.dark,
+    ...Platform.select({
+      ios:
+        T.mode === 'light'
+          ? {
+              shadowColor: '#6d4aff',
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.3,
+              shadowRadius: 12,
+            }
+          : {
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.28,
+              shadowRadius: 8,
+            },
+      android:
+        T.mode === 'light'
+          ? { elevation: 7, shadowColor: '#6d4aff' }
+          : { elevation: 5 },
+    }),
+  },
   sessionCard: {
+    flex: 1,
     borderRadius: T.borderRadius.lg,
     overflow: 'hidden',
     backgroundColor: C.primary.dark,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.28, shadowRadius: 8 },
-      android: { elevation: 5 },
-    }),
   },
   sessionCardImg: {
     ...StyleSheet.absoluteFillObject,
@@ -1547,16 +1719,22 @@ const styles = StyleSheet.create({
     paddingTop: T.spacing.md,
   },
   sessionCardTitle: {
-    color: C.text.primary,
+    color: '#ffffff',
     fontWeight: '800',
     fontSize: 12,
     lineHeight: 16,
     marginBottom: 3,
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   sessionCardSub: {
     fontSize: 10,
-    color: C.text.muted,
+    color: 'rgba(255,255,255,0.82)',
     fontWeight: '600',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 
   // Trust strip (mentor profile stats bar pattern)
@@ -1565,8 +1743,8 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderColor: C.border.light,
+    backgroundColor: softFill(theme),
     paddingVertical: 11,
     paddingHorizontal: 4,
   },
@@ -1584,7 +1762,7 @@ const styles = StyleSheet.create({
   },
   trustDivider: {
     width: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: softBorder(theme),
     marginVertical: 6,
     alignSelf: 'stretch',
   },
@@ -1626,3 +1804,5 @@ const styles = StyleSheet.create({
     color: C.text.primary,
   },
 });
+}
+

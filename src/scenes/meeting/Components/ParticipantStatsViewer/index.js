@@ -5,6 +5,14 @@ import { ROBOTO_FONTS } from "../../../../styles/fonts";
 import useParticipantStat from "../../Hooks/useParticipantStat";
 
 function ParticipantStatsViewer({ participantId }) {
+  if (!participantId) {
+    return null;
+  }
+
+  return <ParticipantStatsViewerInner participantId={participantId} />;
+}
+
+function ParticipantStatsViewerInner({ participantId }) {
   const { audioStats, videoStats, displayName, score } = useParticipantStat({
     participantId,
   });
@@ -100,7 +108,7 @@ function ParticipantStatsViewer({ participantId }) {
     <View
       style={{
         flex: 1,
-        backgroundColor: "#2B3034",
+        backgroundColor: colors.sheet,
       }}
     >
       <View
@@ -119,6 +127,7 @@ function ParticipantStatsViewer({ participantId }) {
             fontFamily: ROBOTO_FONTS.RobotoBold,
             fontSize: 16,
             marginLeft: 8,
+            color: colors.primary[100],
           }}
         >
           {displayName} - Quality Metrics :{" "}

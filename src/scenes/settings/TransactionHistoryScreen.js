@@ -17,31 +17,31 @@ import { useFocusEffect } from '@react-navigation/native';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
-import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import { softBorder, softFill } from '../../theme/surfaceStyles';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useAuth } from '../../hooks/useAuth';
 import { bookingApi } from '../../api/bookingApi';
 import { videoApi } from '../../api/videoApi';
 
-const T = UNIFIED_THEME;
-const C = T.colors;
-const B = C.buttons;
-const S = C.surface;
+function getStatusConfigMap(theme) {
+  const C = theme.colors;
+  const S = C.surface;
+  return {
+    completed: { label: 'Completed', color: C.accent.success, bg: S.accentSuccess },
+    confirmed: { label: 'Confirmed', color: C.accent.info, bg: 'rgba(56,189,248,0.12)' },
+    pending: { label: 'Pending', color: C.accent.warning, bg: S.accentWarning },
+    cancelled: { label: 'Cancelled', color: C.accent.error, bg: 'rgba(248,113,113,0.12)' },
+    active: { label: 'Active', color: C.accent.secondary, bg: S.accentTeal },
+    expired: { label: 'Expired', color: C.accent.error, bg: 'rgba(248,113,113,0.12)' },
+  };
+}
 
-const PURPLE_LINK = B.nebulaGradient[0];
-const GOLD = C.accent.primary;
-const TEAL = C.accent.secondary;
-const PANEL_BG = '#161432';
-const INPUT_BG = '#0f0e2a';
-
-const STATUS_CONFIG = {
-  completed: { label: 'Completed', color: C.accent.success, bg: S.accentSuccess },
-  confirmed: { label: 'Confirmed', color: C.accent.info, bg: 'rgba(56,189,248,0.12)' },
-  pending: { label: 'Pending', color: C.accent.warning, bg: S.accentWarning },
-  cancelled: { label: 'Cancelled', color: C.accent.error, bg: 'rgba(248,113,113,0.12)' },
-  active: { label: 'Active', color: TEAL, bg: S.accentTeal },
-  expired: { label: 'Expired', color: C.accent.error, bg: 'rgba(248,113,113,0.12)' },
-};
+function statusConfig(status, theme) {
+  const C = theme.colors;
+  const map = getStatusConfigMap(theme);
+  return map[status] || { label: status, color: C.text.muted, bg: C.surface.accentViolet };
+}
 
 const TX_TYPE = {
   SESSION_EARNED: 'session_earned',
@@ -94,7 +94,10 @@ function FadeSlideIn({ children, delay = 0, style, replayToken = 0 }) {
   );
 }
 
-function PulseGlow({ color = TEAL, size = 68 }) {
+function PulseGlow({ color, size = 68 }) {
+  const styles = useThemedStyles(createTransactionStyles);
+  const { theme } = useTheme();
+  const ringColor = color ?? theme.colors.accent.secondary;
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -130,7 +133,7 @@ function PulseGlow({ color = TEAL, size = 68 }) {
           width: size,
           height: size,
           borderRadius: size / 2,
-          borderColor: color,
+          borderColor: ringColor,
           opacity: glowOpacity,
           transform: [{ scale }],
         },
@@ -209,6 +212,7 @@ function HoverHighlight({
   hoverScale = 1.02,
   highlightRadius = 18,
 }) {
+  const styles = useThemedStyles(createTransactionStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const highlight = useRef(new Animated.Value(0)).current;
   const hovered = useRef(false);
@@ -321,6 +325,8 @@ function AnimatedPressable({ children, style, onPress, disabled, hoverScale = 1.
 }
 
 function RotatingRefreshIcon({ spinning }) {
+  const { theme } = useTheme();
+  const TEAL = theme.colors.accent.secondary;
   const spin = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -351,6 +357,15 @@ function RotatingRefreshIcon({ spinning }) {
 }
 
 function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay = 0, replayToken = 0 }) {
+  const styles = useThemedStyles(createTransactionStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(14)).current;
   const iconBob = useRef(new Animated.Value(0)).current;
@@ -410,6 +425,7 @@ function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay
 }
 
 function StatTile({ icon, label, value, color, accentBg, delay = 0, replayToken = 0 }) {
+  const styles = useThemedStyles(createTransactionStyles);
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.92)).current;
   const iconScale = useRef(new Animated.Value(1)).current;
@@ -477,10 +493,6 @@ function StatTile({ icon, label, value, color, accentBg, delay = 0, replayToken 
       </Animated.View>
     </HoverHighlight>
   );
-}
-
-function statusConfig(status) {
-  return STATUS_CONFIG[status] || { label: status, color: C.text.muted, bg: S.accentViolet };
 }
 
 function getSessionDate(booking) {
@@ -551,9 +563,18 @@ function formatDateLabel(item) {
 }
 
 function TransactionRow({ item, index = 0, replayToken = 0 }) {
+  const styles = useThemedStyles(createTransactionStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const isCredit = item.type === TX_TYPE.SESSION_EARNED;
   const isSubscription = item.type === TX_TYPE.SUBSCRIPTION;
-  const cfg = statusConfig(item.status);
+  const cfg = statusConfig(item.status, theme);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(-12)).current;
   const hasEntered = useRef(false);
@@ -668,6 +689,9 @@ function TransactionRow({ item, index = 0, replayToken = 0 }) {
 }
 
 function EmptyState() {
+  const styles = useThemedStyles(createTransactionStyles);
+  const { theme } = useTheme();
+  const PURPLE_LINK = theme.colors.buttons.nebulaGradient[0];
   const float = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -717,6 +741,22 @@ function EmptyState() {
 }
 
 export default function TransactionHistoryScreen({ navigation }) {
+  const styles = useThemedStyles(createTransactionStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const isLight = theme.mode === 'light';
+  const heroBanner = isLight
+    ? C.surface.heroGradient
+    : ['rgba(124,58,237,0.45)', 'rgba(94,234,212,0.22)', PANEL_BG];
+  const heroFade = isLight
+    ? ['transparent', 'rgba(248,249,255,0.92)', PANEL_BG]
+    : ['transparent', 'rgba(15,14,42,0.9)', PANEL_BG];
   const { profile } = useAuth();
   const [mentorTx, setMentorTx] = useState([]);
   const [learnerTx, setLearnerTx] = useState([]);
@@ -827,7 +867,7 @@ export default function TransactionHistoryScreen({ navigation }) {
       <FadeSlideIn delay={0} replayToken={replayToken}>
         <View style={styles.header}>
           <AnimatedPressable onPress={() => navigation.goBack()} style={styles.backBtn} hoverScale={1.08} pressScale={0.92}>
-            <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
+            <MaterialIcons name="arrow-back" size={22} color={C.accent.primary} />
           </AnimatedPressable>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Transaction history</Text>
@@ -861,7 +901,7 @@ export default function TransactionHistoryScreen({ navigation }) {
         <FadeSlideIn delay={60} replayToken={replayToken}>
           <HoverHighlight style={styles.heroCard} hoverScale={1.005} pressScale={0.998} highlightRadius={18}>
             <LinearGradient
-              colors={['rgba(124,58,237,0.45)', 'rgba(94,234,212,0.22)', PANEL_BG]}
+              colors={heroBanner}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.heroBanner}
@@ -871,7 +911,7 @@ export default function TransactionHistoryScreen({ navigation }) {
               style={[styles.heroShimmer, { transform: [{ translateX: bannerShimmerX }] }]}
             />
             <LinearGradient
-              colors={['transparent', 'rgba(15,14,42,0.9)', PANEL_BG]}
+              colors={heroFade}
               style={styles.heroFade}
             />
 
@@ -960,7 +1000,17 @@ export default function TransactionHistoryScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createTransactionStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  return StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -973,11 +1023,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: T.borderRadius.md,
-    backgroundColor: PANEL_BG,
+    backgroundColor: S.accentViolet,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.default,
   },
   headerCenter: {
     flex: 1,
@@ -987,7 +1037,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: C.text.primary,
+    color: C.accent.primary,
   },
   headerSubtitle: {
     fontSize: 12,
@@ -1037,7 +1087,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 90,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: softFill(theme),
     transform: [{ skewX: '-16deg' }],
   },
   heroFade: { ...StyleSheet.absoluteFillObject },
@@ -1147,7 +1197,7 @@ const styles = StyleSheet.create({
     backgroundColor: PANEL_BG,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: softBorder(theme),
     paddingHorizontal: T.spacing.md,
     paddingVertical: T.spacing.sm,
   },
@@ -1243,7 +1293,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     backgroundColor: INPUT_BG,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: softBorder(theme),
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: T.spacing.xs,
@@ -1262,3 +1312,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: T.spacing.md,
   },
 });
+}
+
+
+

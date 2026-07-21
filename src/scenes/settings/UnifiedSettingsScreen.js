@@ -18,11 +18,11 @@ import {
   Easing,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
-import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import Button from '../../components/Button';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useAuth } from '../../hooks/useAuth';
@@ -34,29 +34,38 @@ import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { formatDate } from '../../utils/dateHelpers';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
-
-const T = UNIFIED_THEME;
-const C = T.colors;
-const B = C.buttons;
-const S = C.surface;
-
-const PURPLE_LINK = B.nebulaGradient[0];
-const GOLD = C.accent.primary;
-const TEAL = C.accent.secondary;
-const PANEL_BG = '#161432';
+import AppearanceMenuRow from '../../components/AppearanceMenuRow';
 
 const APP_VERSION = '0.0.1';
 const SUPPORT_EMAIL = 'contact@connectiqo.com';
 const PRIVACY_URL = 'https://connectiqo.com/privacy';
 const TERMS_URL = 'https://connectiqo.com/terms';
 
-const ACCENT_COLORS = { gold: GOLD, teal: TEAL, purple: PURPLE_LINK };
-const ACCENT_BG = {
-  gold: S.accentGold,
-  teal: S.accentTeal,
-  purple: S.accentViolet,
-};
-
+function useSettingsPalette() {
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const S = C.surface;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  return {
+    theme,
+    T: theme,
+    C,
+    B: C.buttons,
+    S,
+    PURPLE_LINK,
+    GOLD,
+    TEAL,
+    PANEL_BG: C.surface.panel,
+    ACCENT_COLORS: { gold: GOLD, teal: TEAL, purple: PURPLE_LINK },
+    ACCENT_BG: {
+      gold: S.accentGold,
+      teal: S.accentTeal,
+      purple: S.accentViolet,
+    },
+  };
+}
 async function openExternal(url, fallback) {
   try {
     const can = await Linking.canOpenURL(url);
@@ -175,6 +184,8 @@ function FadeSlideIn({ children, delay = 0, style, replayToken = 0 }) {
 }
 
 function SectionHeaderRow({ title, count, subtitle, replayToken = 0, delay = 0 }) {
+  const styles = useThemedStyles(createSettingsStyles);
+  const { C } = useSettingsPalette();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(-8)).current;
   const hasEntered = useRef(false);
@@ -227,6 +238,8 @@ function SectionHeaderRow({ title, count, subtitle, replayToken = 0, delay = 0 }
 }
 
 function QuickStat({ label, value, loading }) {
+  const styles = useThemedStyles(createSettingsStyles);
+  const { TEAL } = useSettingsPalette();
   return (
     <View style={styles.quickStat}>
       {loading ? (
@@ -242,10 +255,15 @@ function QuickStat({ label, value, loading }) {
 }
 
 function PulseBadge({ count, style, textStyle, max = 9 }) {
+  const styles = useThemedStyles(createSettingsStyles);
   const pulse = useRef(new Animated.Value(1)).current;
+  const isFocused = useIsFocused();
 
   useEffect(() => {
-    if (!count) return undefined;
+    if (!count || !isFocused) {
+      pulse.setValue(1);
+      return undefined;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1.12, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -254,7 +272,7 @@ function PulseBadge({ count, style, textStyle, max = 9 }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [count, pulse]);
+  }, [count, pulse, isFocused]);
 
   if (!count) return null;
 
@@ -279,10 +297,11 @@ function MenuRow({
   index = 0,
   replayToken = 0,
 }) {
+  const styles = useThemedStyles(createSettingsStyles);
+  const { C, S, PURPLE_LINK, ACCENT_COLORS, ACCENT_BG } = useSettingsPalette();
   const iconColor = destructive ? C.accent.error : ACCENT_COLORS[accent] || PURPLE_LINK;
   const iconBg = destructive ? 'rgba(248,113,113,0.12)' : ACCENT_BG[accent] || S.accentViolet;
   const scale = useRef(new Animated.Value(1)).current;
-  const chevronX = useRef(new Animated.Value(0)).current;
   const highlight = useRef(new Animated.Value(0)).current;
   const rowOpacity = useRef(new Animated.Value(0)).current;
   const rowY = useRef(new Animated.Value(10)).current;
@@ -300,28 +319,6 @@ function MenuRow({
       runEntrance(rowOpacity, rowY, 40 + index * 35);
     }
   }, [replayToken, index, rowOpacity, rowY]);
-
-  useEffect(() => {
-    if (!onPress) return undefined;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(chevronX, {
-          toValue: 4,
-          duration: 1300,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(chevronX, {
-          toValue: 0,
-          duration: 1300,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [onPress, chevronX]);
 
   const springTo = toValue => {
     Animated.spring(scale, { toValue, friction: 7, tension: 260, useNativeDriver: true }).start();
@@ -397,9 +394,7 @@ function MenuRow({
                 <PulseBadge count={badge} max={99} style={styles.menuBadge} textStyle={styles.menuBadgeText} />
               ) : null}
               {onPress ? (
-                <Animated.View style={{ transform: [{ translateX: chevronX }] }}>
-                  <MaterialIcons name="chevron-right" size={22} color={C.text.muted} />
-                </Animated.View>
+                <MaterialIcons name="chevron-right" size={22} color={C.text.muted} />
               ) : null}
             </View>
           </View>
@@ -409,35 +404,9 @@ function MenuRow({
   );
 }
 
-function AvatarGlowRing() {
-  const pulse = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-
-  const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.14] });
-  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] });
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.avatarGlowRing,
-        { opacity: ringOpacity, transform: [{ scale: ringScale }] },
-      ]}
-    />
-  );
-}
-
 function RefreshButton({ onPress, refreshing }) {
+  const styles = useThemedStyles(createSettingsStyles);
+  const { C, TEAL } = useSettingsPalette();
   const spin = useRef(new Animated.Value(0)).current;
   const spinLoop = useRef(null);
 
@@ -477,6 +446,8 @@ function RefreshButton({ onPress, refreshing }) {
 }
 
 function SubsRow({ row, onPress, index, replayToken = 0 }) {
+  const styles = useThemedStyles(createSettingsStyles);
+  const { B, C, PURPLE_LINK, TEAL } = useSettingsPalette();
   const m = row.profiles;
   const name = m?.name || 'Mentor';
   const expLabel = row.expires_at
@@ -484,7 +455,6 @@ function SubsRow({ row, onPress, index, replayToken = 0 }) {
     : 'Full access active';
   const opacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(-12)).current;
-  const chevronX = useRef(new Animated.Value(0)).current;
   const hasEntered = useRef(false);
 
   const playEntrance = useCallback(() => {
@@ -519,17 +489,6 @@ function SubsRow({ row, onPress, index, replayToken = 0 }) {
     }
   }, [replayToken, playEntrance]);
 
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(chevronX, { toValue: 3, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(chevronX, { toValue: 0, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [chevronX]);
-
   return (
     <Animated.View style={{ opacity, transform: [{ translateX }] }}>
       <AnimatedPressable style={styles.subsRow} onPress={onPress} hoverScale={1.01} pressScale={0.98}>
@@ -548,19 +507,25 @@ function SubsRow({ row, onPress, index, replayToken = 0 }) {
           <Text style={styles.subsName} numberOfLines={1}>{name}</Text>
           <Text style={styles.subsExpiry} numberOfLines={1}>{expLabel}</Text>
         </View>
-        <Animated.View style={{ transform: [{ translateX: chevronX }] }}>
-          <MaterialIcons name="chevron-right" size={22} color={C.text.muted} />
-        </Animated.View>
+        <MaterialIcons name="chevron-right" size={22} color={C.text.muted} />
       </AnimatedPressable>
     </Animated.View>
   );
 }
 
 function FloatingEmptyIcon() {
+  const styles = useThemedStyles(createSettingsStyles);
+  const { PURPLE_LINK } = useSettingsPalette();
   const floatY = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
+  const isFocused = useIsFocused();
 
   useEffect(() => {
+    if (!isFocused) {
+      floatY.setValue(0);
+      scale.setValue(1);
+      return undefined;
+    }
     const loop = Animated.loop(
       Animated.parallel([
         Animated.sequence([
@@ -575,7 +540,7 @@ function FloatingEmptyIcon() {
     );
     loop.start();
     return () => loop.stop();
-  }, [floatY, scale]);
+  }, [floatY, scale, isFocused]);
 
   return (
     <Animated.View
@@ -587,6 +552,8 @@ function FloatingEmptyIcon() {
 }
 
 export default function UnifiedSettingsScreen({ navigation }) {
+  const styles = useThemedStyles(createSettingsStyles);
+  const { T, B, C, S, GOLD, TEAL, PURPLE_LINK, PANEL_BG } = useSettingsPalette();
   const { showAvatarPreview } = useAvatarPreview();
   const { profile, signOut, refreshProfile } = useAuth();
   const { unreadCount } = useNotification();
@@ -831,7 +798,6 @@ export default function UnifiedSettingsScreen({ navigation }) {
             />
             <View style={styles.avatarRow}>
               <View style={styles.avatarWrapper}>
-                <AvatarGlowRing />
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={() => {
@@ -866,7 +832,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
                   hoverScale={1.12}
                   pressScale={0.9}
                 >
-                  <MaterialIcons name="camera-alt" size={14} color={C.text.primary} />
+                  <MaterialIcons name="camera-alt" size={14} color={C.accent.primary} />
                 </AnimatedPressable>
               </View>
               <View style={styles.profileMeta}>
@@ -1036,6 +1002,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
         />
         <FadeSlideIn replayToken={replayToken} delay={360}>
           <View style={styles.card}>
+            <AppearanceMenuRow />
             <MenuRow
               icon="notifications"
               accent="purple"
@@ -1043,7 +1010,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
               subtitle="Session updates, bookings, and reminders"
               badge={unreadCount}
               onPress={() => navigation.navigate(SCREEN_NAMES.Notifications)}
-              index={0}
+              index={1}
               replayToken={replayToken}
             />
             <MenuRow
@@ -1053,7 +1020,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
               subtitle="Upcoming and past sessions"
               onPress={goToBookings}
               noBorder
-              index={1}
+              index={2}
               replayToken={replayToken}
             />
           </View>
@@ -1132,7 +1099,16 @@ export default function UnifiedSettingsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createSettingsStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  return StyleSheet.create({
   scrollContent: {
     paddingBottom: T.spacing.xxxl,
   },
@@ -1144,7 +1120,7 @@ const styles = StyleSheet.create({
   },
   screenTitle: {
     fontSize: 26,
-    color: C.text.primary,
+    color: C.accent.primary,
     fontWeight: '800',
     letterSpacing: -0.3,
   },
@@ -1160,7 +1136,7 @@ const styles = StyleSheet.create({
     borderRadius: T.borderRadius.md,
     backgroundColor: PANEL_BG,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.light,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 2,
@@ -1192,7 +1168,7 @@ const styles = StyleSheet.create({
     borderRadius: T.borderRadius.chip,
     backgroundColor: S.accentViolet,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor: C.border.default,
     alignItems: 'center',
   },
   secHdrCountText: {
@@ -1204,7 +1180,7 @@ const styles = StyleSheet.create({
     backgroundColor: PANEL_BG,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.light,
     padding: T.spacing.lg,
     overflow: 'hidden',
   },
@@ -1221,19 +1197,11 @@ const styles = StyleSheet.create({
     gap: T.spacing.lg,
   },
   avatarWrapper: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
-  avatarGlowRing: {
-    position: 'absolute',
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    borderWidth: 2,
-    borderColor: TEAL,
-  },
   avatarRing: {
     padding: 2,
     borderRadius: 40,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: C.border.light,
   },
   avatarFallback: {
     width: 72,
@@ -1264,11 +1232,12 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: PANEL_BG,
+    backgroundColor: T.mode === 'light' ? '#ffffff' : PANEL_BG,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.35)',
+    borderColor:
+      T.mode === 'light' ? 'rgba(109,74,255,0.22)' : C.border.default,
   },
   profileMeta: { flex: 1, minWidth: 0 },
   profileName: {
@@ -1279,7 +1248,7 @@ const styles = StyleSheet.create({
   },
   profileUsername: {
     fontSize: 13,
-    color: GOLD,
+    color: C.accent.primary,
     fontWeight: '600',
     marginBottom: 2,
   },
@@ -1323,12 +1292,12 @@ const styles = StyleSheet.create({
     marginTop: T.spacing.lg,
     paddingTop: T.spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(167,139,250,0.15)',
+    borderTopColor: C.border.light,
   },
   statsDivider: {
     width: 1,
     height: 32,
-    backgroundColor: 'rgba(167,139,250,0.15)',
+    backgroundColor: C.border.light,
   },
   quickStat: {
     flex: 1,
@@ -1361,8 +1330,9 @@ const styles = StyleSheet.create({
     paddingVertical: T.spacing.sm,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(240,216,117,0.25)',
-    backgroundColor: S.accentGold,
+    borderColor:
+      T.mode === 'light' ? 'rgba(109,74,255,0.28)' : 'rgba(240,216,117,0.25)',
+    backgroundColor: T.mode === 'light' ? S.accentViolet : S.accentGold,
   },
   editProfileBtnText: {
     fontSize: 13,
@@ -1373,7 +1343,7 @@ const styles = StyleSheet.create({
     backgroundColor: PANEL_BG,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.light,
     paddingHorizontal: T.spacing.sm,
     marginBottom: T.spacing.lg,
     overflow: 'hidden',
@@ -1385,7 +1355,7 @@ const styles = StyleSheet.create({
     paddingVertical: T.spacing.md,
     paddingHorizontal: T.spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(167,139,250,0.15)',
+    borderBottomColor: C.border.light,
     borderRadius: 10,
     overflow: 'hidden',
   },
@@ -1409,7 +1379,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.15)',
+    borderColor: C.border.light,
   },
   menuTextWrap: {
     flex: 1,
@@ -1453,7 +1423,7 @@ const styles = StyleSheet.create({
     backgroundColor: PANEL_BG,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.light,
     padding: T.spacing.lg,
     marginBottom: T.spacing.lg,
   },
@@ -1478,7 +1448,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: S.accentViolet,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: C.border.light,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 4,
@@ -1503,7 +1473,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: T.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(167,139,250,0.15)',
+    borderBottomColor: C.border.light,
     gap: T.spacing.md,
   },
   subsAvatarRing: {
@@ -1575,3 +1545,5 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
+}
+

@@ -17,7 +17,9 @@ import CosmicButton from './CosmicButton';
 import { CircularProfileImage } from './CircularGradientFrame';
 import { useAvatarPreview } from '../contexts/AvatarPreviewContext';
 import { UNIFIED_THEME } from '../unifiedTheme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 import { iosFlexChild } from '../utils/platformLayout';
+import { ringBorder } from '../theme/surfaceStyles';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -28,8 +30,6 @@ const GOLD = C.accent.primary;
 const TEAL = C.accent.secondary;
 
 const SHEET_HEIGHT = 520;
-const SHEET_BG = '#0f0e2a';
-const PANEL_BG = '#161432';
 
 function PressScale({ onPress, style, hitSlop, children, accessibilityLabel }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -69,6 +69,7 @@ function PressScale({ onPress, style, hitSlop, children, accessibilityLabel }) {
 }
 
 function StatSegment({ icon, iconColor, value, label }) {
+  const styles = useThemedStyles(createThemedStyles);
   return (
     <View style={styles.statSeg}>
       <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
@@ -159,6 +160,15 @@ function AvatarReveal({ visible, mentorKey, children }) {
 }
 
 export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProfile }) {
+  const styles = useThemedStyles(createThemedStyles);
+  const { theme } = useTheme();
+  const T = theme;
+  const C = theme.colors;
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const SHEET_BG = C.surface.sheet;
+  const PANEL_BG = C.surface.panel;
   const { showAvatarPreview } = useAvatarPreview();
   const insets = useSafeAreaInsets();
   const actionsBottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 8) + T.spacing.md;
@@ -357,10 +367,20 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
   );
 }
 
-const styles = StyleSheet.create({
+function createThemedStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const SHEET_BG = C.surface.sheet;
+  const PANEL_BG = C.surface.panel;
+  return StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(3,3,8,0.75)',
+    backgroundColor: C.component.overlay,
   },
   sheet: {
     position: 'absolute',
@@ -389,7 +409,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: theme.mode === 'light' ? C.border.default : 'rgba(255,255,255,0.25)',
     alignSelf: 'center',
     marginTop: T.spacing.md,
     marginBottom: T.spacing.sm,
@@ -409,7 +429,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: theme.colors.border.light,
   },
   scrollContent: {
     paddingHorizontal: T.spacing.lg,
@@ -427,7 +447,7 @@ const styles = StyleSheet.create({
     padding: 2,
     borderRadius: 38,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: ringBorder(theme),
   },
   avatarFallback: {
     width: 72,
@@ -474,7 +494,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: theme.colors.border.light,
     backgroundColor: PANEL_BG,
     paddingVertical: 11,
     paddingHorizontal: 4,
@@ -515,7 +535,7 @@ const styles = StyleSheet.create({
     backgroundColor: PANEL_BG,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
+    borderColor: theme.colors.border.light,
     padding: T.spacing.md,
   },
   bioLabel: {
@@ -551,3 +571,5 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
 });
+}
+

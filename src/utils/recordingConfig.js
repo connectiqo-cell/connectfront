@@ -2,6 +2,13 @@ const RECORDING_TEMPLATE_URL = 'https://template.connectiqo.com';
 
 const RECORDING_API_URL = 'https://api.videosdk.live/v2/recordings/start';
 
+const RECORDING_BASE_CONFIG = {
+  theme: 'DARK',
+  mode: 'video-and-audio',
+  quality: 'high',
+  orientation: 'portrait',
+};
+
 let restRecordingMeetingId = null;
 
 export function markRestRecordingStarted(meetingId) {
@@ -11,6 +18,18 @@ export function markRestRecordingStarted(meetingId) {
 export function clearRestRecordingStarted() {
   restRecordingMeetingId = null;
 }
+
+/** GRID layout sized to the active participant count (clamped 1–4). */
+export function buildOneToOneRecordingConfig(activeParticipantCount = 2) {
+  const raw = Number(activeParticipantCount);
+  const count = Math.max(1, Math.min(Number.isFinite(raw) ? raw : 2, 4));
+  return {
+    ...RECORDING_BASE_CONFIG,
+    layout: { type: 'GRID', priority: 'SPEAKER', gridSize: count },
+  };
+}
+
+export const ONE_TO_ONE_RECORDING_CONFIG = buildOneToOneRecordingConfig(2);
 
 /**
  * Starts recording via VideoSDK REST API with a custom template URL.
@@ -42,10 +61,7 @@ export async function startOneToOneRecordingViaAPI({ token, meetingId, mentorId 
           priority: 'SPEAKER',
           gridSize: 2,
         },
-        theme: 'DARK',
-        mode: 'video-and-audio',
-        quality: 'high',
-        orientation: 'portrait',
+        ...RECORDING_BASE_CONFIG,
       },
     }),
   });
@@ -121,12 +137,5 @@ export async function stopOneToOneRecordingSession({
 
 /** Fallback: SDK-native GRID layout (no custom template). */
 export function startOneToOneRecording(startRecording, activeParticipantCount = 2) {
-  const count = Math.max(1, Math.min(activeParticipantCount, 4));
-  startRecording(null, null, {
-    theme: 'DARK',
-    mode: 'video-and-audio',
-    quality: 'high',
-    orientation: 'portrait',
-    layout: { type: 'GRID', priority: 'SPEAKER', gridSize: count },
-  });
+  startRecording(null, null, buildOneToOneRecordingConfig(activeParticipantCount));
 }

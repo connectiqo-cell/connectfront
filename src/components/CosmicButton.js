@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   TouchableOpacity,
   Pressable,
@@ -11,41 +11,38 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { UNIFIED_THEME } from '../unifiedTheme';
+import { useTheme } from '../hooks/useTheme';
 import { PLATFORM_LAYOUT } from '../utils/platformLayout';
 
-const T = UNIFIED_THEME;
-const B = T.colors.buttons;
-const C = T.colors.component;
-
-/** Gradient-backed variants */
-const GRADIENT_VARIANTS = {
-  primary: {
-    colors: B.primaryGradient,
-    text: B.primaryText,
-    border: B.primaryBorder,
-  },
-  success: {
-    colors: B.successGradient,
-    text: B.successText,
-    border: B.successBorder,
-  },
-  nebula: {
-    colors: B.nebulaGradient,
-    text: B.nebulaText,
-    border: B.nebulaBorder,
-  },
-  premium: {
-    colors: B.premiumGradient,
-    text: B.premiumText,
-    border: B.premiumBorder,
-  },
-  info: {
-    colors: B.infoGradient,
-    text: B.infoText,
-    border: B.infoBorder,
-  },
-};
+function buildGradientVariants(buttons) {
+  return {
+    primary: {
+      colors: buttons.primaryGradient,
+      text: buttons.primaryText,
+      border: buttons.primaryBorder,
+    },
+    success: {
+      colors: buttons.successGradient,
+      text: buttons.successText,
+      border: buttons.successBorder,
+    },
+    nebula: {
+      colors: buttons.nebulaGradient,
+      text: buttons.nebulaText,
+      border: buttons.nebulaBorder,
+    },
+    premium: {
+      colors: buttons.premiumGradient,
+      text: buttons.premiumText,
+      border: buttons.premiumBorder,
+    },
+    info: {
+      colors: buttons.infoGradient,
+      text: buttons.infoText,
+      border: buttons.infoBorder,
+    },
+  };
+}
 
 /**
  * @param {'primary'|'secondary'|'outline'|'ghost'|'success'|'danger'|'nebula'|'premium'|'info'|'warning'|'goldOutline'} variant
@@ -92,7 +89,6 @@ function PressableShell({ pressScale, onPress, style, children, disabled, innerR
     );
   }
 
-  // Pressable outside native-driven scale — required for reliable taps on iOS.
   return (
     <Pressable
       onPress={onPress}
@@ -123,10 +119,16 @@ export default function CosmicButton({
   pill = false,
   numberOfLines = 1,
 }) {
+  const { theme } = useTheme();
+  const T = theme;
+  const B = theme.colors.buttons;
+  const C = theme.colors.component;
+  const gradientVariants = useMemo(() => buildGradientVariants(B), [B]);
+
   const resolvedVariant = variant === 'ghost' ? 'outline' : variant;
   const isDisabled = disabled || loading;
   const compact = size === 'compact';
-  const gradientConfig = GRADIENT_VARIANTS[resolvedVariant];
+  const gradientConfig = gradientVariants[resolvedVariant];
   const pillRadius = pill ? T.borderRadius.round : undefined;
 
   const textColor = (() => {
@@ -151,7 +153,7 @@ export default function CosmicButton({
   const content = (
     <View style={[styles.row, Platform.OS === 'ios' && styles.rowIos]}>
       {loading ? (
-        <ActivityIndicator size="small" color={textColor} style={styles.loader} />
+        <ActivityIndicator size="small" color={textColor} style={[styles.loader, { marginRight: T.spacing.sm }]} />
       ) : icon ? (
         <MaterialIcons
           name={icon}
@@ -176,14 +178,14 @@ export default function CosmicButton({
   );
 
   const shell = [
-    compact ? styles.shellCompact : styles.shell,
+    compact ? [styles.shellCompact, { borderRadius: T.borderRadius.sm, marginVertical: 0 }] : [styles.shell, { borderRadius: T.borderRadius.md, marginVertical: T.spacing.md }],
     isDisabled && styles.shellDisabled,
     style,
   ];
 
   if (isDisabled) {
     return (
-      <View style={[shell, styles.disabledBox, { borderColor: B.disabledBorder }, pillRadius && { borderRadius: pillRadius }]}>
+      <View style={[shell, styles.disabledBox, { borderColor: B.disabledBorder, backgroundColor: C.disabled, paddingHorizontal: T.spacing.lg }, pillRadius && { borderRadius: pillRadius }]}>
         {content}
       </View>
     );
@@ -201,7 +203,7 @@ export default function CosmicButton({
             style={StyleSheet.absoluteFillObject}
             pointerEvents="none"
           />
-          <View style={compact ? styles.iosGradientForegroundCompact : styles.iosGradientForeground}>
+          <View style={compact ? [styles.iosGradientForegroundCompact, { paddingHorizontal: T.spacing.md }] : [styles.iosGradientForeground, { paddingHorizontal: T.spacing.lg }]}>
             {content}
           </View>
         </View>
@@ -210,7 +212,7 @@ export default function CosmicButton({
           colors={gradientConfig.colors}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
-          style={gradientFill}
+          style={[gradientFill, compact ? { paddingHorizontal: T.spacing.md } : { paddingHorizontal: T.spacing.lg }]}
         >
           {content}
         </LinearGradient>
@@ -278,14 +280,14 @@ export default function CosmicButton({
       style={[
         shell,
         flat,
-        Platform.OS !== 'ios' && (compact ? styles.flatCompact : styles.flat),
+        Platform.OS !== 'ios' && (compact ? [styles.flatCompact, { paddingHorizontal: T.spacing.md }] : [styles.flat, { paddingHorizontal: T.spacing.lg }]),
         Platform.OS === 'ios' && styles.iosFlatShell,
         pressScale && styles.shellPressScale,
         pillRadius && { borderRadius: pillRadius },
       ]}
     >
       {Platform.OS === 'ios' ? (
-        <View style={compact ? styles.iosFlatForegroundCompact : styles.iosFlatForeground}>
+        <View style={compact ? [styles.iosFlatForegroundCompact, { paddingHorizontal: T.spacing.md }] : [styles.iosFlatForeground, { paddingHorizontal: T.spacing.lg }]}>
           {content}
         </View>
       ) : (
@@ -329,19 +331,15 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'stretch',
     minHeight: PLATFORM_LAYOUT.buttonMinHeight,
-    borderRadius: T.borderRadius.md,
     borderWidth: 1,
     overflow: 'hidden',
-    marginVertical: T.spacing.md,
   },
   shellCompact: {
     width: '100%',
     alignSelf: 'stretch',
     minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
-    borderRadius: T.borderRadius.sm,
     borderWidth: 1,
     overflow: 'hidden',
-    marginVertical: 0,
     ...Platform.select({
       ios: { minWidth: 0, flexShrink: 1 },
       default: {},
@@ -351,10 +349,8 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   disabledBox: {
-    backgroundColor: C.disabled,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: T.spacing.lg,
   },
   gradient: Platform.select({
     ios: {
@@ -362,7 +358,6 @@ const styles = StyleSheet.create({
       flex: 1,
       minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
       paddingVertical: 15,
-      paddingHorizontal: T.spacing.lg,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -371,7 +366,6 @@ const styles = StyleSheet.create({
       flexGrow: 1,
       minHeight: 48,
       paddingVertical: 14,
-      paddingHorizontal: T.spacing.lg,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -382,7 +376,6 @@ const styles = StyleSheet.create({
       flex: 1,
       minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
       paddingVertical: 11,
-      paddingHorizontal: T.spacing.md,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -390,7 +383,6 @@ const styles = StyleSheet.create({
       width: '100%',
       minHeight: 38,
       paddingVertical: 10,
-      paddingHorizontal: T.spacing.md,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -404,7 +396,6 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
     paddingVertical: 15,
-    paddingHorizontal: T.spacing.lg,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -413,7 +404,6 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
     paddingVertical: 11,
-    paddingHorizontal: T.spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -426,13 +416,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: T.spacing.lg,
     paddingVertical: 14,
   },
   flatCompact: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: T.spacing.md,
     paddingVertical: 10,
   },
   row: {
@@ -446,23 +434,21 @@ const styles = StyleSheet.create({
     zIndex: 1,
     alignSelf: 'stretch',
   },
-  loader: {
-    marginRight: T.spacing.sm,
-  },
+  loader: {},
   icon: {
     marginRight: 6,
   },
   text: {
-    fontSize: T.typography.labelLg.fontSize,
+    fontSize: 14,
     fontWeight: '700',
-    lineHeight: T.typography.labelLg.lineHeight,
+    lineHeight: 20,
     textAlign: 'center',
     ...(Platform.OS === 'ios' ? { letterSpacing: 0.2, flexShrink: 1, minWidth: 0 } : {}),
   },
   textCompact: {
-    fontSize: T.typography.labelMd.fontSize,
+    fontSize: 12,
     fontWeight: Platform.OS === 'ios' ? '700' : '800',
-    lineHeight: T.typography.labelMd.lineHeight,
+    lineHeight: 16,
     textAlign: 'center',
     flexShrink: 1,
     ...(Platform.OS === 'ios' ? { minWidth: 0, letterSpacing: 0.15 } : {}),
@@ -479,7 +465,6 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
     paddingVertical: 14,
-    paddingHorizontal: T.spacing.lg,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1,
@@ -488,7 +473,6 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
     paddingVertical: 10,
-    paddingHorizontal: T.spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1,

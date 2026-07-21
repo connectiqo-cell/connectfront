@@ -16,6 +16,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import { SafeScreen } from '../../components/SafeScreen';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useThemedStyles } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { earningsApi } from '../../api/earningsApi';
 import { paymentApi } from '../../api/paymentApi';
@@ -87,6 +88,7 @@ function FadeSlideIn({ delay = 0, children, style }) {
 }
 
 function PressScale({ onPress, children, style, disabled, pill = false, scaleTo = 0.96 }) {
+  const styles = useThemedStyles(createEarningsStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
   const bg = useRef(new Animated.Value(0)).current;
@@ -171,6 +173,7 @@ function PressScale({ onPress, children, style, disabled, pill = false, scaleTo 
 }
 
 function PulseIconRing({ children, ringStyle }) {
+  const styles = useThemedStyles(createEarningsStyles);
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -226,6 +229,7 @@ function SkeletonBone({ style }) {
 }
 
 function EarningsSkeleton() {
+  const styles = useThemedStyles(createEarningsStyles);
   return (
     <View style={sk.wrap}>
       <SkeletonBone style={sk.hero} />
@@ -253,6 +257,7 @@ const sk = StyleSheet.create({
 });
 
 function AnimatedBar({ height, delay, isZero, barWidth }) {
+  const chart = useThemedStyles(createChartStyles);
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -294,6 +299,7 @@ function AnimatedBar({ height, delay, isZero, barWidth }) {
 }
 
 function CustomBarChart({ data, chartKey }) {
+  const chart = useThemedStyles(createChartStyles);
   if (!data || !data.labels || data.labels.length === 0) return null;
 
   const values = data.datasets[0].data;
@@ -351,14 +357,14 @@ function CustomBarChart({ data, chartKey }) {
   );
 }
 
-function EarningsChartBoard({
-  activePeriod,
+function EarningsChartBoard({ activePeriod,
   onPeriodChange,
   periodTotal,
   periodLoading,
   chartData,
-  chartKey,
-}) {
+  chartKey, }) {
+  const styles = useThemedStyles(createEarningsStyles);
+  const chart = useThemedStyles(createChartStyles);
   return (
     <View style={styles.chartBoard}>
       <View style={styles.chartBoardHeader}>
@@ -405,6 +411,7 @@ function EarningsChartBoard({
 }
 
 function SectionHeader({ title, icon, delay, style, count }) {
+  const styles = useThemedStyles(createEarningsStyles);
   const iconScale = useRef(new Animated.Value(0.85)).current;
 
   useEffect(() => {
@@ -435,6 +442,8 @@ function SectionHeader({ title, icon, delay, style, count }) {
 }
 
 function ChartSkeleton() {
+  const styles = useThemedStyles(createEarningsStyles);
+  const chart = useThemedStyles(createChartStyles);
   const barHeights = [0.35, 0.62, 0.48, 0.78];
   return (
     <View style={chart.skeletonRow}>
@@ -448,6 +457,7 @@ function ChartSkeleton() {
 }
 
 function StatSegment({ icon, iconColor, value, label, delay = 0 }) {
+  const styles = useThemedStyles(createEarningsStyles);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(12)).current;
   const played = useRef(false);
@@ -489,6 +499,7 @@ function StatSegment({ icon, iconColor, value, label, delay = 0 }) {
 }
 
 function PeriodTab({ period, active, onPress }) {
+  const styles = useThemedStyles(createEarningsStyles);
   const label = period.charAt(0).toUpperCase() + period.slice(1);
 
   return (
@@ -506,6 +517,7 @@ function PeriodTab({ period, active, onPress }) {
 }
 
 function TxnRow({ item, index, isLast, baseDelay }) {
+  const styles = useThemedStyles(createEarningsStyles);
   const delay = baseDelay + index * ENTRANCE_STEP_MS;
   const isVideo = item.source === 'video_subscription';
   const iconName = isVideo ? 'play-circle-filled' : 'videocam';
@@ -534,6 +546,7 @@ function TxnRow({ item, index, isLast, baseDelay }) {
 }
 
 export default function MentorEarningsScreen() {
+  const styles = useThemedStyles(createEarningsStyles);
   const { profile } = useAuth();
   const [activePeriod, setActivePeriod] = useState('month');
   const [totalEarnings, setTotalEarnings] = useState(0);
@@ -767,95 +780,111 @@ export default function MentorEarningsScreen() {
   );
 }
 
-const chart = StyleSheet.create({
-  wrap: {
-    paddingBottom: T.spacing.xs,
-  },
-  plotArea: {
-    backgroundColor: 'rgba(0,0,0,0.22)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingTop: T.spacing.md,
-    paddingBottom: T.spacing.sm,
-    paddingHorizontal: T.spacing.xs,
-    minHeight: CHART_HEIGHT + 72,
-  },
-  gridLayer: {
-    ...StyleSheet.absoluteFillObject,
-    top: T.spacing.md,
-    bottom: T.spacing.sm + 22,
-  },
-  gridLine: {
-    position: 'absolute',
-    left: T.spacing.xs,
-    right: T.spacing.xs,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  barsRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    minHeight: CHART_HEIGHT + 24,
-    paddingTop: 18,
-  },
-  barSlot: {
-    flex: 1,
-    alignItems: 'center',
-    minWidth: 0,
-    paddingHorizontal: 1,
-  },
-  valueRow: {
-    height: 16,
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  valueLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: TEAL,
-    textAlign: 'center',
-  },
-  barTrack: {
-    height: CHART_HEIGHT,
-    width: '100%',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  barFill: {
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-  },
-  barEmptyWrap: {
-    height: 2,
-    justifyContent: 'flex-end',
-  },
-  barEmpty: {
-    height: 2,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  xLabel: {
-    fontSize: 10,
-    color: C.text.muted,
-    marginTop: 8,
-    fontWeight: '600',
-    textAlign: 'center',
-    width: '100%',
-  },
-  skeletonRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    minHeight: CHART_HEIGHT + 24,
-    paddingTop: 18,
-    paddingHorizontal: T.spacing.sm,
-  },
-  skBar: {
-    width: 18,
-    borderRadius: 2,
-  },
-});
+function createChartStyles(theme) {
+  const T = theme;
+  const C = T.colors;
+  const TEAL = C.accent.secondary;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
+    wrap: {
+      paddingBottom: T.spacing.xs,
+    },
+    plotArea: {
+      backgroundColor: isLight ? C.surface.sheet : 'rgba(0,0,0,0.22)',
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: C.border.light,
+      paddingTop: T.spacing.md,
+      paddingBottom: T.spacing.sm,
+      paddingHorizontal: T.spacing.xs,
+      minHeight: CHART_HEIGHT + 72,
+    },
+    gridLayer: {
+      ...StyleSheet.absoluteFillObject,
+      top: T.spacing.md,
+      bottom: T.spacing.sm + 22,
+    },
+    gridLine: {
+      position: 'absolute',
+      left: T.spacing.xs,
+      right: T.spacing.xs,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: isLight ? C.border.light : 'rgba(255,255,255,0.1)',
+    },
+    barsRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      minHeight: CHART_HEIGHT + 24,
+      paddingTop: 18,
+    },
+    barSlot: {
+      flex: 1,
+      alignItems: 'center',
+      minWidth: 0,
+      paddingHorizontal: 1,
+    },
+    valueRow: {
+      height: 16,
+      justifyContent: 'center',
+      marginBottom: 4,
+    },
+    valueLabel: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: TEAL,
+      textAlign: 'center',
+    },
+    barTrack: {
+      height: CHART_HEIGHT,
+      width: '100%',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+    },
+    barFill: {
+      borderTopLeftRadius: 3,
+      borderTopRightRadius: 3,
+    },
+    barEmptyWrap: {
+      height: 2,
+      justifyContent: 'flex-end',
+    },
+    barEmpty: {
+      height: 2,
+      backgroundColor: isLight ? C.border.default : 'rgba(255,255,255,0.12)',
+    },
+    xLabel: {
+      fontSize: 10,
+      color: C.text.muted,
+      marginTop: 8,
+      fontWeight: '600',
+      textAlign: 'center',
+      width: '100%',
+    },
+    skeletonRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      minHeight: CHART_HEIGHT + 24,
+      paddingTop: 18,
+      paddingHorizontal: T.spacing.sm,
+    },
+    skBar: {
+      width: 18,
+      borderRadius: 2,
+    },
+  });
+}
 
-const styles = StyleSheet.create({
+function createEarningsStyles(theme) {
+  const T = theme;
+  const C = T.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const TEAL = C.accent.secondary;
+  const GOLD = C.accent.primary;
+  const GLASS_BORDER = C.border.light;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
   pagePad: {
     paddingHorizontal: T.spacing.lg,
     paddingTop: T.spacing.md,
@@ -887,7 +916,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: T.spacing.lg,
     paddingVertical: T.spacing.md,
     marginBottom: T.spacing.lg,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: isLight ? S.panel : 'rgba(255,255,255,0.07)',
     gap: T.spacing.sm,
   },
   loadMorePillBg: {
@@ -988,7 +1017,7 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 4,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: isLight ? S.panel : 'rgba(255,255,255,0.07)',
     borderWidth: 1,
     borderColor: GLASS_BORDER,
   },
@@ -1020,7 +1049,7 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: isLight ? C.border.light : 'rgba(255,255,255,0.14)',
     marginVertical: 6,
     alignSelf: 'stretch',
   },
@@ -1032,7 +1061,7 @@ const styles = StyleSheet.create({
     borderColor: GLASS_BORDER,
     overflow: 'hidden',
     marginBottom: T.spacing.md,
-    backgroundColor: 'rgba(0,0,0,0.15)',
+    backgroundColor: isLight ? S.sheet : 'rgba(0,0,0,0.15)',
   },
   periodSeg: {
     flex: 1,
@@ -1046,7 +1075,7 @@ const styles = StyleSheet.create({
   },
   periodDivider: {
     width: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: isLight ? C.border.light : 'rgba(255,255,255,0.12)',
   },
   periodTabPressed: {
     opacity: 0.75,
@@ -1064,7 +1093,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: GLASS_BORDER,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: isLight ? S.panel : 'rgba(255,255,255,0.06)',
     padding: T.spacing.md,
     marginBottom: T.spacing.lg,
     ...Platform.select({ ios: T.shadows.small, android: { elevation: 2 } }),
@@ -1076,7 +1105,7 @@ const styles = StyleSheet.create({
     marginBottom: T.spacing.md,
     paddingBottom: T.spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    borderBottomColor: C.border.light,
   },
   chartBoardHeaderLeft: {
     flexDirection: 'row',
@@ -1182,10 +1211,10 @@ const styles = StyleSheet.create({
     color: PURPLE_LINK,
   },
   txnCard: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: isLight ? S.panel : 'rgba(255,255,255,0.07)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderColor: C.border.light,
     overflow: 'hidden',
     marginBottom: T.spacing.lg,
   },
@@ -1195,7 +1224,7 @@ const styles = StyleSheet.create({
     paddingVertical: T.spacing.md + 2,
     paddingHorizontal: T.spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    borderBottomColor: C.border.light,
     gap: T.spacing.md,
   },
   txnRowLast: {
@@ -1241,4 +1270,6 @@ const styles = StyleSheet.create({
     color: PURPLE_LINK,
     fontWeight: '700',
   },
-});
+  });
+}
+

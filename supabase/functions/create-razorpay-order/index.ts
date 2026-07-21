@@ -19,10 +19,13 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { mentorId, learnerId, slotId, message } = await req.json();
+    const { mentorId, learnerId, slotId, message, recordingRequested } = await req.json();
 
     if (!mentorId || !learnerId || !slotId) {
       throw new Error('Missing required fields: mentorId, learnerId, slotId');
+    }
+    if (typeof recordingRequested !== 'boolean') {
+      throw new Error('Choose whether you want the session to be recorded');
     }
 
     // ── 1. Verify caller is the learner placing the order ─────────────────────
@@ -111,6 +114,8 @@ serve(async (req) => {
       mentor_earning_paise: mentorAmountPaise,
       platform_fee_paise:   platformFeePaise,
       route_enabled:        routeEnabled,
+      recording_requested:  recordingRequested,
+      booking_message:      message || null,
       status:               'created',
     });
 

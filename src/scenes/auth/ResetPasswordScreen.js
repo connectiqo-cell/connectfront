@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CosmicBackground from '../../components/CosmicBackground';
 import { UNIFIED_THEME } from '../../unifiedTheme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import Button from '../../components/Button';
 import { authApi } from '../../api/authApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
@@ -27,6 +28,15 @@ const FORM = createFormFieldStyles({
 });
 
 export default function ResetPasswordScreen({ route, navigation }) {
+  const styles = useThemedStyles(createResetPasswordStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
   const { email } = route.params;
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
@@ -164,7 +174,18 @@ export default function ResetPasswordScreen({ route, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createResetPasswordStyles(theme) {
+  const T = theme;
+  const C = theme.colors;
+  const B = C.buttons;
+  const S = C.surface;
+  const PURPLE_LINK = B.nebulaGradient[0];
+  const GOLD = C.accent.primary;
+  const TEAL = C.accent.secondary;
+  const PANEL_BG = C.surface.panel;
+  const INPUT_BG = C.surface.sheet;
+  const isLight = T.mode === 'light';
+  return StyleSheet.create({
   background: { flex: 1 },
   overlay: { flex: 1 },
   flex: { flex: 1 },
@@ -213,3 +234,4 @@ const styles = StyleSheet.create({
   resendTxt: { ...T.typography.bodySm, color: T.colors.text.secondary },
   resendLink: { ...T.typography.bodySm, color: T.colors.accent.primary, fontWeight: '600' },
 });
+}

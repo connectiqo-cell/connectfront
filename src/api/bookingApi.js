@@ -1,6 +1,7 @@
-﻿import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
 import { cancelSessionReminder } from '../utils/sessionReminder';
+import { resolveRecordingRequestedFromRows } from '../utils/recordingConsent';
 import { recordingsApi } from './recordingsApi';
 
 /** Fetch recordings for a list of bookings and merge them in (no FK → can't use PostgREST join). */
@@ -21,8 +22,17 @@ async function attachRecordings(bookings) {
 }
 
 export const bookingApi = {
-  createBooking: async ({ learnerId, mentorId, slotId, message }) => {
+  createBooking: async ({
+    learnerId,
+    mentorId,
+    slotId,
+    message,
+    recordingRequested,
+  }) => {
     try {
+      if (typeof recordingRequested !== 'boolean') {
+        throw new Error('Choose whether you want the session to be recorded.');
+      }
       // Verify slot is still available before booking
       const { data: slot, error: slotCheckError } = await supabase
         .from('availability_slots')
@@ -44,6 +54,7 @@ export const bookingApi = {
             mentor_id: mentorId,
             slot_id: slotId,
             message: message || null,
+            recording_requested: recordingRequested,
             status: 'pending',
           },
         ])
@@ -82,6 +93,65 @@ export const bookingApi = {
       if (error) throw error;
       const [withRec] = await attachRecordings([data]);
       return withRec;
+    } catch (error) {
+      throw new Error(getSupabaseErrorMessage(error));
+    }
+  },
+
+  /**
+   * Resolve learner recording preference from booking row and paid transaction fallback.
+   * Backfills bookings.recording_requested when only the transaction has the value.
+   */
+  resolveRecordingPreferenceForBooking: async (bookingOrId) => {
+    try {
+      const booking =
+        typeof bookingOrId === 'object' && bookingOrId?.id
+          ? bookingOrId
+          : await bookingApi.getBooking(bookingOrId);
+
+      if (!booking?.id) {
+        return { booking, recordingRequested: false };
+      }
+
+      const txnSelect = 'recording_requested, status, created_at';
+      let transaction = null;
+
+      const { data: byBooking } = await supabase
+        .from('transactions')
+        .select(txnSelect)
+        .eq('booking_id', booking.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      transaction = byBooking;
+
+      if (!transaction && booking.slot_id && booking.learner_id) {
+        const { data: bySlot } = await supabase
+          .from('transactions')
+          .select(txnSelect)
+          .eq('slot_id', booking.slot_id)
+          .eq('learner_id', booking.learner_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        transaction = bySlot;
+      }
+
+      const recordingRequested = resolveRecordingRequestedFromRows(booking, transaction);
+
+      if (
+        typeof recordingRequested === 'boolean'
+        && booking.recording_requested !== recordingRequested
+      ) {
+        await supabase
+          .from('bookings')
+          .update({ recording_requested: recordingRequested })
+          .eq('id', booking.id);
+        booking.recording_requested = recordingRequested;
+      }
+
+      return { booking, recordingRequested };
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   PermissionsAndroid,
   Alert,
   BackHandler,
+  NativeModules,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,41 +26,67 @@ import { recordingsApi, meetingIdFromBooking } from '../../api/recordingsApi';
 import { profileApi } from '../../api/profileApi';
 import { useAuth } from '../../hooks/useAuth';
 import { resolveLobbyPartner } from '../../utils/sessionLobbyRules';
+import { showMentorBookingRecordingAlert } from '../../utils/recordingAlerts';
 import {
   markIosCallAudioSessionEnded,
   releaseIosCallAudioSession,
+  forceStopIosCallAudioSession,
 } from '../../utils/iosCallAudioSession';
 import { scheduleMeetingLeaveNavigation } from '../../utils/meetingLeave';
 import { resolveSessionEndOutcome } from '../../utils/sessionEndOutcome';
+import { SCREEN_NAMES } from '../../navigators/screenNames';
 import MeetingContainer from '../meeting/MeetingContainer';
 import SessionLobbyView from '../meeting/Components/SessionLobbyView';
 
 class CallErrorBoundary extends React.Component {
-  state = { hasError: false };
+  state = { hasError: false, errorMessage: null };
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error) {
+    return { hasError: true, errorMessage: error?.message || String(error) };
   }
 
-  componentDidCatch(error) {
-    console.error('CallErrorBoundary caught:', error);
+  componentDidCatch(error, info) {
+    console.error('CallErrorBoundary caught:', error?.message || error, info?.componentStack);
   }
 
   render() {
     if (this.state.hasError) {
+      const C = this.props.theme?.colors;
+      const bg = C?.meeting?.[900] ?? C?.primary?.void ?? '#0a0a1a';
+      const titleColor = C?.text?.primary ?? '#fff';
+      const subtitleColor = C?.text?.muted ?? '#888';
+      const buttonBg = C?.component?.button ?? '#6366f1';
+      const buttonText = C?.text?.onAccent ?? '#fff';
+
       return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a1a', padding: 24 }}>
-          <Text style={{ color: '#fff', fontSize: 16, marginBottom: 8, textAlign: 'center' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: bg, padding: 24 }}>
+          <Text style={{ color: titleColor, fontSize: 16, marginBottom: 8, textAlign: 'center' }}>
             Something went wrong during the call
           </Text>
-          <Text style={{ color: '#888', fontSize: 13, marginBottom: 24, textAlign: 'center' }}>
+          <Text style={{ color: subtitleColor, fontSize: 13, marginBottom: 24, textAlign: 'center' }}>
             The session could not continue
           </Text>
+          {__DEV__ && this.state.errorMessage ? (
+            <Text
+              style={{ color: subtitleColor, fontSize: 11, marginBottom: 16, textAlign: 'center' }}
+              selectable
+            >
+              {this.state.errorMessage}
+            </Text>
+          ) : null}
+          {!__DEV__ && this.state.errorMessage ? (
+            <Text
+              style={{ color: subtitleColor, fontSize: 10, marginBottom: 16, textAlign: 'center' }}
+              selectable
+            >
+              {this.state.errorMessage}
+            </Text>
+          ) : null}
           <TouchableOpacity
             onPress={this.props.onLeave}
-            style={{ paddingVertical: 12, paddingHorizontal: 28, backgroundColor: '#6366f1', borderRadius: 8 }}
+            style={{ paddingVertical: 12, paddingHorizontal: 28, backgroundColor: buttonBg, borderRadius: 8 }}
           >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Leave Call</Text>
+            <Text style={{ color: buttonText, fontWeight: '600' }}>Leave Call</Text>
           </TouchableOpacity>
         </View>
       );
@@ -73,7 +100,7 @@ export default function VideoCallScreen({ navigation, route }) {
   const { profile } = useAuth();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  /** Live call chrome stays dark in both app themes (video convention). */
+  /** Live call chrome follows theme (light canvas + dark ink in light mode). */
   const meetingBg = theme.colors.meeting[900];
   const lobbyBg = theme.colors.primary.void;
   const [ready, setReady] = useState(false);
@@ -86,6 +113,7 @@ export default function VideoCallScreen({ navigation, route }) {
   const [pendingCallParams, setPendingCallParams] = useState(null);
   const [startingSession, setStartingSession] = useState(false);
   const [mentorRecordingConsented, setMentorRecordingConsented] = useState(false);
+  const [recordingRequested, setRecordingRequested] = useState(false);
   const [participantCount, setParticipantCount] = useState(1);
   const joinTimeRef = useRef(null); // Track when both participants joined (use Ref to persist across re-renders)
   const recordingRef = useRef();
@@ -204,7 +232,8 @@ export default function VideoCallScreen({ navigation, route }) {
   const initializeCall = async () => {
     try {
       const token = await getToken();
-      const bookingRow = await bookingApi.getBooking(bookingId);
+      const { booking: bookingRow, recordingRequested: wantsRecording } =
+        await bookingApi.resolveRecordingPreferenceForBooking(bookingId);
       const isMentorUser = profile?.id === bookingRow?.mentor_id;
       const isLearnerUser = profile?.id === bookingRow?.learner_id;
 
@@ -216,6 +245,7 @@ export default function VideoCallScreen({ navigation, route }) {
 
       await enrichBookingProfiles(bookingRow);
       setBooking(bookingRow);
+      setRecordingRequested(wantsRecording);
       setLobbyOnly(true);
 
       if (isMentorUser) {
@@ -239,36 +269,16 @@ export default function VideoCallScreen({ navigation, route }) {
 
   const askMentorRecordingConsent = useCallback(() => (
     new Promise(resolve => {
-      Alert.alert(
-        'Session recording permission',
-        'The learner requested a recording when booking. Do you agree to record this session?',
-        [
-          {
-            text: 'Join without recording',
-            style: 'cancel',
-            onPress: () => resolve(false),
-          },
-          {
-            text: 'Agree & record',
-            onPress: () => resolve(true),
-          },
-        ],
-        { cancelable: false },
-      );
+      showMentorBookingRecordingAlert({
+        onAgree: () => resolve(true),
+        onSkip: () => resolve(false),
+      });
     })
   ), []);
 
   const handleStartSession = async () => {
     try {
       setStartingSession(true);
-      if (Platform.OS === 'ios') {
-        const { ensureIosCallAudioSession } = require('../../utils/iosCallAudioSession');
-        const audioReady = await ensureIosCallAudioSession();
-        if (!audioReady) {
-          Toast.show('Camera and microphone permissions are required');
-          return;
-        }
-      }
       const token = await getToken();
 
       // Always fetch fresh booking to check for an existing room.
@@ -281,12 +291,18 @@ export default function VideoCallScreen({ navigation, route }) {
       }
 
       const existingMid = freshBooking?.meeting_id || meetingIdFromBooking(freshBooking);
-      setBooking(freshBooking);
+      const { booking: resolvedBooking, recordingRequested: wantsRecording } =
+        await bookingApi.resolveRecordingPreferenceForBooking(freshBooking);
+      setBooking(resolvedBooking);
+      setRecordingRequested(wantsRecording);
 
-      const recordingConsent = freshBooking?.recording_requested === true
+      const recordingConsent = wantsRecording
         ? await askMentorRecordingConsent()
         : false;
       setMentorRecordingConsented(recordingConsent);
+      if (wantsRecording && !recordingConsent) {
+        Toast.show('You can turn on recording anytime from ⋯ → Start Recording');
+      }
 
       let meetingId;
       if (existingMid) {
@@ -321,7 +337,10 @@ export default function VideoCallScreen({ navigation, route }) {
         const mid = row?.meeting_id || meetingIdFromBooking(row);
         if (mid) {
           const tok = await getToken();
-          setBooking(row);
+          const { booking: resolved, recordingRequested: wantsRecording } =
+            await bookingApi.resolveRecordingPreferenceForBooking(row);
+          setBooking(resolved);
+          setRecordingRequested(wantsRecording);
           setPendingCallParams({ token: tok, meetingId: mid });
           setMeetingReady(true);
         } else {
@@ -367,14 +386,12 @@ export default function VideoCallScreen({ navigation, route }) {
       );
       return;
     }
-    if (Platform.OS === 'ios') {
-      const { ensureIosCallAudioSession } = require('../../utils/iosCallAudioSession');
-      const audioReady = await ensureIosCallAudioSession();
-      if (!audioReady) {
-        Toast.show('Camera and microphone permissions are required');
-        return;
-      }
-    }
+    try {
+      const { booking: freshBooking, recordingRequested: wantsRecording } =
+        await bookingApi.resolveRecordingPreferenceForBooking(bookingId);
+      setBooking(freshBooking);
+      setRecordingRequested(wantsRecording);
+    } catch (_) {}
     setLobbyOnly(false);
     setCallParams(pendingCallParams);
     setReady(true);
@@ -477,13 +494,57 @@ export default function VideoCallScreen({ navigation, route }) {
       timerRef: leaveNavTimerRef,
       platform: Platform.OS,
       onNavigate: () => {
-        navigation.goBack();
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate(SCREEN_NAMES.RootUnifiedTabs);
+        }
         runPostCallCleanup(snapshotCallParams).catch(error => {
           console.error('Error ending call:', error);
         });
+        if (Platform.OS === 'ios') {
+          // Backup stop if VideoSDK leave() stalled but we already navigated away.
+          setTimeout(() => forceStopIosCallAudioSession(), 400);
+        }
       },
     });
   }, [navigation, callParams]);
+
+  const handleProviderMeetingJoined = useCallback(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    const { ForegroundServiceModule } = NativeModules;
+    if (!ForegroundServiceModule?.startService) {
+      return;
+    }
+    setTimeout(() => {
+      ForegroundServiceModule.startService().catch(() => {});
+    }, 300);
+  }, []);
+
+  const handleProviderMeetingLeft = useCallback(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    const { ForegroundServiceModule } = NativeModules;
+    ForegroundServiceModule?.stopService?.()?.catch?.(() => {});
+  }, []);
+
+  const meetingProviderConfig = useMemo(
+    () => ({
+      meetingId: callParams?.meetingId ?? '',
+      micEnabled: false,
+      webcamEnabled: Platform.OS !== 'ios',
+      name: profile?.name || 'Guest',
+      notification: {
+        title: 'Session in Progress',
+        message: 'Your mentoring session is active',
+      },
+      defaultCamera: 'front',
+    }),
+    [callParams?.meetingId, profile?.name],
+  );
 
   const screenShell = (children, bg = meetingBg) => {
     if (Platform.OS === 'ios') {
@@ -547,29 +608,24 @@ export default function VideoCallScreen({ navigation, route }) {
 
   return screenShell(
     <MeetingProvider
-      config={{
-        meetingId: callParams.meetingId,
-        micEnabled: false,
-        webcamEnabled: Platform.OS !== 'ios',
-        name: profile?.name || 'Guest',
-        notification: {
-          title: 'Session in Progress',
-          message: 'Your mentoring session is active',
-        },
-        defaultCamera: 'front',
-      }}
+      config={meetingProviderConfig}
       token={callParams.token}
     >
       <View style={{ flex: 1, backgroundColor: meetingBg }}>
-        <CallErrorBoundary onLeave={handleMeetingLeft}>
-          <MeetingConsumer>
+        <CallErrorBoundary onLeave={handleMeetingLeft} theme={theme}>
+          <MeetingConsumer
+            onMeetingJoined={handleProviderMeetingJoined}
+            onMeetingLeft={handleProviderMeetingLeft}
+          >
             {() => (
               <MeetingContainer
+                key={callParams.meetingId}
                 meetingType="ONE_TO_ONE"
                 onParticipantCountChange={setParticipantCount}
                 isHost={isMentorHost}
                 isMentor={isMentorHost}
                 booking={booking}
+                recordingRequested={recordingRequested}
                 otherUser={resolvedOtherUser}
                 autoStartRecording={isMentorHost && mentorRecordingConsented}
                 onLeaveSession={handleMeetingLeft}

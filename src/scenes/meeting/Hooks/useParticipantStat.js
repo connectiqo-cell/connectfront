@@ -1,5 +1,6 @@
 import { useParticipant } from "@videosdk.live/react-native-sdk";
 import { useRef, useState, useEffect } from "react";
+import { Platform } from "react-native";
 
 function useParticipantStat({ participantId }) {
   const {
@@ -20,7 +21,7 @@ function useParticipantStat({ participantId }) {
 
   const statsIntervalIdRef = useRef();
   const mountedRef = useRef(true);
-  const [score, setScore] = useState({});
+  const [score, setScore] = useState(null);
   const [audioStats, setAudioStats] = useState({});
   const [videoStats, setVideoStats] = useState({});
 
@@ -42,34 +43,28 @@ function useParticipantStat({ participantId }) {
 
     try {
       let stats = [];
-      let audioStats = [];
-      let videoStats = [];
+      let nextAudioStats = [];
+      let nextVideoStats = [];
+
       if (isPresenting) {
         stats = await getShareStats();
+        nextVideoStats = stats;
       } else if (webcamStream) {
         stats = await getVideoStats();
+        nextVideoStats = stats;
+        nextAudioStats = await getAudioStats();
       } else if (micStream) {
         stats = await getAudioStats();
+        nextAudioStats = stats;
       }
 
       if (!mountedRef.current) return;
 
-      if (webcamStream || micStream || isPresenting) {
-        videoStats = isPresenting ? await getShareStats() : await getVideoStats();
-        audioStats = isPresenting ? [] : await getAudioStats();
-      }
+      const nextScore = stats?.length > 0 ? getQualityScore(stats[0]) : 100;
 
-      if (!mountedRef.current) return;
-
-      let score = stats
-        ? stats.length > 0
-          ? getQualityScore(stats[0])
-          : 100
-        : 100;
-
-      setScore(score);
-      setAudioStats(audioStats);
-      setVideoStats(videoStats);
+      setScore(nextScore);
+      setAudioStats(nextAudioStats);
+      setVideoStats(nextVideoStats);
     } catch (_) {
       // Peer connection closed or stream ended mid-interval — safe to ignore.
     }
@@ -90,7 +85,10 @@ function useParticipantStat({ participantId }) {
         clearInterval(statsIntervalIdRef.current);
       }
 
-      statsIntervalIdRef.current = setInterval(updateStats, 3000);
+      statsIntervalIdRef.current = setInterval(
+        updateStats,
+        Platform.OS === 'ios' ? 5000 : 3000,
+      );
     } else {
       if (statsIntervalIdRef.current) {
         clearInterval(statsIntervalIdRef.current);

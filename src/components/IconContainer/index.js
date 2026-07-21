@@ -1,3 +1,5 @@
+import React from "react";
+import { View, TouchableOpacity } from "react-native";
 import colors from "../../styles/colors";
 import { DownArrow } from "../../assets/icons";
 
@@ -24,7 +26,7 @@ const IconContainer = ({
         flexDirection: "row",
         borderRadius: 14,
         borderWidth: 1.5,
-        borderColor: colors.sheet,
+        borderColor: colors.controlBorder,
         backgroundColor: backgroundColor,
         ...style,
       }}
@@ -46,7 +48,7 @@ const IconContainer = ({
           alignItems: "center",
         }}
       >
-        <DownArrow />
+        <DownArrow fill={colors.chromeInk} />
       </TouchableOpacity>
     </View>
   ) : (

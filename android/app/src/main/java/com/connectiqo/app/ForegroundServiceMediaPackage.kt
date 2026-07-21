@@ -1,4 +1,4 @@
-package com.myapp
+package com.connectiqo.app
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule

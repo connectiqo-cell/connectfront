@@ -132,6 +132,8 @@ describe('light theme — token contrast', () => {
     expect(light.colors.meeting[800]).toBe('#02010c');
     expect(DARK_COLORS.meeting[100]).toBe('#f0f0fc');
     expect(LIGHT_COLORS.meeting.sheet).toBe('#ffffff');
+    expect(LIGHT_COLORS.meeting.controlBorder).toMatch(/rgba\(18,\s*16,\s*42/);
+    expect(DARK_COLORS.meeting.controlBorder).toMatch(/rgba\(255/);
   });
 });
 
@@ -145,6 +147,7 @@ describe('light theme — live colors.js getters after sync', () => {
     expect(colors.primary[100]).toBe('#12102a');
     expect(colors.black).toBe('#f8f9ff');
     expect(colors.sheet).toBe('#ffffff');
+    expect(colors.controlBorder).toMatch(/rgba\(18,\s*16,\s*42/);
     expect(colors.ink).toBe('#ffffff');
   });
 
@@ -153,6 +156,7 @@ describe('light theme — live colors.js getters after sync', () => {
     expect(colors.primary[100]).toBe('#f0f0fc');
     expect(colors.black).toBe('#000008');
     expect(colors.sheet).toBe('#2B3034');
+    expect(colors.controlBorder).toMatch(/rgba\(255/);
   });
 });
 
@@ -185,6 +189,17 @@ describe('light theme — style factories produce readable text', () => {
     // Title node exists
     const flat = JSON.stringify(json);
     expect(flat).toContain('Connecting to session');
+  });
+
+  it('OneToOne call chrome uses themed icon fills and control borders', () => {
+    const oneToOneSrc = fs.readFileSync(
+      path.join(SRC_ROOT, 'scenes/meeting/OneToOne/index.js'),
+      'utf8',
+    );
+    expect(oneToOneSrc).toContain('fill={colors.primary[100]}');
+    expect(oneToOneSrc).toContain('colors.controlBorder');
+    expect(oneToOneSrc).toContain('Recording width={22} height={22} fill={colors.primary[100]}');
+    expect(oneToOneSrc).not.toMatch(/borderColor:\s*colors\.sheet/);
   });
 
   it('SessionLobbyView light styles use light dock + readable modal card', () => {

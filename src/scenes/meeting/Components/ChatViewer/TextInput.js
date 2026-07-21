@@ -73,7 +73,11 @@ export default function TextInputContainer({
               paddingVertical: 4,
             }}
           >
-            <Send fill="#FFF" width={20} height={20} />
+            <Send
+              fill={message.length > 0 ? colors.onBrand : colors.primary[100]}
+              width={20}
+              height={20}
+            />
           </TouchableOpacity>
         </View>
       </View>

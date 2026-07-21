@@ -536,7 +536,7 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
   const styles = useThemedStyles(createBookingStyles);
   const { theme } = useTheme();
   const B = theme.colors.buttons;
-  const TEAL = theme.colors.accent.secondary;
+  const C = theme.colors;
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
   const entrance = useRef(new Animated.Value(0)).current;
@@ -601,7 +601,7 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
           style={styles.timeSlotStatusIcon}
         />
       ) : (
-        <MaterialIcons name="videocam" size={12} color={TEAL} style={styles.timeSlotStatusIcon} />
+        <MaterialIcons name="videocam" size={12} color={C.accent.success} style={styles.timeSlotStatusIcon} />
       )}
       <Text style={[styles.timeSlotStart, selected && styles.timeSlotTextSelected]} numberOfLines={1}>
         {formatSlotTime(slot.start_time)}
@@ -640,7 +640,7 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
 function BookingSlotPeriodSection({ period, items, selectedTime, onSelect }) {
   const styles = useThemedStyles(createBookingStyles);
   const { theme } = useTheme();
-  const TEAL = theme.colors.accent.secondary;
+  const slotAccent = theme.colors.accent.success;
   if (!items.length) return null;
 
   return (
@@ -648,7 +648,7 @@ function BookingSlotPeriodSection({ period, items, selectedTime, onSelect }) {
       <View style={styles.slotPeriodHeader}>
         <View style={styles.slotPeriodTitleRow}>
           <View style={styles.slotPeriodIcon}>
-            <MaterialIcons name={period.icon} size={14} color={TEAL} />
+            <MaterialIcons name={period.icon} size={14} color={slotAccent} />
           </View>
           <View>
             <Text style={styles.slotPeriodTitle}>{period.label}</Text>
@@ -1610,7 +1610,7 @@ function createBookingStyles(theme) {
     marginHorizontal: 4,
     borderRadius: 1,
   },
-  progressLineDone: { backgroundColor: 'rgba(52,211,153,0.45)' },
+  progressLineDone: { backgroundColor: C.accent.success, opacity: 0.45 },
   progressLabel: {
     fontSize: 10,
     fontWeight: '700',
@@ -1674,9 +1674,9 @@ function createBookingStyles(theme) {
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: 'rgba(52,211,153,0.12)',
+    backgroundColor: S.accentSuccess,
     borderWidth: 1,
-    borderColor: 'rgba(52,211,153,0.25)',
+    borderColor: B.successBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1686,11 +1686,11 @@ function createBookingStyles(theme) {
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: T.borderRadius.chip,
-    backgroundColor: 'rgba(52,211,153,0.12)',
+    backgroundColor: S.accentSuccess,
     borderWidth: 1,
-    borderColor: 'rgba(52,211,153,0.28)',
+    borderColor: B.successBorder,
   },
-  slotPeriodBadgeText: { fontSize: 11, fontWeight: '700', color: TEAL },
+  slotPeriodBadgeText: { fontSize: 11, fontWeight: '700', color: C.accent.success },
   slotsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1706,7 +1706,7 @@ function createBookingStyles(theme) {
     ...StyleSheet.absoluteFillObject,
     borderRadius: T.borderRadius.md,
     borderWidth: 1.5,
-    borderColor: TEAL,
+    borderColor: B.successBorder,
   },
   timeSlotCell: {
     minHeight: 62,

@@ -5,6 +5,14 @@ import { ROBOTO_FONTS } from "../../../../styles/fonts";
 import useParticipantStat from "../../Hooks/useParticipantStat";
 
 function ParticipantStatsViewer({ participantId }) {
+  if (!participantId) {
+    return null;
+  }
+
+  return <ParticipantStatsViewerInner participantId={participantId} />;
+}
+
+function ParticipantStatsViewerInner({ participantId }) {
   const { audioStats, videoStats, displayName, score } = useParticipantStat({
     participantId,
   });

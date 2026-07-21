@@ -140,8 +140,10 @@ const DARK_MEETING_COLORS = {
   800: '#02010c',
   900: '#000008',
   accent: '#a78bfa',
-  /** Bottom sheets / control borders */
+  /** Bottom sheets / menu panels */
   sheet: '#2B3034',
+  /** Mic/cam control outline on chrome canvas */
+  controlBorder: 'rgba(255, 255, 255, 0.22)',
   /** Icon on muted mic/cam pill (light pill → dark ink) */
   ink: '#1D2939',
 };
@@ -158,6 +160,9 @@ const LIGHT_MEETING_COLORS = {
   900: '#f8f9ff',
   accent: '#6d4aff',
   sheet: '#ffffff',
+  /** Visible outline on light canvas (sheet alone is too white). */
+  controlBorder: 'rgba(18, 16, 42, 0.16)',
+  /** Icon on muted mic/cam pill (dark pill → light ink) */
   ink: '#ffffff',
 };
 

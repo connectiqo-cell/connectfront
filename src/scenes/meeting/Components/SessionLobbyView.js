@@ -33,6 +33,7 @@ import {
   resolveLobbyPartner,
   shouldTransitionToExpiredOnSlotEnd,
 } from '../../../utils/sessionLobbyRules';
+import { isRecordingRequestedForBooking } from '../../../utils/recordingConsent';
 
 const ENTRANCE_STEP_MS = 50;
 
@@ -415,6 +416,24 @@ function ParticipantCard({
   );
 }
 
+function RecordingPreferenceNotice({ isMentor }) {
+  const styles = useThemedStyles(createLobbyStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const GOLD = C.accent.primary;
+
+  return (
+    <View style={styles.recordingNotice}>
+      <MaterialIcons name="fiber-manual-record" size={16} color={GOLD} />
+      <Text style={styles.recordingNoticeText}>
+        {isMentor
+          ? 'The learner requested a recording. You will confirm when you tap Start Session — recording begins once you are both in the call if you agree.'
+          : 'You requested this session to be recorded. Your mentor will confirm before recording starts. Either of you can also request recording during the call.'}
+      </Text>
+    </View>
+  );
+}
+
 function ActionsPanel({ title, children, animDelay = 0 }) {
   const styles = useThemedStyles(createLobbyStyles);
   return (
@@ -628,6 +647,8 @@ export default function SessionLobbyView({
   const isSessionLive = sessionTiming.status === 'live';
   const isSessionUpcoming = sessionTiming.status === 'upcoming';
   const mainPanelType = getMainLobbyPanelType(sessionTiming.status);
+
+  const recordingRequested = isRecordingRequestedForBooking(booking);
 
   const controlBar = (
     <LobbyControlBar
@@ -850,6 +871,12 @@ export default function SessionLobbyView({
           </FadeSlideIn>
         </View>
 
+        {recordingRequested ? (
+          <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
+            <RecordingPreferenceNotice isMentor />
+          </FadeSlideIn>
+        ) : null}
+
         {/* Bottom CTA */}
         <FadeSlideIn delay={ENTRANCE_STEP_MS * 4} fromY={24}>
           <View style={[styles.bottomCta, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
@@ -1008,6 +1035,12 @@ export default function SessionLobbyView({
           </View>
         </FadeSlideIn>
       </View>
+
+      {recordingRequested ? (
+        <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
+          <RecordingPreferenceNotice isMentor={false} />
+        </FadeSlideIn>
+      ) : null}
 
       {/* ── Bottom CTA ─────────────────────────────────── */}
       <FadeSlideIn delay={ENTRANCE_STEP_MS * 4} fromY={24}>
@@ -1808,6 +1841,27 @@ function createLobbyStyles(theme) {
     ...T.typography.bodySm,
     fontWeight: '700',
     color: C.text.secondary,
+  },
+  recordingNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: T.spacing.sm,
+    width: '100%',
+    marginHorizontal: T.spacing.lg,
+    alignSelf: 'center',
+    maxWidth: '100%',
+    padding: T.spacing.md,
+    borderRadius: T.borderRadius.md,
+    backgroundColor: S.accentGold,
+    borderWidth: 1,
+    borderColor: B.goldOutlineBorder,
+  },
+  recordingNoticeText: {
+    flex: 1,
+    ...T.typography.bodySm,
+    fontWeight: '600',
+    color: C.text.secondary,
+    lineHeight: 20,
   },
 
   bottomCta: {

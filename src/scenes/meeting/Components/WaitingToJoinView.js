@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme, useThemedStyles } from '../../../hooks/useTheme';
@@ -7,7 +7,13 @@ import { useTheme, useThemedStyles } from '../../../hooks/useTheme';
 /**
  * Brief connecting state while the VideoSDK room is being joined.
  */
-export default function WaitingToJoinView({ otherUser, isMentor }) {
+export default function WaitingToJoinView({
+  otherUser,
+  isMentor,
+  stalled = false,
+  onRetry,
+  onLeave,
+}) {
   const styles = useThemedStyles(createWaitingStyles);
   const { theme } = useTheme();
   const TEAL = theme.colors.accent.secondary;
@@ -24,8 +30,23 @@ export default function WaitingToJoinView({ otherUser, isMentor }) {
           <MaterialIcons name="videocam" size={32} color={TEAL} />
         </View>
         <Text style={styles.title}>Connecting to session</Text>
-        <Text style={styles.subtitle}>Setting up your room with {otherName}…</Text>
-        <ActivityIndicator size="large" color={TEAL} style={styles.spinner} />
+        <Text style={styles.subtitle}>
+          {stalled
+            ? `We couldn't connect yet. Check your internet and try again.`
+            : `Setting up your room with ${otherName}…`}
+        </Text>
+        {stalled ? (
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={onRetry}>
+              <Text style={styles.primaryBtnText}>Try again</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={onLeave}>
+              <Text style={styles.secondaryBtnText}>Leave</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <ActivityIndicator size="large" color={TEAL} style={styles.spinner} />
+        )}
       </View>
     </View>
   );
@@ -72,6 +93,35 @@ function createWaitingStyles(theme) {
     },
     spinner: {
       marginTop: T.spacing.xl,
+    },
+    actions: {
+      marginTop: T.spacing.xl,
+      gap: 12,
+      width: '100%',
+      maxWidth: 280,
+    },
+    primaryBtn: {
+      backgroundColor: C.component.button,
+      borderRadius: 10,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    primaryBtnText: {
+      color: C.text.onAccent,
+      fontWeight: '700',
+      fontSize: 15,
+    },
+    secondaryBtn: {
+      borderRadius: 10,
+      paddingVertical: 12,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: C.border.light,
+    },
+    secondaryBtnText: {
+      color: C.text.primary,
+      fontWeight: '600',
+      fontSize: 15,
     },
   });
 }

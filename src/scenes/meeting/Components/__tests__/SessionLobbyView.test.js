@@ -124,6 +124,27 @@ describe('SessionLobbyView', () => {
     expect(text).not.toContain('Join Call');
   });
 
+  it('shows recording notice when learner requested recording at booking', () => {
+    let tree;
+    act(() => {
+      tree = renderer.create(
+        <SessionLobbyView
+          {...baseProps}
+          isMentor
+          otherUser={{ name: 'Sam Learner' }}
+          booking={{
+            ...buildBooking({ startOffsetMin: -5 }),
+            recording_requested: true,
+          }}
+        />,
+      );
+    });
+
+    const text = flattenText(tree.toJSON());
+    expect(text).toContain('learner requested a recording');
+    expect(text).toContain('Start Session');
+  });
+
   it('transitions to expired when slot ends', () => {
     let tree;
     act(() => {

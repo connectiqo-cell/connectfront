@@ -9,6 +9,30 @@ function meeting() {
   return UNIFIED_THEME.colors.meeting;
 }
 
+function buttons() {
+  return UNIFIED_THEME.colors.buttons;
+}
+
+function accent() {
+  return UNIFIED_THEME.colors.accent;
+}
+
+function status() {
+  return UNIFIED_THEME.colors.status;
+}
+
+function text() {
+  return UNIFIED_THEME.colors.text;
+}
+
+function component() {
+  return UNIFIED_THEME.colors.component;
+}
+
+function border() {
+  return UNIFIED_THEME.colors.border;
+}
+
 const colors = {
   primary: {
     get 100() {
@@ -43,13 +67,63 @@ const colors = {
   get purple() {
     return meeting().accent;
   },
-  /** Sheet / control border tone. */
+  /** Bottom sheet / menu panel surface. */
   get sheet() {
     return meeting().sheet;
+  },
+  /** Mic/cam/chat control outline on call chrome. */
+  get controlBorder() {
+    return meeting().controlBorder || meeting().sheet;
   },
   /** Ink on muted mic/cam pill. */
   get ink() {
     return meeting().ink;
+  },
+  /** Brand / primary action (chat badge, dividers). */
+  get brand() {
+    return component().button;
+  },
+  /** Text on brand-colored pills and primary buttons. */
+  get onBrand() {
+    return text().onAccent;
+  },
+  get dangerSolid() {
+    return buttons().dangerSolid;
+  },
+  get dangerBg() {
+    return buttons().dangerBg;
+  },
+  get dangerText() {
+    return buttons().dangerText;
+  },
+  get dangerSolidText() {
+    return buttons().dangerSolidText;
+  },
+  get statusActive() {
+    return status().active;
+  },
+  get borderLight() {
+    return border().light;
+  },
+  get overlay() {
+    return component().overlay;
+  },
+  /** Text/icons on call chrome (light canvas), not on video tiles. */
+  get chromeInk() {
+    return meeting()[100];
+  },
+  get chromeMuted() {
+    return meeting()[400];
+  },
+  /** Labels on dark video tiles — canvas stays dark in both themes. */
+  get onVideo() {
+    return '#ffffff';
+  },
+  get onVideoMuted() {
+    return 'rgba(255, 255, 255, 0.55)';
+  },
+  get onVideoShadow() {
+    return 'rgba(0, 0, 0, 0.8)';
   },
 };
 

@@ -1,4 +1,4 @@
-package com.myapp
+package com.connectiqo.app
 
 import android.app.Application
 import com.facebook.react.PackageList
@@ -12,7 +12,7 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
 import live.videosdk.rnwebrtc.WebRTCModulePackage
-import com.myapp.ForegroundServiceMediaPackage
+import com.connectiqo.app.ForegroundServiceMediaPackage
 
 class MainApplication : Application(), ReactApplication {
 

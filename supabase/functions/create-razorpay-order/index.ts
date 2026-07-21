@@ -114,6 +114,8 @@ serve(async (req) => {
       mentor_earning_paise: mentorAmountPaise,
       platform_fee_paise:   platformFeePaise,
       route_enabled:        routeEnabled,
+      recording_requested:  recordingRequested,
+      booking_message:      message || null,
       status:               'created',
     });
 

@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 const STORE_URLS = {
-  android: 'https://play.google.com/store/apps/details?id=com.connectiqo',
+  android: 'https://play.google.com/store/apps/details?id=com.connectiqo.app',
   ios:     'https://apps.apple.com/app/connectiqo/id000000000',
 };
 

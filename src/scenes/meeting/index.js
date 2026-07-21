@@ -153,7 +153,12 @@ export default function ({ navigation, route }) {
           when UIScreen.isCaptured detects an active screen recording. */}
       {isRecordingDetected && (
         <View style={styles.recordingBlocker}>
-          <MaterialIcons name="screen-lock-portrait" size={56} color="#fff" style={styles.blockerIcon} />
+          <MaterialIcons
+            name="screen-lock-portrait"
+            size={56}
+            color="#f0f0fc"
+            style={styles.blockerIcon}
+          />
           <Text style={styles.blockerTitle}>Screen Recording Blocked</Text>
           <Text style={styles.blockerSubtitle}>
             Screen recording is not permitted during a live session.{"\n"}
@@ -166,16 +171,17 @@ export default function ({ navigation, route }) {
 }
 
 function createMeetingScreenStyles(theme) {
+  const C = theme.colors;
+  const onDarkVideo = '#f0f0fc';
   return StyleSheet.create({
     safeArea: {
       flex: 1,
-      // Call chrome stays dark in both app themes.
-      backgroundColor: theme.colors.meeting[900],
+      backgroundColor: C.meeting[900],
       padding: theme.spacing.md,
     },
     recordingBlocker: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: '#000',
+      backgroundColor: C.meeting[800],
       justifyContent: 'center',
       alignItems: 'center',
       paddingHorizontal: 32,
@@ -188,13 +194,13 @@ function createMeetingScreenStyles(theme) {
     blockerTitle: {
       fontSize: 20,
       fontWeight: '800',
-      color: '#ffffff',
+      color: onDarkVideo,
       textAlign: 'center',
       marginBottom: 10,
     },
     blockerSubtitle: {
       fontSize: 14,
-      color: 'rgba(255,255,255,0.65)',
+      color: 'rgba(240, 240, 252, 0.65)',
       textAlign: 'center',
       lineHeight: 22,
     },

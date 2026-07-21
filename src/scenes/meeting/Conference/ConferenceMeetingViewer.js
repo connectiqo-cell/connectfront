@@ -37,6 +37,7 @@ import LocalParticipantPresenter from "../Components/LocalParticipantPresenter";
 import Menu from "../../../components/Menu";
 import MenuItem from "../Components/MenuItem";
 import { ROBOTO_FONTS } from "../../../styles/fonts";
+import { showStopRecordingAlert } from "../../../utils/recordingAlerts";
 import Toast from "react-native-simple-toast";
 import BottomSheet from "../../../components/BottomSheet";
 import ParticipantListViewer from "../Components/ParticipantListViewer";
@@ -162,25 +163,17 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
   const [audioDevice, setAudioDevice] = useState([]);
 
   const confirmStopRecording = () => {
-    const showAlert = () => {
-      Alert.alert(
-        "Stop Recording",
-        "Are you sure you want to stop recording? The session recording will be finalized.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Stop Recording", style: "destructive", onPress: () => stopRecording() },
-        ],
-        { cancelable: true },
-      );
+    const present = (title, message, buttons, options) => {
+      if (Platform.OS === "ios") {
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(() => Alert.alert(title, message, buttons, options), 350);
+        });
+        return;
+      }
+      Alert.alert(title, message, buttons, options);
     };
 
-    if (Platform.OS === "ios") {
-      InteractionManager.runAfterInteractions(() => {
-        setTimeout(showAlert, 350);
-      });
-      return;
-    }
-    showAlert();
+    showStopRecordingAlert({ present, onStop: () => stopRecording() });
   };
 
   async function updateAudioDeviceList() {
@@ -419,7 +412,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
               ? "Stopping"
               : "Stop"
           } Recording`}
-          icon={<Recording width={22} height={22} />}
+          icon={<Recording width={22} height={22} fill={colors.primary[100]} />}
           onPress={() => {
             moreOptionsMenu.current.close();
             const action = () => {
@@ -453,7 +446,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
         {(presenterId == null || localScreenShareOn) && (
           <MenuItem
             title={`${localScreenShareOn ? "Stop" : "Start"} Screen Share`}
-            icon={<ScreenShare width={22} height={22} />}
+            icon={<ScreenShare width={22} height={22} fill={colors.primary[100]} />}
             onPress={() => {
               moreOptionsMenu.current.close();
               pressScreenShare({
@@ -507,7 +500,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
         <IconContainer
           style={{
             borderWidth: 1.5,
-            borderColor: colors.sheet,
+            borderColor: colors.controlBorder,
           }}
           backgroundColor={!localWebcamOn ? colors.primary[100] : "transparent"}
           onPress={() => {
@@ -526,7 +519,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
             onPress={openChatPanel}
             style={{
               borderWidth: 1.5,
-              borderColor: colors.sheet,
+              borderColor: colors.controlBorder,
             }}
             Icon={() => {
               return <Chat height={22} width={22} fill={colors.primary[100]} />;
@@ -556,7 +549,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
         <IconContainer
           style={{
             borderWidth: 1.5,
-            borderColor: colors.sheet,
+            borderColor: colors.controlBorder,
             transform: [{ rotate: "90deg" }],
           }}
           onPress={() => {

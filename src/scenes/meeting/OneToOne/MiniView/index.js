@@ -1,19 +1,40 @@
-import React, { useEffect } from "react";
-import MiniVideoRTCView from "./MiniVideoRTCView";
-import useParticipantStat from "../../Hooks/useParticipantStat";
+import React, { useEffect } from 'react';
+import useParticipantStat from '../../Hooks/useParticipantStat';
+import MiniVideoRTCView from './MiniVideoRTCView';
+import ParticipantVideoPlaceholder from '../ParticipantVideoPlaceholder';
 
-export default MiniViewContainer = ({
+export default function MiniViewContainer({
   participantId,
   openStatsBottomSheet,
   onSwapPress,
   height,
-}) => {
+}) {
+  if (!participantId) {
+    return <ParticipantVideoPlaceholder style={{ height: height || 160 }} />;
+  }
+
+  return (
+    <MiniViewContainerInner
+      participantId={participantId}
+      openStatsBottomSheet={openStatsBottomSheet}
+      onSwapPress={onSwapPress}
+      height={height}
+    />
+  );
+}
+
+function MiniViewContainerInner({
+  participantId,
+  openStatsBottomSheet,
+  onSwapPress,
+  height,
+}) {
   const { score, webcamOn, webcamStream, displayName, setQuality, isLocal, micOn } =
     useParticipantStat({ participantId });
 
   useEffect(() => {
-    setQuality?.("high");
-  }, []);
+    setQuality?.('high');
+  }, [setQuality]);
 
   return (
     <MiniVideoRTCView
@@ -29,4 +50,4 @@ export default MiniViewContainer = ({
       height={height}
     />
   );
-};
+}

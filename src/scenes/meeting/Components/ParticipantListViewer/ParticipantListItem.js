@@ -25,7 +25,7 @@ function ParticipantListItem({ participantId }) {
           justifyContent: "center",
           alignItems: "center",
           marginLeft: 8,
-          borderColor: "rgba(245,245,245, 0.2)",
+          borderColor: colors.borderLight,
           borderRadius: 20,
           ...style,
         }}
@@ -62,7 +62,7 @@ function ParticipantListItem({ participantId }) {
             backgroundColor: colors.primary[500],
           }}
         >
-          <Person />
+          <Person fill={colors.primary[100]} />
         </View>
         <View
           style={{
@@ -90,7 +90,7 @@ function ParticipantListItem({ participantId }) {
         <IconContainer
           style={{
             borderWidth: micOn ? 1 : 0,
-            backgroundColor: micOn ? "transparent" : "#FF5D5D",
+            backgroundColor: micOn ? "transparent" : colors.dangerSolid,
           }}
           Icon={() => {
             return micOn ? (
@@ -104,7 +104,7 @@ function ParticipantListItem({ participantId }) {
         <IconContainer
           style={{
             borderWidth: webcamOn ? 1 : 0,
-            backgroundColor: webcamOn ? "transparent" : "#FF5D5D",
+            backgroundColor: webcamOn ? "transparent" : colors.dangerSolid,
           }}
           Icon={() => {
             return webcamOn ? (

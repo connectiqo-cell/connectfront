@@ -22,6 +22,15 @@ export async function ensureIosCallAudioSession() {
   attachIosCallAudioListeners();
 
   const InCallManager = getInCallManager();
+
+  // Session already started — skip repeated native permission prompts.
+  if (iosCallSessionActive) {
+    try {
+      InCallManager.setForceSpeakerphoneOn(true);
+    } catch (_) {}
+    return true;
+  }
+
   const mic = await InCallManager.requestRecordPermission();
   if (mic !== 'granted') {
     return false;
@@ -32,10 +41,8 @@ export async function ensureIosCallAudioSession() {
     return false;
   }
 
-  if (!iosCallSessionActive) {
-    InCallManager.start({ media: 'video' });
-    iosCallSessionActive = true;
-  }
+  InCallManager.start({ media: 'video' });
+  iosCallSessionActive = true;
   InCallManager.setForceSpeakerphoneOn(true);
 
   return true;
@@ -92,4 +99,20 @@ export function releaseIosCallAudioSession() {
   }
 
   detachIosCallAudioListeners();
+}
+
+/** Last-resort stop when leaving a call — safe to call even if VideoSDK already stopped. */
+export function forceStopIosCallAudioSession() {
+  if (Platform.OS !== 'ios') {
+    return;
+  }
+
+  iosCallSessionActive = false;
+  detachIosCallAudioListeners();
+
+  try {
+    getInCallManager().stop();
+  } catch (_) {
+    // Native module may already be stopped.
+  }
 }

@@ -1,4 +1,4 @@
-package com.myapp
+package com.connectiqo.app
 
 import android.content.Intent
 import android.util.Log

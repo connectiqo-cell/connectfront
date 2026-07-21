@@ -196,9 +196,9 @@ function createScheduleStyles(theme) {
     justifyContent: 'center',
     borderWidth: 1,
   },
-  sectionAccentGold: { backgroundColor: S.accentGold, borderColor: 'rgba(240,216,117,0.25)' },
-  sectionAccentTeal: { backgroundColor: S.accentTeal, borderColor: 'rgba(94,234,212,0.25)' },
-  sectionAccentViolet: { backgroundColor: S.accentViolet, borderColor: 'rgba(167,139,250,0.35)' },
+  sectionAccentGold: { backgroundColor: S.accentGold, borderColor: B.primaryBorder },
+  sectionAccentTeal: { backgroundColor: S.accentTeal, borderColor: B.successBorder },
+  sectionAccentViolet: { backgroundColor: S.accentViolet, borderColor: B.nebulaBorder },
   sectionStepNum: { fontSize: 13, fontWeight: '900', color: C.text.primary },
   sectionBlockTitles: { flex: 1 },
   sectionBlockTitle: { fontSize: 15, fontWeight: '800', color: C.text.primary },
@@ -304,7 +304,7 @@ function createScheduleStyles(theme) {
     backgroundColor: 'transparent',
   },
   dayButtonToday: {
-    borderColor: 'rgba(94,234,212,0.55)',
+    borderColor: S.dayAvailableBorder,
     backgroundColor: C.surface.accentViolet,
   },
   dayButtonSelected: {
@@ -332,14 +332,14 @@ function createScheduleStyles(theme) {
   },
   dayNumberSelected: { color: B.primaryText, fontWeight: '800' },
   dayNumberDisabled: { color: C.text.muted, fontWeight: '600' },
-  dayNumberToday: { color: TEAL, fontWeight: '800' },
+  dayNumberToday: { color: C.accent.primary, fontWeight: '800' },
   slotIndicator: {
     position: 'absolute',
     bottom: 5,
     width: 14,
     height: 3,
     borderRadius: 2,
-    backgroundColor: TEAL,
+    backgroundColor: C.accent.primary,
   },
   slotIndicatorBooked: {
     backgroundColor: C.accent.warning,
@@ -365,7 +365,7 @@ function createScheduleStyles(theme) {
     width: 14,
     height: 3,
     borderRadius: 2,
-    backgroundColor: TEAL,
+    backgroundColor: C.accent.primary,
   },
   legendDotBooked: {
     backgroundColor: C.accent.warning,
@@ -376,7 +376,7 @@ function createScheduleStyles(theme) {
     borderRadius: 5,
     backgroundColor: 'transparent',
     borderWidth: 1.5,
-    borderColor: TEAL,
+    borderColor: C.accent.primary,
   },
   legendText: {
     fontSize: 11,

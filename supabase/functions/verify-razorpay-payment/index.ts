@@ -93,15 +93,31 @@ serve(async (req) => {
     // ── 3. Fetch server-calculated amounts from stored transaction ────────────
     const { data: tx, error: txFetchErr } = await supabase
       .from('transactions')
-      .select('mentor_earning_paise, status, booking_id')
+      .select('mentor_earning_paise, status, booking_id, recording_requested, booking_message')
       .eq('razorpay_order_id', razorpayOrderId)
       .single();
 
     if (txFetchErr || !tx) throw new Error('Transaction not found for this order');
 
-    // Already reconciled (e.g. by the razorpay-webhook, if this client call
-    // is arriving late after a crash/retry) — don't create a second booking.
+    const resolvedRecordingRequested =
+      typeof tx.recording_requested === 'boolean'
+        ? tx.recording_requested
+        : recordingRequested;
+
+    const resolvedMessage =
+      (typeof message === 'string' && message.trim())
+        ? message.trim()
+        : (tx.booking_message || null);
+
+    // Already reconciled (e.g. retry after crash) — backfill preference if missing.
     if (tx.status === 'paid' && tx.booking_id) {
+      if (typeof resolvedRecordingRequested === 'boolean') {
+        await supabase
+          .from('bookings')
+          .update({ recording_requested: resolvedRecordingRequested })
+          .eq('id', tx.booking_id)
+          .is('recording_requested', null);
+      }
       return new Response(
         JSON.stringify({ success: true, bookingId: tx.booking_id }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -120,6 +136,10 @@ serve(async (req) => {
     if (slotErr) throw slotErr;
     if (slot.is_booked) throw new Error('This slot was just booked by someone else. Please select another slot.');
 
+    if (typeof resolvedRecordingRequested !== 'boolean') {
+      throw new Error('Recording preference is required');
+    }
+
     // ── 5. Create booking ─────────────────────────────────────────────────────
     const { data: booking, error: bookingErr } = await supabase
       .from('bookings')
@@ -127,8 +147,8 @@ serve(async (req) => {
         mentor_id:  mentorId,
         learner_id: learnerId,
         slot_id:    slotId,
-        message:    message || null,
-        recording_requested: recordingRequested,
+        message:    resolvedMessage,
+        recording_requested: resolvedRecordingRequested,
         status:     'confirmed',
       })
       .select()
@@ -151,6 +171,8 @@ serve(async (req) => {
       booking_id:          booking.id,
       razorpay_payment_id: razorpayPaymentId,
       razorpay_signature:  razorpaySignature,
+      recording_requested: resolvedRecordingRequested,
+      booking_message:     resolvedMessage,
       status:              'paid',
       updated_at:          new Date().toISOString(),
     }).eq('razorpay_order_id', razorpayOrderId);

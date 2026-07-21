@@ -36,6 +36,7 @@ import {
 import colors from "../../../styles/colors";
 import IconContainer from "../../../components/IconContainer";
 import OneToOneCallLayout from "./OneToOneCallLayout";
+import CallSessionTimer from "./CallSessionTimer";
 import Menu from "../../../components/Menu";
 import MenuItem from "../Components/MenuItem";
 import { ROBOTO_FONTS } from "../../../styles/fonts";
@@ -50,13 +51,24 @@ import ParticipantStatsViewer from "../Components/ParticipantStatsViewer";
 import {
   startOneToOneRecordingViaAPI,
   startOneToOneRecording,
+  stopOneToOneRecordingSession,
 } from "../../../utils/recordingConfig";
 import { getToken } from "../../../api/api";
-import { computeSessionTiming, formatCountdown } from "../../../utils/sessionSlotTimer";
 import { useBackgroundWebcamRestore } from "../../../hooks/useBackgroundWebcamRestore";
 import { useInCallChatPopup } from "../../../hooks/useInCallChatPopup";
 import { useOrientation } from "../../../utils/useOrientation";
 import { pressScreenShare } from "../../../utils/screenShareActions";
+import { getMeetingParticipantSnapshot } from "../../../utils/meetingParticipants";
+import { isRecordingRequestedForBooking, areBothCallParticipantsPresent } from "../../../utils/recordingConsent";
+import { bookingApi } from "../../../api/bookingApi";
+import {
+  showIncomingRecordingConsentAlert,
+  showMentorOnlyStopAlert,
+  showRecordingDeclinedAlert,
+  showRequestRecordingConsentAlert,
+  showStopRecordingAlert,
+  showWaitForPeerAlert,
+} from "../../../utils/recordingAlerts";
 
 // VideoSDK Android reports facingMode as "front" / "environment" (not WebRTC
 // standard "user" / "environment"). Labels are often just "0" / "1".
@@ -89,15 +101,12 @@ function shouldSelectFrontCameraOnInit() {
   return Platform.OS !== "ios";
 }
 
-// iOS silently drops Alert.alert while a Modal (e.g. the More menu) is still visible.
+// Alerts are dropped while a Modal (More menu / BottomSheet) is still visible.
 function runAfterMenuDismiss(action) {
-  if (Platform.OS === "ios") {
-    InteractionManager.runAfterInteractions(() => {
-      setTimeout(action, 350);
-    });
-    return;
-  }
-  action();
+  InteractionManager.runAfterInteractions(() => {
+    const delay = Platform.OS === "ios" ? 350 : 120;
+    setTimeout(action, delay);
+  });
 }
 
 function showDeferredAlert(title, message, buttons, options) {
@@ -107,6 +116,7 @@ function showDeferredAlert(title, message, buttons, options) {
 export default function OneToOneMeetingViewer({
   isHost,
   booking,
+  recordingRequested: recordingRequestedProp = false,
   autoStartRecording = false,
   onRequestLeave,
   onSessionEnding,
@@ -117,8 +127,8 @@ export default function OneToOneMeetingViewer({
   }, []);
 
   const {
-    join,
     participants,
+    localParticipant,
     localWebcamOn,
     localMicOn,
     leave,
@@ -132,25 +142,123 @@ export default function OneToOneMeetingViewer({
     toggleScreenShare,
     meetingId,
     startRecording,
-    meeting,
+    stopRecording,
     recordingState,
     enableScreenShare,
     disableScreenShare,
   } = useMeeting({ onError: onMeetingError });
   const exitMeeting = onRequestLeave || leave;
-  const recordingConsentPubSub = usePubSub("RECORDING_CONSENT", {});
+
+  const processedConsentMessagesRef = useRef(new Set());
+  const localParticipantIdRef = useRef(null);
+  const pendingRecordingRequestRef = useRef(null);
+  const incomingConsentRequestIdRef = useRef(null);
+  const autoRecordingAttemptedRef = useRef(false);
+  const isHostRef = useRef(isHost);
+  const meetingIdRef = useRef(meetingId);
+  const bookingRef = useRef(booking);
+  const startRecordingRef = useRef(startRecording);
+  const stopRecordingRef = useRef(stopRecording);
+  const participantCountRef = useRef(0);
+  const recordingStateRef = useRef(recordingState);
+  const restRecordingActiveRef = useRef(false);
+  const startRecordingSessionRef = useRef(null);
+  const publishConsentMessageRef = useRef(null);
+  const showIncomingRecordingConsentRef = useRef(null);
+
+  isHostRef.current = isHost;
+  meetingIdRef.current = meetingId;
+  bookingRef.current = booking;
+  startRecordingRef.current = startRecording;
+  stopRecordingRef.current = stopRecording;
+  recordingStateRef.current = recordingState;
+
+  const processConsentPubSubEntry = useCallback((entry) => {
+    if (!entry?.message) return;
+
+    const uniqueMessageId = `${entry.timestamp}-${entry.senderId}-${entry.message}`;
+    if (processedConsentMessagesRef.current.has(uniqueMessageId)) {
+      return;
+    }
+    processedConsentMessagesRef.current.add(uniqueMessageId);
+
+    let payload;
+    try {
+      payload = JSON.parse(entry.message);
+    } catch (e) {
+      return;
+    }
+
+    if (!payload || typeof payload !== 'object' || typeof payload.type !== 'string') {
+      return;
+    }
+
+    const localId = localParticipantIdRef.current;
+    const fromSelf = Boolean(localId && entry.senderId === localId);
+    const recordingStateNow = recordingStateRef.current;
+    const restActive = restRecordingActiveRef.current;
+    const canStartRecording =
+      !restActive &&
+      (!recordingStateNow ||
+        recordingStateNow === Constants.recordingEvents.RECORDING_STOPPED);
+
+    if (payload.type === 'RECORDING_START_APPROVED' && isHostRef.current && canStartRecording) {
+      startRecordingSessionRef.current?.();
+      return;
+    }
+
+    if (fromSelf) {
+      return;
+    }
+
+    if (
+      payload.type === 'RECORDING_CONSENT_REQUEST' &&
+      entry.senderId &&
+      entry.senderId !== localId
+    ) {
+      showIncomingRecordingConsentRef.current?.(
+        payload.requestId,
+        payload.requesterRole || (isHostRef.current ? 'Learner' : 'Mentor'),
+      );
+      return;
+    }
+
+    if (payload.type === 'RECORDING_CONSENT_RESPONSE') {
+      if (payload.requestId !== pendingRecordingRequestRef.current) {
+        return;
+      }
+      pendingRecordingRequestRef.current = null;
+
+      if (payload.agreed) {
+        Toast.show('You both agreed — recording is starting…');
+        if (isHostRef.current) {
+          startRecordingSessionRef.current?.();
+        } else {
+          publishConsentMessageRef.current?.(
+            {
+              type: 'RECORDING_START_APPROVED',
+              requestId: payload.requestId,
+              requesterId: localId,
+              ts: Date.now(),
+            },
+            true,
+          );
+        }
+      } else {
+        showRecordingDeclinedAlert({ present: showDeferredAlert });
+      }
+    }
+  }, []);
+
+  const recordingConsentPubSub = usePubSub('RECORDING_CONSENT', {
+    onMessageReceived: processConsentPubSubEntry,
+  });
 
   const leaveMenu = useRef();
   const bottomSheetRef = useRef();
   const audioDeviceMenuRef = useRef();
   const moreOptionsMenu = useRef();
   const recordingRef = useRef();
-  const processedConsentMessagesRef = useRef(new Set());
-  const localParticipantIdRef = useRef(null);
-  const pendingRecordingRequestRef = useRef(null);
-  const autoRecordingAttemptedRef = useRef(false);
-  const meetingTimerRef = useRef(null);
-  const meetingStartedAtRef = useRef(null);
   const bothJoinedAtRef = useRef(null);
   const frontCameraIdRef = useRef(null);
   const backCameraIdRef = useRef(null);
@@ -158,19 +266,22 @@ export default function OneToOneMeetingViewer({
   const localWebcamOnRef = useRef(localWebcamOn);
   const cameraInitializedRef = useRef(false);
 
-  const participantIds = [...participants.keys()];
-  const localParticipantId = meeting?.localParticipant?.id;
-  const remoteParticipantId =
-    participantIds.find((id) => id !== localParticipantId) ??
-    participantIds[1];
+  const localParticipantId = localParticipant?.id;
+  const {
+    remoteParticipantId,
+    participantIds,
+    remoteParticipantCount,
+    participantCount,
+  } = getMeetingParticipantSnapshot(participants, localParticipantId);
+  const bothParticipantsPresent = areBothCallParticipantsPresent(
+    localParticipantId,
+    remoteParticipantCount,
+  );
 
-  // VideoSDK participants map is remote-only; +1 includes the local participant.
-  const remoteParticipantCount = participants.size;
-  const participantCount = remoteParticipantCount + 1;
-  const bothParticipantsPresent = remoteParticipantCount >= 1;
-
-  const localDisplayName = (meeting?.localParticipant?.displayName || '').split(' ')[0];
-  const remoteDisplayName = (participants.get(remoteParticipantId)?.displayName || '').split(' ')[0];
+  const localDisplayName = (localParticipant?.displayName || '').split(' ')[0];
+  const remoteDisplayName = (
+    participants.get(remoteParticipantId)?.displayName || ''
+  ).split(' ')[0];
 
   const [viewLayout, setViewLayout] = useState('split');
   const [primaryParticipantId, setPrimaryParticipantId] = useState(null);
@@ -182,10 +293,43 @@ export default function OneToOneMeetingViewer({
 
   const [audioDevice, setAudioDevice] = useState([]);
   const [statParticipantId, setstatParticipantId] = useState("");
-  const [meetingElapsedSeconds, setMeetingElapsedSeconds] = useState(0);
   const [restRecordingActive, setRestRecordingActive] = useState(false);
+  const [recordingRequestedAtBooking, setRecordingRequestedAtBooking] = useState(
+    () => recordingRequestedProp || isRecordingRequestedForBooking(booking),
+  );
   const slot = booking?.availability_slots || {};
-  const [sessionTiming, setSessionTiming] = useState(() => computeSessionTiming(slot));
+
+  useEffect(() => {
+    setRecordingRequestedAtBooking(
+      recordingRequestedProp || isRecordingRequestedForBooking(booking),
+    );
+  }, [recordingRequestedProp, booking?.recording_requested]);
+
+  useEffect(() => {
+    if (!booking?.id) {
+      return undefined;
+    }
+    let cancelled = false;
+    bookingApi
+      .resolveRecordingPreferenceForBooking(booking)
+      .then(({ recordingRequested }) => {
+        if (!cancelled) {
+          setRecordingRequestedAtBooking(recordingRequested);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [booking?.id, booking?.recording_requested, recordingRequestedProp]);
+
+  useEffect(() => {
+    participantCountRef.current = participantCount;
+  }, [participantCount]);
+
+  useEffect(() => {
+    restRecordingActiveRef.current = restRecordingActive;
+  }, [restRecordingActive]);
 
   useEffect(() => {
     if (!remoteParticipantId) return;
@@ -202,11 +346,11 @@ export default function OneToOneMeetingViewer({
       ? remoteParticipantId
       : localParticipantId;
 
-  const handleSwapPrimary = () => {
+  const handleSwapPrimary = useCallback(() => {
     if (secondaryParticipantId) {
       setPrimaryParticipantId(secondaryParticipantId);
     }
-  };
+  }, [secondaryParticipantId]);
 
   async function updateAudioDeviceList() {
     const devices = await getAudioDeviceList();
@@ -227,12 +371,10 @@ export default function OneToOneMeetingViewer({
       try {
         const cams = await getWebcams?.();
         if (cancelled) return;
-        console.warn('[Camera][' + Platform.OS + '] getWebcams result:', JSON.stringify(cams));
         if (cams?.length) {
           const { front, back } = resolveCameras(cams);
           frontCameraIdRef.current = front?.deviceId ?? null;
           backCameraIdRef.current = back?.deviceId ?? null;
-          console.warn('[Camera] front:', front?.deviceId, front?.facingMode, '| back:', back?.deviceId, back?.facingMode);
 
           if (localWebcamOnRef.current && !cameraInitializedRef.current) {
             cameraInitializedRef.current = true;
@@ -246,7 +388,6 @@ export default function OneToOneMeetingViewer({
           setTimeout(() => fetchCameras(attempt + 1), 1000);
         }
       } catch (err) {
-        console.warn('[Camera] fetchCameras error:', err);
         if (!cancelled && attempt < 4) {
           setTimeout(() => fetchCameras(attempt + 1), 1000);
         }
@@ -254,7 +395,7 @@ export default function OneToOneMeetingViewer({
     };
     // iOS needs a longer delay — camera permission dialog can still be
     // showing at 800ms and getWebcams() returns empty until dismissed.
-    const delay = Platform.OS === 'ios' ? 2500 : 800;
+    const delay = Platform.OS === 'ios' ? 1200 : 800;
     const t = setTimeout(() => fetchCameras(), delay);
     return () => { cancelled = true; clearTimeout(t); };
   }, []);
@@ -264,32 +405,6 @@ export default function OneToOneMeetingViewer({
       bothJoinedAtRef.current = Date.now();
     }
   }, [bothParticipantsPresent]);
-
-  useEffect(() => {
-    meetingStartedAtRef.current = Date.now();
-    setMeetingElapsedSeconds(0);
-    meetingTimerRef.current = setInterval(() => {
-      const elapsed = Math.floor(
-        (Date.now() - meetingStartedAtRef.current) / 1000
-      );
-      setMeetingElapsedSeconds(elapsed);
-    }, 1000);
-
-    return () => {
-      if (meetingTimerRef.current) {
-        clearInterval(meetingTimerRef.current);
-        meetingTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!slot.date) return undefined;
-    const update = () => setSessionTiming(computeSessionTiming(slot));
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [slot.date, slot.start_time, slot.end_time]);
 
   // On first webcam-on: switch to front camera once.
   // cameraInitializedRef prevents re-entry — changeWebcam restarts the
@@ -324,104 +439,161 @@ export default function OneToOneMeetingViewer({
       ?.catch(() => {});
   }, [localWebcamOn]);
 
-  const formatDuration = (seconds) => {
-    const mins = Math.floor(seconds / 60)
-      .toString()
-      .padStart(2, "0");
-    const secs = (seconds % 60).toString().padStart(2, "0");
-    return `${mins}:${secs}`;
-  };
-
   const publishConsentMessage = (payload, persist = true) => {
+    if (!localParticipantIdRef.current) {
+      Toast.show("Still connecting — try again in a moment");
+      return;
+    }
     recordingConsentPubSub.publish(JSON.stringify(payload), { persist });
   };
 
-  const showIncomingRecordingConsent = (requestId, requesterRole) => {
-    showDeferredAlert(
-      "Recording Request",
-      `${requesterRole} wants to record this session. Do you agree?`,
-      [
-        {
-          text: "Disagree",
-          style: "cancel",
-          onPress: () => {
-            publishConsentMessage({
-              type: "RECORDING_CONSENT_RESPONSE",
-              requestId,
-              agreed: false,
-              responderId: localParticipantIdRef.current,
-              ts: Date.now(),
-            });
-            Toast.show("Recording consent declined");
-          },
-        },
-        {
-          text: "Agree",
-          onPress: () => {
-            publishConsentMessage({
-              type: "RECORDING_CONSENT_RESPONSE",
-              requestId,
-              agreed: true,
-              responderId: localParticipantIdRef.current,
-              ts: Date.now(),
-            });
-            Toast.show("Recording consent shared");
-          },
-        },
-      ],
-      { cancelable: false }
-    );
+  publishConsentMessageRef.current = publishConsentMessage;
+
+  const startRecordingSession = useCallback(async () => {
+    if (!isHostRef.current || !meetingIdRef.current) {
+      return;
+    }
+    if (restRecordingActiveRef.current) {
+      return;
+    }
+    const state = recordingStateRef.current;
+    if (state && state !== Constants.recordingEvents.RECORDING_STOPPED) {
+      return;
+    }
+
+    const mentorProfileId =
+      bookingRef.current?.mentor_id || localParticipantIdRef.current;
+
+    try {
+      const token = await getToken();
+      await startOneToOneRecordingViaAPI({
+        token,
+        meetingId: meetingIdRef.current,
+        mentorId: mentorProfileId,
+      });
+      setRestRecordingActive(true);
+      Toast.show('Recording started.');
+    } catch (err) {
+      console.error('[Recording] REST start failed, trying SDK fallback:', err);
+      try {
+        startOneToOneRecording(
+          startRecordingRef.current,
+          participantCountRef.current || 2,
+        );
+        setRestRecordingActive(true);
+        Toast.show('Recording started.');
+      } catch (fallbackErr) {
+        console.error('[Recording] start failed:', fallbackErr);
+        Toast.show('Could not start recording');
+        throw fallbackErr;
+      }
+    }
+  }, []);
+
+  startRecordingSessionRef.current = startRecordingSession;
+
+  const stopRecordingSession = useCallback(async () => {
+    if (!isHostRef.current) {
+      showMentorOnlyStopAlert({ present: showDeferredAlert });
+      return;
+    }
+    if (!meetingIdRef.current) {
+      return;
+    }
+
+    try {
+      const token = await getToken();
+      await stopOneToOneRecordingSession({
+        token,
+        meetingId: meetingIdRef.current,
+        stopRecording: stopRecordingRef.current,
+      });
+      setRestRecordingActive(false);
+      Toast.show('Recording stopped.');
+    } catch (err) {
+      console.error('[Recording] stop failed:', err);
+      Toast.show('Could not stop recording');
+    }
+  }, []);
+
+  const confirmStopRecording = () => {
+    showStopRecordingAlert({
+      present: showDeferredAlert,
+      onStop: () => stopRecordingSession(),
+    });
   };
 
-  const requestRecordingConsent = () => {
-    if (booking?.recording_requested !== true) {
-      Alert.alert(
-        "Recording unavailable",
-        "The learner did not request a recording when this session was booked."
-      );
+  const showIncomingRecordingConsent = (requestId, requesterRole) => {
+    if (incomingConsentRequestIdRef.current === requestId) {
       return;
     }
+    incomingConsentRequestIdRef.current = requestId;
+
+    showIncomingRecordingConsentAlert({
+      requesterRole,
+      present: showDeferredAlert,
+      onDecline: () => {
+        incomingConsentRequestIdRef.current = null;
+        publishConsentMessage({
+          type: "RECORDING_CONSENT_RESPONSE",
+          requestId,
+          agreed: false,
+          responderId: localParticipantId,
+          ts: Date.now(),
+        });
+      },
+      onAgree: () => {
+        incomingConsentRequestIdRef.current = null;
+        publishConsentMessage({
+          type: "RECORDING_CONSENT_RESPONSE",
+          requestId,
+          agreed: true,
+          responderId: localParticipantId,
+          ts: Date.now(),
+        });
+        Toast.show('Thanks — starting recording once both agree');
+      },
+    });
+  };
+
+  showIncomingRecordingConsentRef.current = showIncomingRecordingConsent;
+
+  const requestRecordingConsent = () => {
     if (!bothParticipantsPresent) {
-      Toast.show("Wait for the other participant to join");
+      showWaitForPeerAlert({ present: showDeferredAlert });
+      return;
+    }
+    if (!localParticipantId) {
+      Toast.show('Connecting… please try again in a moment');
       return;
     }
 
-    Alert.alert(
-      "Record Session",
-      "Do you want to request recording permission?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Request",
-          onPress: () => {
-            const requestId = `${Date.now()}-${Math.random()
-              .toString(36)
-              .slice(2, 8)}`;
-            pendingRecordingRequestRef.current = requestId;
-            publishConsentMessage({
-              type: "RECORDING_CONSENT_REQUEST",
-              requestId,
-              requesterId: localParticipantIdRef.current,
-              requesterRole: isHost ? "Mentor" : "Learner",
-              ts: Date.now(),
-            });
-            Toast.show("Consent request sent");
-          },
-        },
-      ],
-      { cancelable: false }
-    );
+    showRequestRecordingConsentAlert({
+      present: showDeferredAlert,
+      onRequest: () => {
+        const requestId = `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+        pendingRecordingRequestRef.current = requestId;
+        publishConsentMessage({
+          type: "RECORDING_CONSENT_REQUEST",
+          requestId,
+          requesterId: localParticipantId,
+          requesterRole: isHost ? "Mentor" : "Learner",
+          ts: Date.now(),
+        });
+        Toast.show('Request sent — waiting for their response');
+      },
+    });
   };
 
   useEffect(() => {
     if (
       !isHost ||
       !autoStartRecording ||
-      booking?.recording_requested !== true ||
+      !recordingRequestedAtBooking ||
       !bothParticipantsPresent ||
+      !localParticipantId ||
       !meetingId ||
       autoRecordingAttemptedRef.current
     ) {
@@ -429,122 +601,25 @@ export default function OneToOneMeetingViewer({
     }
 
     autoRecordingAttemptedRef.current = true;
-    Toast.show("Both participants agreed. Starting recording...");
-
-    getToken()
-      .then(token => startOneToOneRecordingViaAPI({
-        token,
-        meetingId,
-        mentorId: localParticipantIdRef.current,
-      }))
-      .then(() => {
-        setRestRecordingActive(true);
-        Toast.show("Recording started.");
-      })
-      .catch(err => {
-        console.error('[Recording] automatic REST start failed, trying SDK fallback:', err);
-        try {
-          startOneToOneRecording(startRecording, participantCount || 2);
-          Toast.show("Recording started.");
-        } catch (fallbackErr) {
-          autoRecordingAttemptedRef.current = false;
-          console.error('[Recording] automatic start failed:', fallbackErr);
-          Toast.show('Could not start recording');
-        }
-      });
+    Toast.show('You both agreed — recording is starting…');
+    startRecordingSession().catch(() => {
+      autoRecordingAttemptedRef.current = false;
+    });
   }, [
     autoStartRecording,
-    booking?.recording_requested,
+    recordingRequestedAtBooking,
     bothParticipantsPresent,
     isHost,
     meetingId,
-    participantCount,
-    startRecording,
+    localParticipantId,
+    startRecordingSession,
   ]);
 
   useEffect(() => {
-    const messages = recordingConsentPubSub.messages || [];
-    if (!messages.length) return;
-
-    messages.forEach((entry) => {
-      const uniqueMessageId = `${entry.timestamp}-${entry.senderId}-${entry.message}`;
-      if (processedConsentMessagesRef.current.has(uniqueMessageId)) {
-        return;
-      }
-      processedConsentMessagesRef.current.add(uniqueMessageId);
-
-      let payload;
-      try {
-        payload = JSON.parse(entry.message);
-      } catch (e) {
-        return;
-      }
-
-      if (!payload || typeof payload !== 'object' || typeof payload.type !== 'string') {
-        return;
-      }
-
-      // Host must process RECORDING_START_APPROVED even when it sent the message itself
-      // (when mentor initiates: mentor publishes APPROVED, so senderId === localId)
-      if (payload.type === "RECORDING_START_APPROVED" && isHost) {
-        if (
-          (!recordingState ||
-            recordingState === Constants.recordingEvents.RECORDING_STOPPED) &&
-          !restRecordingActive
-        ) {
-          getToken()
-            .then(token => startOneToOneRecordingViaAPI({ token, meetingId, mentorId: localParticipantIdRef.current }))
-            .then(() => {
-              setRestRecordingActive(true);
-              Toast.show("Recording started.");
-            })
-            .catch(err => {
-              console.error('[Recording] REST start failed, trying SDK fallback:', err);
-              try {
-                startOneToOneRecording(startRecording, participantCount || 2);
-                Toast.show('Recording started.');
-              } catch (fallbackErr) {
-                console.error('[Recording] start failed:', fallbackErr);
-                Toast.show('Rec error: ' + (fallbackErr?.message || String(fallbackErr)));
-              }
-            });
-        }
-        return;
-      }
-
-      // Skip own messages for all other message types
-      if (entry.senderId === localParticipantIdRef.current) {
-        return;
-      }
-
-      if (
-        payload.type === "RECORDING_CONSENT_REQUEST" &&
-        payload.requesterId !== localParticipantIdRef.current
-      ) {
-        showIncomingRecordingConsent(payload.requestId, payload.requesterRole);
-        return;
-      }
-
-      if (payload.type === "RECORDING_CONSENT_RESPONSE") {
-        if (payload.requestId !== pendingRecordingRequestRef.current) {
-          return;
-        }
-        if (payload.agreed) {
-          publishConsentMessage({
-            type: "RECORDING_START_APPROVED",
-            requestId: payload.requestId,
-            requesterId: localParticipantIdRef.current,
-            ts: Date.now(),
-          });
-          Toast.show("Both agreed. Starting recording...");
-        } else {
-          Toast.show("Other participant declined recording.");
-        }
-        pendingRecordingRequestRef.current = null;
-        return;
-      }
-    });
-  }, [recordingConsentPubSub.messages, isHost, recordingState, meetingId, participantCount, startRecording]);
+    if (recordingState === Constants.recordingEvents.RECORDING_STOPPED) {
+      setRestRecordingActive(false);
+    }
+  }, [recordingState]);
 
   useEffect(() => {
     if (Platform.OS === "ios") {
@@ -578,29 +653,6 @@ export default function OneToOneMeetingViewer({
     }
   }, [recordingState, restRecordingActive]);
 
-  useEffect(() => {
-    return () => {
-      if (meetingTimerRef.current) {
-        clearInterval(meetingTimerRef.current);
-      }
-    };
-  }, []);
-
-  const hasSlotTimer = Boolean(slot.date);
-  const reverseTimerValue = hasSlotTimer
-    ? sessionTiming.status === "upcoming"
-      ? formatCountdown(sessionTiming.untilStartSec)
-      : sessionTiming.status === "live"
-        ? formatCountdown(sessionTiming.remainingSec)
-        : "00:00"
-    : formatDuration(meetingElapsedSeconds);
-  const reverseTimerLabel = hasSlotTimer
-    ? sessionTiming.status === "upcoming"
-      ? "Starts in"
-      : sessionTiming.status === "live"
-        ? "Time left"
-        : "Ended"
-    : null;
   const isRecordingVisible =
     restRecordingActive ||
     recordingState === Constants.recordingEvents.RECORDING_STARTED ||
@@ -625,36 +677,31 @@ export default function OneToOneMeetingViewer({
       onOpenChat: openChatPanel,
     });
 
-  const openStatsBottomSheet = ({ pId }) => {
+  const openStatsBottomSheet = useCallback(({ pId }) => {
     setparticipantStatsViewer(true);
     setstatParticipantId(pId);
-    bottomSheetRef.current.show();
-  };
+    bottomSheetRef.current?.show?.();
+  }, []);
 
   // Flip between front and back using cached IDs — no enumeration delay.
   const handleFlipCamera = () => {
     const current = activeCameraRef.current;
     const frontId = frontCameraIdRef.current;
     const backId = backCameraIdRef.current;
-    console.warn('[Camera] flip pressed — current:', current, '| frontId:', frontId, '| backId:', backId);
 
     if (current === 'front') {
       if (backId) {
-        console.warn('[Camera] switching to back:', backId);
         changeWebcam(backId);
         activeCameraRef.current = 'back';
       } else {
-        console.warn('[Camera] no backId — calling changeWebcam() no-args');
         changeWebcam();
         activeCameraRef.current = 'back';
       }
     } else {
       if (frontId) {
-        console.warn('[Camera] switching to front:', frontId);
         changeWebcam(frontId);
         activeCameraRef.current = 'front';
       } else {
-        console.warn('[Camera] no frontId — calling changeWebcam() no-args');
         changeWebcam();
         activeCameraRef.current = 'front';
       }
@@ -710,6 +757,20 @@ export default function OneToOneMeetingViewer({
     },
   });
 
+  if (!localParticipantId) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.primary[900],
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <CosmicLoader size={56} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.primary[900] }}>
@@ -726,7 +787,7 @@ export default function OneToOneMeetingViewer({
             style={{
               flexDirection: "row",
               alignItems: "center",
-              backgroundColor: "rgba(239, 68, 68, 0.2)",
+              backgroundColor: colors.dangerBg,
               paddingHorizontal: 8,
               paddingVertical: 4,
               borderRadius: 8,
@@ -738,14 +799,14 @@ export default function OneToOneMeetingViewer({
                   width: 8,
                   height: 8,
                   borderRadius: 4,
-                  backgroundColor: "#ef4444",
+                  backgroundColor: colors.dangerSolid,
                 }}
               />
             </Blink>
             <Text
               style={{
                 marginLeft: 6,
-                color: "#fca5a5",
+                color: colors.dangerText,
                 fontFamily: ROBOTO_FONTS.RobotoBold,
                 fontSize: 12,
                 letterSpacing: 0.5,
@@ -763,52 +824,7 @@ export default function OneToOneMeetingViewer({
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <View
-              style={{
-                paddingHorizontal: 10,
-                paddingVertical: 5,
-                marginRight: 10,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-                minWidth: hasSlotTimer ? 108 : undefined,
-              }}
-            >
-              {hasSlotTimer && sessionTiming.status === "live" ? (
-                <View
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 3,
-                    backgroundColor: "#4ade80",
-                  }}
-                />
-              ) : null}
-              <View>
-                {reverseTimerLabel ? (
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      fontFamily: ROBOTO_FONTS.RobotoMedium,
-                      color: colors.primary[200],
-                      marginBottom: 1,
-                    }}
-                  >
-                    {reverseTimerLabel}
-                  </Text>
-                ) : null}
-                <Text
-                  style={{
-                    fontSize: 15,
-                    fontFamily: ROBOTO_FONTS.RobotoBold,
-                    color: colors.primary[100],
-                    fontVariant: ["tabular-nums"],
-                  }}
-                >
-                  {reverseTimerValue}
-                </Text>
-              </View>
-            </View>
+            <CallSessionTimer slot={slot} />
           </View>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -910,47 +926,59 @@ export default function OneToOneMeetingViewer({
       </Menu>
       <Menu
         ref={moreOptionsMenu}
-        menuBackgroundColor={colors.primary[700]}
+        menuBackgroundColor={colors.sheet}
         placement="right"
       >
-        <MenuItem
-          title={`${
-            !isRecordingRunning &&
-            (!recordingState ||
-              recordingState === Constants.recordingEvents.RECORDING_STOPPED)
-              ? "Start"
-              : recordingState === Constants.recordingEvents.RECORDING_STARTING
-              ? "Starting"
-              : recordingState === Constants.recordingEvents.RECORDING_STOPPING
-              ? "Stopping"
-              : "Recording"
-          } Recording`}
-          icon={<Recording width={22} height={22} />}
-          onPress={() => {
-            moreOptionsMenu.current.close();
-            runAfterMenuDismiss(() => {
-              if (
+        {Boolean(booking?.id) ? (
+          <>
+            <MenuItem
+              title={`${
                 !isRecordingRunning &&
                 (!recordingState ||
                   recordingState === Constants.recordingEvents.RECORDING_STOPPED)
-              ) {
-                requestRecordingConsent();
-                return;
-              }
-              Toast.show("Recording stops when the meeting ends");
-            });
-          }}
-        />
-        <View
-          style={{
-            height: 1,
-            backgroundColor: colors.primary["600"],
-          }}
-        />
+                  ? "Start"
+                  : recordingState === Constants.recordingEvents.RECORDING_STARTING
+                  ? "Starting"
+                  : recordingState === Constants.recordingEvents.RECORDING_STOPPING
+                  ? "Stopping"
+                  : "Stop"
+              } Recording`}
+              icon={<Recording width={22} height={22} fill={colors.primary[100]} />}
+              onPress={() => {
+                moreOptionsMenu.current.close();
+                runAfterMenuDismiss(() => {
+                  if (
+                    !isRecordingRunning &&
+                    (!recordingState ||
+                      recordingState === Constants.recordingEvents.RECORDING_STOPPED)
+                  ) {
+                    requestRecordingConsent();
+                    return;
+                  }
+                  if (isRecordingRunning) {
+                    confirmStopRecording();
+                    return;
+                  }
+                  if (
+                    recordingState === Constants.recordingEvents.RECORDING_STARTING
+                  ) {
+                    Toast.show('Recording is starting…');
+                  }
+                });
+              }}
+            />
+            <View
+              style={{
+                height: 1,
+                backgroundColor: colors.primary["600"],
+              }}
+            />
+          </>
+        ) : null}
         {(presenterId == null || localScreenShareOn) && (
           <MenuItem
             title={`${localScreenShareOn ? "Stop" : "Start"} Screen Share`}
-            icon={<ScreenShare width={22} height={22} />}
+            icon={<ScreenShare width={22} height={22} fill={colors.primary[100]} />}
             onPress={() => {
               moreOptionsMenu.current.close();
               pressScreenShare({
@@ -971,7 +999,7 @@ export default function OneToOneMeetingViewer({
         />
         <MenuItem
           title={"Participants"}
-          icon={<Participants width={22} height={22} />}
+          icon={<Participants width={22} height={22} fill={colors.primary[100]} />}
           onPress={() => {
             setparticipantListViewer(true);
             moreOptionsMenu.current.close(false);
@@ -991,14 +1019,14 @@ export default function OneToOneMeetingViewer({
           backgroundColor={"red"}
           onPress={confirmLeaveMeeting}
         >
-          <CallEnd height={26} width={26} fill="#FFF" />
+          <CallEnd height={26} width={26} fill={colors.dangerSolidText} />
         </IconContainer>
         <View
           style={{
             flexDirection: "row",
             borderRadius: 14,
             borderWidth: 1.5,
-            borderColor: colors.sheet,
+            borderColor: colors.controlBorder,
             backgroundColor: !localMicOn ? colors.primary[100] : "transparent",
             height: 50,
             alignItems: "center",
@@ -1009,7 +1037,7 @@ export default function OneToOneMeetingViewer({
             style={{ width: 50, height: 50, justifyContent: "center", alignItems: "center" }}
           >
             {localMicOn
-              ? <MicOn height={24} width={24} fill={colors.primary[100]} />
+              ? <MicOn height={24} width={24} fill={colors.chromeInk} />
               : <MicOff height={28} width={28} fill={colors.ink} />}
           </TouchableOpacity>
           <TouchableOpacity
@@ -1019,11 +1047,11 @@ export default function OneToOneMeetingViewer({
             }}
             style={{ width: 30, height: 50, justifyContent: "center", alignItems: "center", paddingRight: 4 }}
           >
-            <DownArrow />
+            <DownArrow fill={localMicOn ? colors.chromeInk : colors.ink} />
           </TouchableOpacity>
         </View>
         <IconContainer
-          style={{ borderWidth: 1.5, borderColor: colors.sheet }}
+          style={{ borderWidth: 1.5, borderColor: colors.controlBorder }}
           backgroundColor={!localWebcamOn ? colors.primary[100] : "transparent"}
           onPress={() => {
             if (!localWebcamOn) {
@@ -1041,15 +1069,15 @@ export default function OneToOneMeetingViewer({
           }}
         >
           {localWebcamOn
-            ? <VideoOn height={24} width={24} fill={colors.primary[100]} />
+            ? <VideoOn height={24} width={24} fill={colors.chromeInk} />
             : <VideoOff height={36} width={36} fill={colors.ink} />}
         </IconContainer>
         <View style={{ position: 'relative' }}>
           <IconContainer
             onPress={openChatPanel}
-            style={{ borderWidth: 1.5, borderColor: colors.sheet }}
+            style={{ borderWidth: 1.5, borderColor: colors.controlBorder }}
           >
-            <Chat height={22} width={22} fill={colors.primary[100]} />
+            <Chat height={22} width={22} fill={colors.chromeInk} />
           </IconContainer>
           {unreadCount > 0 ? (
             <View
@@ -1060,13 +1088,13 @@ export default function OneToOneMeetingViewer({
                 minWidth: 18,
                 height: 18,
                 borderRadius: 9,
-                backgroundColor: '#7c3aed',
+                backgroundColor: colors.brand,
                 alignItems: 'center',
                 justifyContent: 'center',
                 paddingHorizontal: 4,
               }}
             >
-              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>
+              <Text style={{ color: colors.onBrand, fontSize: 10, fontWeight: '700' }}>
                 {unreadCount > 9 ? '9+' : unreadCount}
               </Text>
             </View>
@@ -1075,12 +1103,12 @@ export default function OneToOneMeetingViewer({
         <IconContainer
           style={{
             borderWidth: 1.5,
-            borderColor: colors.sheet,
+            borderColor: colors.controlBorder,
             transform: [{ rotate: "90deg" }],
           }}
           onPress={() => moreOptionsMenu.current.show()}
         >
-          <More height={18} width={18} fill={colors.primary[100]} />
+          <More height={18} width={18} fill={colors.chromeInk} />
         </IconContainer>
       </View>
       <BottomSheet

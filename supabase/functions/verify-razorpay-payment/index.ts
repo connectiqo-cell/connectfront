@@ -1,18 +1,9 @@
 // Supabase Edge Function: verify-razorpay-payment
-// Deploy: supabase functions deploy verify-razorpay-payment
-//
-// This function:
-//   1. Verifies Razorpay HMAC signature (prevents payment spoofing)
-//   2. Creates the booking (atomically)
-//   3. Marks the availability slot as booked
-//   4. Updates transaction status to 'paid'
-//   5. Saves earnings as PENDING (wallet credited only after session completes)
-
 import { serve }        from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { crypto }       from 'https://deno.land/std@0.168.0/crypto/mod.ts';
 
-// ── Inline FCM helper ─────────────────────────────────────────────────────────
+// ── Inline FCM helper ───────────────────────────────────────────────────────────────────
 function base64url(s: string) {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
@@ -39,34 +30,26 @@ async function getFcmToken(supabase: ReturnType<typeof createClient>, userId: st
   const { data } = await supabase.from('profiles').select('fcm_token').eq('id', userId).single();
   return (data as { fcm_token?: string } | null)?.fcm_token ?? null;
 }
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────────
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 async function hmacSha256Hex(secret: string, message: string): Promise<string> {
   const enc     = new TextEncoder();
-  const keyData = enc.encode(secret);
-  const msgData = enc.encode(message);
-
   const key = await crypto.subtle.importKey(
-    'raw', keyData,
+    'raw', enc.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false, ['sign'],
   );
-
-  const sig     = await crypto.subtle.sign('HMAC', key, msgData);
-  const hashArr = Array.from(new Uint8Array(sig));
-  return hashArr.map(b => b.toString(16).padStart(2, '0')).join('');
+  const sig     = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     const {
@@ -84,11 +67,20 @@ serve(async (req) => {
       throw new Error('Recording preference is required');
     }
 
-    // ── 1. Verify signature ───────────────────────────────────────────────────
-    const keySecret   = Deno.env.get('RAZORPAY_KEY_SECRET')!;
-    const body        = `${razorpayOrderId}|${razorpayPaymentId}`;
-    const expectedSig = await hmacSha256Hex(keySecret, body);
+    // ── 1. Verify caller is the learner who initiated the order ──────────────
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const userClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) throw new Error('Unauthorized');
+    if (user.id !== learnerId) throw new Error('Unauthorized: learnerId must match authenticated user');
 
+    // ── 2. Verify Razorpay HMAC signature ──────────────────────────────────────
+    const keySecret   = Deno.env.get('RAZORPAY_KEY_SECRET')!;
+    const expectedSig = await hmacSha256Hex(keySecret, `${razorpayOrderId}|${razorpayPaymentId}`);
     if (expectedSig !== razorpaySignature) {
       throw new Error('Payment signature verification failed — possible tampering');
     }
@@ -98,19 +90,27 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // ── 2. Fetch stored transaction to get server-calculated amounts ──────────
-    // mentor_earning_paise was set by create-razorpay-order — never trust client
+    // ── 3. Fetch server-calculated amounts from stored transaction ────────────
     const { data: tx, error: txFetchErr } = await supabase
       .from('transactions')
-      .select('mentor_earning_paise')
+      .select('mentor_earning_paise, status, booking_id')
       .eq('razorpay_order_id', razorpayOrderId)
       .single();
 
     if (txFetchErr || !tx) throw new Error('Transaction not found for this order');
 
+    // Already reconciled (e.g. by the razorpay-webhook, if this client call
+    // is arriving late after a crash/retry) — don't create a second booking.
+    if (tx.status === 'paid' && tx.booking_id) {
+      return new Response(
+        JSON.stringify({ success: true, bookingId: tx.booking_id }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     const mentorAmount = tx.mentor_earning_paise / 100;
 
-    // ── 3. Check slot is still available (race-condition guard) ───────────────
+    // ── 4. Check slot is still available (race-condition guard) ───────────────
     const { data: slot, error: slotErr } = await supabase
       .from('availability_slots')
       .select('is_booked')
@@ -118,11 +118,9 @@ serve(async (req) => {
       .single();
 
     if (slotErr) throw slotErr;
-    if (slot.is_booked) {
-      throw new Error('This slot was just booked by someone else. Please select another slot.');
-    }
+    if (slot.is_booked) throw new Error('This slot was just booked by someone else. Please select another slot.');
 
-    // ── 4. Create booking with status = confirmed ─────────────────────────────
+    // ── 5. Create booking ─────────────────────────────────────────────────────
     const { data: booking, error: bookingErr } = await supabase
       .from('bookings')
       .insert({
@@ -136,27 +134,28 @@ serve(async (req) => {
       .select()
       .single();
 
-    if (bookingErr) throw bookingErr;
+    if (bookingErr) {
+      // Unique-violation on the active-slot index: something else (e.g. the
+      // razorpay-webhook reconciler) already booked this slot for this order.
+      if ((bookingErr as { code?: string }).code === '23505') {
+        throw new Error('This slot was just booked by someone else. Please select another slot.');
+      }
+      throw bookingErr;
+    }
 
-    // ── 5. Mark slot as booked ────────────────────────────────────────────────
-    await supabase
-      .from('availability_slots')
-      .update({ is_booked: true })
-      .eq('id', slotId);
+    // ── 6. Mark slot as booked ────────────────────────────────────────────────
+    await supabase.from('availability_slots').update({ is_booked: true }).eq('id', slotId);
 
-    // ── 6. Update transaction: paid + link booking ────────────────────────────
-    await supabase
-      .from('transactions')
-      .update({
-        booking_id:           booking.id,
-        razorpay_payment_id:  razorpayPaymentId,
-        razorpay_signature:   razorpaySignature,
-        status:               'paid',
-        updated_at:           new Date().toISOString(),
-      })
-      .eq('razorpay_order_id', razorpayOrderId);
+    // ── 7. Update transaction to paid ───────────────────────────────────────────
+    await supabase.from('transactions').update({
+      booking_id:          booking.id,
+      razorpay_payment_id: razorpayPaymentId,
+      razorpay_signature:  razorpaySignature,
+      status:              'paid',
+      updated_at:          new Date().toISOString(),
+    }).eq('razorpay_order_id', razorpayOrderId);
 
-    // ── 7. Save earnings as PENDING (server-calculated amount only) ───────────
+    // ── 8. Save earnings as pending (server-calculated amount only) ────────────
     await supabase.from('earnings').insert({
       mentor_id:  mentorId,
       booking_id: booking.id,
@@ -164,7 +163,7 @@ serve(async (req) => {
       status:     'pending',
     });
 
-    // ── 8. Notify mentor of new booking ──────────────────────────────────────
+    // ── 9. Notify mentor of new booking (fire-and-forget) ────────────────────
     try {
       const [mentorToken, learnerProfile] = await Promise.all([
         getFcmToken(supabase, mentorId),

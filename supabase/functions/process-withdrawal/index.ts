@@ -1,10 +1,8 @@
 // Supabase Edge Function: process-withdrawal
 // TEST MODE: Records withdrawal request in DB only.
-// When going live, uncomment the RazorpayX payout block below.
-//
-// Required secrets: (none for test mode)
+// When going live, integrate RazorpayX payout block (see git history).
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { serve }        from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -20,71 +18,56 @@ serve(async (req) => {
 
     if (!mentorId || !amount || amount <= 0) throw new Error('mentorId and amount are required');
 
+    // ── 1. Verify caller is the mentor (JWT sub must match mentorId) ──────────
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const userClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) throw new Error('Unauthorized');
+    if (user.id !== mentorId) throw new Error('Unauthorized: you can only withdraw your own earnings');
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // ── 1. Load mentor UPI + wallet balance ───────────────────────────────────
-    const [{ data: mp, error: mpErr }, { data: wallet, error: walletErr }] = await Promise.all([
-      supabase
-        .from('mentor_profiles')
-        .select('upi_id')
-        .eq('id', mentorId)
-        .single(),
-      supabase
-        .from('mentor_wallets')
-        .select('balance, total_withdrawn')
-        .eq('id', mentorId)
-        .single(),
-    ]);
+    // ── 2. Verify mentor has UPI set up ───────────────────────────────────────
+    const { data: mp, error: mpErr } = await supabase
+      .from('mentor_profiles')
+      .select('upi_id')
+      .eq('id', mentorId)
+      .single();
 
-    if (mpErr)     throw mpErr;
-    if (walletErr) throw walletErr;
-    if (!mp?.upi_id)              throw new Error('No UPI ID found. Complete payout setup first.');
-    if ((wallet?.balance || 0) < amount) throw new Error('Insufficient wallet balance');
+    if (mpErr) throw mpErr;
+    if (!mp?.upi_id) throw new Error('No UPI ID found. Complete payout setup first.');
 
-    // ── 2. Deduct balance + record withdrawal request ─────────────────────────
-    const newBalance       = (wallet.balance || 0) - amount;
-    const newTotalWithdrawn = (wallet.total_withdrawn || 0) + amount;
+    // ── 3. Atomically deduct balance (fails if insufficient) ─────────────────
+    const { data: newBalance, error: deductErr } = await supabase.rpc(
+      'deduct_wallet_for_withdrawal',
+      { p_mentor_id: mentorId, p_amount: amount },
+    );
+    if (deductErr) throw new Error(deductErr.message || 'Insufficient wallet balance');
 
-    const [walletUpdate, withdrawalInsert] = await Promise.all([
-      supabase
-        .from('mentor_wallets')
-        .update({ balance: newBalance, total_withdrawn: newTotalWithdrawn })
-        .eq('id', mentorId),
-      supabase
-        .from('withdrawal_requests')
-        .insert({
-          mentor_id: mentorId,
-          amount,
-          upi_id:    mp.upi_id,
-          status:    'pending',  // admin manually processes this
-        })
-        .select('id')
-        .single(),
-    ]);
+    // ── 4. Record withdrawal request ──────────────────────────────────────────
+    const { data: withdrawal, error: withdrawalErr } = await supabase
+      .from('withdrawal_requests')
+      .insert({
+        mentor_id: mentorId,
+        amount,
+        upi_id:    mp.upi_id,
+        status:    'pending',
+      })
+      .select('id')
+      .single();
 
-    if (walletUpdate.error)   throw walletUpdate.error;
-    if (withdrawalInsert.error) throw withdrawalInsert.error;
-
-    // ── TODO (go-live): Replace above with RazorpayX payout ──────────────────
-    // Uncomment when you activate RazorpayX and set RAZORPAYX_ACCOUNT_NUMBER secret.
-    //
-    // const payout = await rzp('/payouts', 'POST', {
-    //   account_number:       Deno.env.get('RAZORPAYX_ACCOUNT_NUMBER')!,
-    //   fund_account_id:      fundAccountId,
-    //   amount:               Math.round(amount * 100),
-    //   currency:             'INR',
-    //   mode:                 'UPI',
-    //   purpose:              'payout',
-    //   queue_if_low_balance: true,
-    // });
-    // ─────────────────────────────────────────────────────────────────────────
+    if (withdrawalErr) throw withdrawalErr;
 
     return new Response(
       JSON.stringify({
-        payoutId:   `manual_${withdrawalInsert.data.id}`,
+        payoutId:   `manual_${withdrawal.id}`,
         status:     'pending',
         newBalance,
         message:    'Withdrawal request recorded. Will be processed within 1–2 business days.',
@@ -93,8 +76,9 @@ serve(async (req) => {
     );
   } catch (err) {
     console.error('process-withdrawal error:', err);
+    const msg = err instanceof Error ? err.message : JSON.stringify(err);
     return new Response(
-      JSON.stringify({ error: err.message }),
+      JSON.stringify({ error: msg }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }

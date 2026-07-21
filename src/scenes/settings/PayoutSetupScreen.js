@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Linking,
   RefreshControl,
   Pressable,
   Animated,
@@ -56,7 +55,33 @@ function getStatusConfig(theme) {
         : ['rgba(251,191,36,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
       glow: C.accent.warning,
       title: 'Almost there',
-      subtitle: 'Complete Razorpay KYC to activate payouts to your UPI.',
+      subtitle: 'Razorpay has emailed you to complete KYC. Check your inbox, then pull to refresh here.',
+    },
+    needs_clarification: {
+      color: C.accent.warning,
+      bg: S.accentWarning,
+      border: 'rgba(251,191,36,0.35)',
+      icon: 'help-outline',
+      label: 'Action needed',
+      heroGradient: isLight
+        ? ['rgba(245,158,11,0.16)', 'rgba(109,74,255,0.08)', PANEL_BG]
+        : ['rgba(251,191,36,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
+      glow: C.accent.warning,
+      title: 'Razorpay needs more info',
+      subtitle: 'Check the email from Razorpay for what needs clarifying, then pull to refresh here.',
+    },
+    suspended: {
+      color: C.accent.danger || '#ef4444',
+      bg: S.accentWarning,
+      border: 'rgba(239,68,68,0.35)',
+      icon: 'error-outline',
+      label: 'Suspended',
+      heroGradient: isLight
+        ? ['rgba(239,68,68,0.16)', 'rgba(109,74,255,0.08)', PANEL_BG]
+        : ['rgba(239,68,68,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
+      glow: '#ef4444',
+      title: 'Account suspended',
+      subtitle: 'Your Razorpay account was suspended. Contact Razorpay support to resolve this.',
     },
     not_started: {
       color: C.text.muted,
@@ -672,7 +697,6 @@ export default function PayoutSetupScreen({ navigation }) {
   const { profile } = useAuth();
   const [status, setStatus] = useState('not_started');
   const [accountId, setAccountId] = useState(null);
-  const [kycUrl, setKycUrl] = useState(null);
   const [upiIdDisplay, setUpiIdDisplay] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -702,6 +726,11 @@ export default function PayoutSetupScreen({ navigation }) {
   const [legalName, setLegalName] = useState(profile?.name || '');
   const [email, setEmail] = useState(profile?.email || '');
   const [upiId, setUpiId] = useState('');
+  const [phone, setPhone] = useState('');
+  const [addressLine1, setAddressLine1] = useState('');
+  const [city, setCity] = useState('');
+  const [stateField, setStateField] = useState('');
+  const [postalCode, setPostalCode] = useState('');
 
   const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.not_started;
   const isSetUp = status !== 'not_started';
@@ -720,7 +749,6 @@ export default function PayoutSetupScreen({ navigation }) {
         const res = await payoutApi.getAccountStatus(profile.id);
         setStatus(res.status || 'not_started');
         setAccountId(res.accountId || null);
-        setKycUrl(res.kycUrl || null);
         setUpiIdDisplay(res.upiId || '');
         if (res.upiId) setUpiId(prev => prev || res.upiId);
         loadedRef.current = true;
@@ -750,8 +778,12 @@ export default function PayoutSetupScreen({ navigation }) {
       Toast.show('Enter your legal / business name');
       return;
     }
-    if (!email.trim()) {
-      Toast.show('Enter your email');
+    if (!phone.trim()) {
+      Toast.show('Enter your phone number');
+      return;
+    }
+    if (!addressLine1.trim() || !city.trim() || !stateField.trim() || !postalCode.trim()) {
+      Toast.show('Enter your full registered address');
       return;
     }
     if (!upiId.trim()) {
@@ -764,24 +796,22 @@ export default function PayoutSetupScreen({ navigation }) {
       const res = await payoutApi.createLinkedAccount({
         mentorId: profile.id,
         legalName: legalName.trim(),
-        email: email.trim(),
+        phone: phone.trim(),
+        addressLine1: addressLine1.trim(),
+        city: city.trim(),
+        state: stateField.trim(),
+        postalCode: postalCode.trim(),
         upiId: upiId.trim(),
       });
       setAccountId(res.accountId);
-      setKycUrl(res.kycUrl);
-      setStatus('pending');
+      setStatus(res.status || 'pending');
       setUpiIdDisplay(upiId.trim());
-      Toast.show('Account created! Complete KYC to activate payouts.');
+      Toast.show('Account created! Razorpay will email you to complete KYC.');
     } catch (e) {
       Toast.show(e.message || 'Setup failed');
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleOpenKyc = () => {
-    if (!kycUrl) return;
-    Linking.openURL(kycUrl).catch(() => Toast.show('Could not open KYC link'));
   };
 
   return (
@@ -894,11 +924,11 @@ export default function PayoutSetupScreen({ navigation }) {
               <StatusBadge status={status} />
             </View>
 
-            {status === 'pending' ? (
+            {status === 'pending' || status === 'needs_clarification' ? (
               <NoticeCard variant="warning">
                 <MaterialIcons name="info-outline" size={18} color={C.accent.warning} />
                 <Text style={styles.noticeWarningText}>
-                  Complete KYC on Razorpay to activate payouts. This is a one-time verification required by law.
+                  {STATUS_CONFIG[status]?.subtitle}
                 </Text>
               </NoticeCard>
             ) : null}
@@ -907,20 +937,9 @@ export default function PayoutSetupScreen({ navigation }) {
               <NoticeCard variant="success">
                 <MaterialIcons name="check-circle" size={18} color={C.accent.success} />
                 <Text style={styles.noticeSuccessText}>
-                  Your account is active. Withdraw earnings anytime from My Wallet.
+                  Your account is active. Session earnings are split to it automatically.
                 </Text>
               </NoticeCard>
-            ) : null}
-
-            {status !== 'active' && kycUrl && accountId ? (
-              <GradientButton
-                label="Complete KYC on Razorpay"
-                icon="open-in-new"
-                onPress={handleOpenKyc}
-                colors={B.warningGradient || [C.accent.warning, GOLD]}
-                textColor={B.warningGradientText || B.primaryText}
-                borderColor="rgba(251,191,36,0.4)"
-              />
             ) : null}
 
             {status === 'active' ? (
@@ -947,15 +966,47 @@ export default function PayoutSetupScreen({ navigation }) {
               index={0}
             />
             <Field
-              icon="email"
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="email@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              hint="Used for Razorpay account notifications"
+              icon="call"
+              label="Phone number"
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="9876543210"
+              keyboardType="phone-pad"
+              hint="Used for Razorpay account verification"
               index={1}
+            />
+            <Field
+              icon="home"
+              label="Registered address"
+              value={addressLine1}
+              onChangeText={setAddressLine1}
+              placeholder="Street address"
+              index={2}
+            />
+            <Field
+              icon="location-city"
+              label="City"
+              value={city}
+              onChangeText={setCity}
+              placeholder="City"
+              index={3}
+            />
+            <Field
+              icon="map"
+              label="State"
+              value={stateField}
+              onChangeText={setStateField}
+              placeholder="State"
+              index={4}
+            />
+            <Field
+              icon="local-post-office"
+              label="PIN code"
+              value={postalCode}
+              onChangeText={setPostalCode}
+              placeholder="400001"
+              keyboardType="number-pad"
+              index={5}
             />
             <Field
               icon="phone-android"
@@ -966,13 +1017,13 @@ export default function PayoutSetupScreen({ navigation }) {
               keyboardType="email-address"
               autoCapitalize="none"
               hint="Where withdrawal amounts will be sent"
-              index={2}
+              index={6}
             />
 
             <HoverHighlight style={styles.trustNote} hoverScale={1.01} pressScale={0.99}>
               <MaterialIcons name="shield" size={16} color={TEAL} />
               <Text style={styles.trustNoteText}>
-                After setup you'll complete a quick KYC on Razorpay. We never store your banking password.
+                Razorpay will email {email || 'your account email'} to complete a quick KYC. We never store your banking password.
               </Text>
             </HoverHighlight>
 

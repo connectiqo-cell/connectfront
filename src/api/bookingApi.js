@@ -320,6 +320,16 @@ export const bookingApi = {
         if (walletError) {
           console.error('❌ Failed to credit wallet:', walletError);
         }
+
+        // If the mentor is on an activated Razorpay Route account, split
+        // their cut to it now (fire-and-forget — wallet ledger above is
+        // already correct either way, this just moves the real money).
+        supabase.functions
+          .invoke('transfer-session-payout', { body: { bookingId, mentorId: data.mentor_id } })
+          .then(({ error: transferError }) => {
+            if (transferError) console.warn('⚠️ transfer-session-payout failed:', transferError.message);
+          })
+          .catch(err => console.warn('⚠️ transfer-session-payout fetch error:', err));
       }
 
       // Notify learner of status change (fire-and-forget)

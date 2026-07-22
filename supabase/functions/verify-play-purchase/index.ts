@@ -22,6 +22,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Must match src/utils/playBilling.js's VIDEO_UNLOCK_PRODUCT_IDS — Google Play
+// Billing needs a fixed price per product ID, so mentor unlock_price is
+// constrained (see migration constrain_unlock_price_to_tiers) to this same
+// discrete set. Kept in sync manually since edge functions can't import from
+// the app's src/ tree.
+const PRODUCT_ID_BY_PRICE: Record<number, string> = {
+  199: 'video_unlock_199',
+  299: 'video_unlock_299',
+  499: 'video_unlock_499',
+  799: 'video_unlock_799',
+  999: 'video_unlock_999',
+};
+
 function base64url(s: string) {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
@@ -128,6 +141,14 @@ serve(async (req) => {
       .eq('id', mentorId)
       .single();
     if (mpErr || !mp?.unlock_price) throw new Error('Mentor profile / unlock_price not found');
+
+    // Reject if the purchased product doesn't match the mentor's *current*
+    // price tier — prevents a learner buying a cheaper tier's product while
+    // the mentor's configured price is actually higher.
+    const expectedProductId = PRODUCT_ID_BY_PRICE[mp.unlock_price];
+    if (!expectedProductId || expectedProductId !== productId) {
+      throw new Error('Purchased product does not match this mentor\'s current unlock price');
+    }
 
     const { data: feeRule } = await supabase
       .from('platform_fee_rules')

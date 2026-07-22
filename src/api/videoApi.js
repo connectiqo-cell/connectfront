@@ -1,5 +1,6 @@
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
+import { VIDEO_UNLOCK_PRICE_TIERS } from '../utils/playBilling';
 
 const BUCKET = 'mentor-videos';
 const THUMB_BUCKET = 'mentor-videos-thumbnail';
@@ -417,8 +418,14 @@ export const videoApi = {
   },
 
   // ─── Set mentor's library unlock price ───────────────────────────────────────
+  // Must be one of VIDEO_UNLOCK_PRICE_TIERS — Google Play Billing one-time
+  // products need a fixed price per product ID, so this can't be a free-form
+  // amount (also enforced by a DB check constraint as the source of truth).
   setUnlockPrice: async ({ mentorId, price }) => {
     try {
+      if (!VIDEO_UNLOCK_PRICE_TIERS.includes(price)) {
+        throw new Error(`Price must be one of: ₹${VIDEO_UNLOCK_PRICE_TIERS.join(', ₹')}`);
+      }
       const { error } = await supabase
         .from('mentor_profiles')
         .update({ unlock_price: price })

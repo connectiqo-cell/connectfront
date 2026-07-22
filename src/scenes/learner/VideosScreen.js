@@ -33,7 +33,7 @@ import { homeApi } from '../../api/homeApi';
 import { useAuth } from '../../hooks/useAuth';
 import { isSameUserId } from '../../utils/mentorOwnership';
 import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
-import { purchaseAndroidProduct, finishAndroidPurchase, PLAY_VIDEO_UNLOCK_PRODUCT_ID } from '../../utils/playBilling';
+import { purchaseAndroidProduct, finishAndroidPurchase, getPlayProductIdForPrice } from '../../utils/playBilling';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { consumePendingLearnerVideo } from '../../navigators/pendingVideoNavigation';
@@ -336,7 +336,8 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
     setLoading(true);
     try {
       if (Platform.OS === 'android') {
-        const purchase = await purchaseAndroidProduct(PLAY_VIDEO_UNLOCK_PRODUCT_ID);
+        const productId = getPlayProductIdForPrice(price);
+        const purchase = await purchaseAndroidProduct(productId);
 
         await videoApi.verifyPlayPurchase({
           mentorId:      video.mentor_id,

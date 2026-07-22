@@ -35,6 +35,7 @@ import { UNIFIED_THEME } from '../../unifiedTheme';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { videoApi } from '../../api/videoApi';
+import { VIDEO_UNLOCK_PRICE_TIERS } from '../../utils/playBilling';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
 const T = UNIFIED_THEME;
@@ -314,12 +315,12 @@ function UnlockPriceCard({
   price,
   lockedCount,
   editing,
-  priceInput,
+  selectedTier,
   saving,
   error,
   onEdit,
   onCancel,
-  onChange,
+  onSelectTier,
   onSave,
   replayToken = 0,
 }) {
@@ -366,19 +367,23 @@ function UnlockPriceCard({
         {editing ? (
           <View style={styles.unlockEditBlock}>
             <Text style={styles.unlockFieldLabel}>Price per library unlock</Text>
-            <View style={[styles.unlockInputWrap, error && styles.unlockInputWrapError]}>
-              <Text style={styles.unlockCurrency}>₹</Text>
-              <TextInput
-                style={styles.unlockInput}
-                value={priceInput}
-                onChangeText={onChange}
-                keyboardType="number-pad"
-                maxLength={5}
-                placeholder="299"
-                placeholderTextColor={C.text.muted}
-                autoFocus
-                editable={!saving}
-              />
+            <View style={styles.unlockTierRow}>
+              {VIDEO_UNLOCK_PRICE_TIERS.map(tier => {
+                const isSelected = tier === selectedTier;
+                return (
+                  <AnimatedPressable
+                    key={tier}
+                    onPress={() => !saving && onSelectTier(tier)}
+                    style={[styles.unlockTierChip, isSelected && styles.unlockTierChipSelected]}
+                    hoverScale={1.04}
+                    pressScale={0.96}
+                  >
+                    <Text style={[styles.unlockTierChipText, isSelected && styles.unlockTierChipTextSelected]}>
+                      ₹{tier}
+                    </Text>
+                  </AnimatedPressable>
+                );
+              })}
             </View>
             {error ? (
               <View style={styles.unlockErrorRow}>
@@ -386,7 +391,7 @@ function UnlockPriceCard({
                 <Text style={styles.unlockErrorText}>{error}</Text>
               </View>
             ) : (
-              <Text style={styles.unlockInputHint}>Recommended range · ₹99 – ₹999</Text>
+              <Text style={styles.unlockInputHint}>Fixed price tiers — required for Play Store billing</Text>
             )}
             <View style={styles.unlockActions}>
               <AnimatedPressable
@@ -1197,7 +1202,7 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
   const [editingVideo, setEditingVideo] = useState(null);
   const [unlockPrice, setUnlockPrice] = useState(299);
   const [editingPrice, setEditingPrice] = useState(false);
-  const [priceInput, setPriceInput] = useState('299');
+  const [selectedTier, setSelectedTier] = useState(299);
   const [savingPrice, setSavingPrice] = useState(false);
   const [priceError, setPriceError] = useState('');
   const [replayToken, setReplayToken] = useState(0);
@@ -1211,7 +1216,7 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
       ]);
       setVideos(vids);
       setUnlockPrice(price);
-      setPriceInput(String(price));
+      setSelectedTier(price);
     } catch (e) {
       Toast.show(e.message, Toast.LONG);
     } finally {
@@ -1262,20 +1267,11 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
   };
 
   const handleSavePrice = async () => {
-    const p = parseInt(priceInput, 10);
-    if (isNaN(p) || p < 1) {
-      setPriceError('Enter a valid price of at least ₹1');
-      return;
-    }
-    if (p > 9999) {
-      setPriceError('Maximum price is ₹9,999');
-      return;
-    }
     setPriceError('');
     setSavingPrice(true);
     try {
-      await videoApi.setUnlockPrice({ mentorId: user.id, price: p });
-      setUnlockPrice(p);
+      await videoApi.setUnlockPrice({ mentorId: user.id, price: selectedTier });
+      setUnlockPrice(selectedTier);
       setEditingPrice(false);
       setReplayToken(t => t + 1);
       Toast.show('Unlock price updated', Toast.SHORT);
@@ -1287,13 +1283,13 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
   };
 
   const handleStartEditPrice = () => {
-    setPriceInput(String(unlockPrice));
+    setSelectedTier(unlockPrice);
     setPriceError('');
     setEditingPrice(true);
   };
 
   const handleCancelEditPrice = () => {
-    setPriceInput(String(unlockPrice));
+    setSelectedTier(unlockPrice);
     setPriceError('');
     setEditingPrice(false);
   };
@@ -1315,14 +1311,14 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
           price={unlockPrice}
           lockedCount={lockedCount}
           editing={editingPrice}
-          priceInput={priceInput}
+          selectedTier={selectedTier}
           saving={savingPrice}
           error={priceError}
           replayToken={replayToken}
           onEdit={handleStartEditPrice}
           onCancel={handleCancelEditPrice}
-          onChange={text => {
-            setPriceInput(text.replace(/[^0-9]/g, ''));
+          onSelectTier={tier => {
+            setSelectedTier(tier);
             setPriceError('');
           }}
           onSave={handleSavePrice}
@@ -1679,31 +1675,30 @@ function createMentorVideosStyles(theme) {
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  unlockInputWrap: {
+  unlockTierRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  unlockTierChip: {
     backgroundColor: INPUT_BG,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: GLASS_BORDER,
     paddingHorizontal: 14,
-    paddingVertical: 4,
-  },
-  unlockInputWrapError: {
-    borderColor: 'rgba(248,113,113,0.45)',
-  },
-  unlockCurrency: {
-    color: GOLD,
-    fontSize: 22,
-    fontWeight: '800',
-    marginRight: 6,
-  },
-  unlockInput: {
-    flex: 1,
-    color: C.text.primary,
-    fontSize: 22,
-    fontWeight: '800',
     paddingVertical: 10,
+  },
+  unlockTierChipSelected: {
+    backgroundColor: S.accentGold || 'rgba(240,216,117,0.16)',
+    borderColor: GOLD,
+  },
+  unlockTierChipText: {
+    color: C.text.secondary,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  unlockTierChipTextSelected: {
+    color: GOLD,
   },
   unlockInputHint: {
     color: C.text.muted,

@@ -40,7 +40,7 @@ import { parseMentorCategories } from '../../utils/mentorCategories';
 import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
 import { isSameUserId } from '../../utils/mentorOwnership';
 import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
-import { purchaseAndroidProduct, finishAndroidPurchase, PLAY_VIDEO_UNLOCK_PRODUCT_ID } from '../../utils/playBilling';
+import { purchaseAndroidProduct, finishAndroidPurchase, getPlayProductIdForPrice } from '../../utils/playBilling';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 
 const T = UNIFIED_THEME;
@@ -1167,7 +1167,8 @@ export default function MentorProfileScreen({ navigation, route }) {
     setUnlocking(true);
     try {
       if (Platform.OS === 'android') {
-        const purchase = await purchaseAndroidProduct(PLAY_VIDEO_UNLOCK_PRODUCT_ID);
+        const productId = getPlayProductIdForPrice(mentor?.unlock_price || 299);
+        const purchase = await purchaseAndroidProduct(productId);
 
         await videoApi.verifyPlayPurchase({
           mentorId,

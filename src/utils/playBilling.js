@@ -1,6 +1,6 @@
 import {
   initConnection,
-  fetchProducts,
+  getProducts,
   requestPurchase,
   finishTransaction,
   purchaseUpdatedListener,
@@ -49,11 +49,9 @@ async function ensureConnected() {
 export async function purchaseAndroidProduct(productId) {
   await ensureConnected();
 
-  // requestPurchase needs the product's details (type, price, etc.) already
-  // cached natively via fetchProducts — without this, the native module has
-  // nothing to build the purchase request from and Play reports the SKU as
-  // unavailable, even when it's correctly configured in Play Console.
-  await fetchProducts({ skus: [productId], type: 'in-app' });
+  // Populates the native SKU-details cache so requestPurchase has what it
+  // needs to build the purchase request.
+  await getProducts({ skus: [productId] });
 
   // Recover a purchase that was charged by Google but never consumed (app
   // crashed / network dropped between purchase success and finishAndroidPurchase).
@@ -89,14 +87,11 @@ export async function purchaseAndroidProduct(productId) {
       const code = error?.code;
       const message = error?.message || 'Purchase failed';
       const err = new Error(message);
-      err.code = code === 'user-cancelled' ? 'PAYMENT_CANCELLED' : code;
+      err.code = code === 'E_USER_CANCELLED' ? 'PAYMENT_CANCELLED' : code;
       reject(err);
     });
 
-    requestPurchase({
-      request: { google: { skus: [productId] } },
-      type: 'in-app',
-    }).catch(err => {
+    requestPurchase({ skus: [productId] }).catch(err => {
       if (settled) return;
       settled = true;
       cleanup();

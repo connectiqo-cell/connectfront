@@ -87,9 +87,12 @@ android {
     namespace "com.connectiqo.app"
     defaultConfig {
         applicationId "com.connectiqo.app"
+        // react-native-iap ships separate Amazon Appstore / Google Play
+        // variants via a "store" flavor dimension — we only use Play.
+        missingDimensionStrategy 'store', 'play'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
+        versionCode 6
         versionName "1.0.2"
     }
     signingConfigs {

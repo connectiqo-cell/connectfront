@@ -1577,6 +1577,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                     icon="star"
                     onPress={() => setShowSubSheet(true)}
                     loading={unlocking}
+                    pill
                     numberOfLines={2}
                     style={styles.ctaHalf}
                   />
@@ -1587,6 +1588,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                     size="compact"
                     icon="check-circle"
                     onPress={() => Toast.show('You are subscribed.', Toast.SHORT)}
+                    pill
                     numberOfLines={1}
                     style={styles.ctaHalf}
                   />
@@ -1602,6 +1604,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                         Toast.SHORT,
                       )
                     }
+                    pill
                     numberOfLines={1}
                     style={styles.ctaHalf}
                   />
@@ -1614,6 +1617,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                   icon="calendar-today"
                   onPress={goBook}
                   disabled={isOwnProfile}
+                  pill
                   numberOfLines={1}
                   style={[styles.ctaHalf, isOwnProfile && { opacity: 0.45 }]}
                 />
@@ -1757,6 +1761,7 @@ export default function MentorProfileScreen({ navigation, route }) {
             }}
             loading={unlocking}
             disabled={unlocking}
+            pill
             style={sheet.payBtn}
           />
 
@@ -1764,6 +1769,7 @@ export default function MentorProfileScreen({ navigation, route }) {
             label="Maybe later"
             variant="goldOutline"
             size="compact"
+            pill
             onPress={() => setShowSubSheet(false)}
             style={sheet.cancelBtnWrap}
           />
@@ -2009,7 +2015,7 @@ function createMentorProfileStyles(theme) {
     flexBasis: '46%',
     minWidth: 148,
     minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
-    borderRadius: 12,
+    borderRadius: T.borderRadius.round,
     overflow: 'hidden',
     alignSelf: 'stretch',
     justifyContent: 'center',

@@ -129,7 +129,12 @@ export default function CosmicButton({
   const isDisabled = disabled || loading;
   const compact = size === 'compact';
   const gradientConfig = gradientVariants[resolvedVariant];
-  const pillRadius = pill ? T.borderRadius.round : undefined;
+  // Compact actions need visibly rounded corners; pill uses full capsule radius.
+  const cornerRadius = pill
+    ? T.borderRadius.round
+    : compact
+      ? T.borderRadius.lg
+      : T.borderRadius.md;
 
   const textColor = (() => {
     if (isDisabled) return B.disabledText;
@@ -178,14 +183,19 @@ export default function CosmicButton({
   );
 
   const shell = [
-    compact ? [styles.shellCompact, { borderRadius: T.borderRadius.sm, marginVertical: 0 }] : [styles.shell, { borderRadius: T.borderRadius.md, marginVertical: T.spacing.md }],
+    compact
+      ? [styles.shellCompact, { borderRadius: cornerRadius, marginVertical: 0 }]
+      : [styles.shell, { borderRadius: cornerRadius, marginVertical: T.spacing.md }],
     isDisabled && styles.shellDisabled,
+    { overflow: 'hidden' },
     style,
+    // Keep pill / computed radius last so overflow clipping matches the visible corners.
+    { borderRadius: cornerRadius },
   ];
 
   if (isDisabled) {
     return (
-      <View style={[shell, styles.disabledBox, { borderColor: B.disabledBorder, backgroundColor: C.disabled, paddingHorizontal: T.spacing.lg }, pillRadius && { borderRadius: pillRadius }]}>
+      <View style={[shell, styles.disabledBox, { borderColor: B.disabledBorder, backgroundColor: C.disabled, paddingHorizontal: T.spacing.lg }]}>
         {content}
       </View>
     );
@@ -195,7 +205,7 @@ export default function CosmicButton({
     const gradientFill = compact ? styles.gradientCompact : styles.gradient;
     const gradientNode =
       Platform.OS === 'ios' ? (
-        <View style={[gradientFill, styles.iosGradientStack]}>
+        <View style={[gradientFill, styles.iosGradientStack, { borderRadius: cornerRadius, overflow: 'hidden' }]}>
           <LinearGradient
             colors={gradientConfig.colors}
             start={{ x: 0, y: 0.5 }}
@@ -212,7 +222,7 @@ export default function CosmicButton({
           colors={gradientConfig.colors}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
-          style={[gradientFill, compact ? { paddingHorizontal: T.spacing.md } : { paddingHorizontal: T.spacing.lg }]}
+          style={[gradientFill, compact ? { paddingHorizontal: T.spacing.md } : { paddingHorizontal: T.spacing.lg }, { borderRadius: cornerRadius, overflow: 'hidden' }]}
         >
           {content}
         </LinearGradient>
@@ -223,12 +233,10 @@ export default function CosmicButton({
         pressScale={pressScale}
         onPress={onPress}
         disabled={isDisabled}
-        innerRadius={pillRadius}
+        innerRadius={cornerRadius}
         style={[
           shell,
           { borderColor: gradientConfig.border },
-          pressScale && styles.shellPressScale,
-          pillRadius && { borderRadius: pillRadius },
         ]}
       >
         {gradientNode}
@@ -276,14 +284,12 @@ export default function CosmicButton({
       pressScale={pressScale}
       onPress={onPress}
       disabled={isDisabled}
-      innerRadius={pillRadius}
+      innerRadius={cornerRadius}
       style={[
         shell,
         flat,
         Platform.OS !== 'ios' && (compact ? [styles.flatCompact, { paddingHorizontal: T.spacing.md }] : [styles.flat, { paddingHorizontal: T.spacing.lg }]),
         Platform.OS === 'ios' && styles.iosFlatShell,
-        pressScale && styles.shellPressScale,
-        pillRadius && { borderRadius: pillRadius },
       ]}
     >
       {Platform.OS === 'ios' ? (
@@ -308,9 +314,6 @@ const styles = StyleSheet.create({
   pressScaleInner: {
     width: '100%',
     alignSelf: 'stretch',
-  },
-  shellPressScale: {
-    overflow: 'visible',
   },
   pressableFill: Platform.select({
     ios: {

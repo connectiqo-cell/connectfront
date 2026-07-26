@@ -605,11 +605,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
-    borderRadius: 14,
+    borderRadius: T.borderRadius.round,
   },
   buttonStageCheckout: {
     minHeight: 54,
-    borderRadius: 16,
+    borderRadius: T.borderRadius.round,
   },
   glow: {
     position: 'absolute',
@@ -617,24 +617,24 @@ const styles = StyleSheet.create({
     marginLeft: '-54%',
     width: '108%',
     height: 56,
-    borderRadius: 16,
+    borderRadius: T.borderRadius.round,
     backgroundColor: T.colors.accent.success,
   },
   glowCheckout: {
     height: 60,
-    borderRadius: 18,
+    borderRadius: T.borderRadius.round,
   },
   shell: {
     width: '100%',
     minHeight: 48,
-    borderRadius: 14,
+    borderRadius: T.borderRadius.round,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: B.secondaryBorder,
   },
   shellCheckout: {
     minHeight: 54,
-    borderRadius: 16,
+    borderRadius: T.borderRadius.round,
   },
   shellReady: {
     borderColor: B.successBorder,
@@ -650,6 +650,7 @@ const styles = StyleSheet.create({
       minHeight: 48,
       paddingHorizontal: T.spacing.md,
       overflow: 'hidden',
+      borderRadius: T.borderRadius.round,
     },
     default: {
       minHeight: 46,
@@ -657,6 +658,7 @@ const styles = StyleSheet.create({
       alignItems: 'center',
       paddingHorizontal: T.spacing.md,
       overflow: 'hidden',
+      borderRadius: T.borderRadius.round,
     },
   }),
   gradientCheckout: Platform.select({
@@ -665,10 +667,13 @@ const styles = StyleSheet.create({
       minHeight: 54,
       paddingHorizontal: T.spacing.lg,
       overflow: 'hidden',
+      borderRadius: T.borderRadius.round,
     },
     default: {
       minHeight: 52,
       paddingHorizontal: T.spacing.lg,
+      borderRadius: T.borderRadius.round,
+      overflow: 'hidden',
     },
   }),
   shimmerStrip: {

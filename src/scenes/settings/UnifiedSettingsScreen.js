@@ -909,6 +909,15 @@ export default function UnifiedSettingsScreen({ navigation }) {
           </View>
         </FadeSlideIn>
 
+        {/* Theme toggle — outside FadeSlideIn so it never stays invisible */}
+        <View style={styles.secHdrWrap}>
+          <Text style={styles.secHdrTitle}>Appearance</Text>
+          <Text style={styles.secHdrSub}>Switch between light and dark theme</Text>
+        </View>
+        <View style={styles.card}>
+          <AppearanceMenuRow noBorder />
+        </View>
+
         <SectionHeaderRow
           title="Video subscriptions"
           count={subscriptions.length || null}
@@ -1028,13 +1037,12 @@ export default function UnifiedSettingsScreen({ navigation }) {
 
         <SectionHeaderRow
           title="Preferences"
-          subtitle="Theme, notifications, and bookings"
+          subtitle="Notifications and bookings"
           replayToken={replayToken}
-          delay={280}
+          delay={0}
         />
-        <FadeSlideIn replayToken={replayToken} delay={300}>
+        <FadeSlideIn replayToken={replayToken} delay={0}>
           <View style={styles.card}>
-            <AppearanceMenuRow />
             <MenuRow
               icon="notifications"
               accent="purple"
@@ -1042,7 +1050,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
               subtitle="Session updates, bookings, and reminders"
               badge={unreadCount}
               onPress={() => navigation.navigate(SCREEN_NAMES.Notifications)}
-              index={1}
+              index={0}
               replayToken={replayToken}
             />
             <MenuRow
@@ -1052,7 +1060,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
               subtitle="Upcoming and past sessions"
               onPress={goToBookings}
               noBorder
-              index={2}
+              index={1}
               replayToken={replayToken}
             />
           </View>

@@ -346,6 +346,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             icon="person-outline"
             variant="outline"
             pressScale
+            pill
             numberOfLines={1}
             onPress={() => {
               onClose();
@@ -359,6 +360,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             icon="event-available"
             variant="nebula"
             pressScale
+            pill
             numberOfLines={1}
             onPress={() => onBook(mentor)}
             style={styles.actionBtn}
@@ -569,7 +571,6 @@ function createThemedStyles(theme) {
     alignSelf: 'stretch',
     marginVertical: 0,
     minHeight: PLATFORM_LAYOUT.buttonMinHeight,
-    borderRadius: 14,
   },
 });
 }

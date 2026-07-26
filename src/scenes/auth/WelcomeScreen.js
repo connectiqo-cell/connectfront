@@ -445,6 +445,8 @@ function createThemedStyles(theme) {
     },
     welcomeButton: {
       marginVertical: 0,
+      borderRadius: T.borderRadius.round,
+      overflow: 'hidden',
     },
     signInRow: {
       flexDirection: 'row',

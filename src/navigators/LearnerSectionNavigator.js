@@ -30,6 +30,7 @@ export const LearnerSectionNavigator = () => {
         lazy: true,
         lazyPreloadDistance: 0,
         animationEnabled: true,
+        tabBarIndicatorStyle: { height: 0, backgroundColor: 'transparent' },
         ...Platform.select({
           ios: {
             sceneStyle: { paddingTop: 0, marginTop: 0 },

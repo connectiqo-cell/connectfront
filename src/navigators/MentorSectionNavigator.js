@@ -30,8 +30,8 @@ export const MentorSectionNavigator = () => {
         swipeEnabled: true,
         lazy: true,
         lazyPreloadDistance: 1,
-        // Slide between Me tabs on tap + swipe (was false → instant jump).
         animationEnabled: true,
+        tabBarIndicatorStyle: { height: 0, backgroundColor: 'transparent' },
         ...Platform.select({
           ios: {
             sceneStyle: { paddingTop: 0, marginTop: 0 },

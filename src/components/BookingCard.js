@@ -261,6 +261,7 @@ export const BookingCard = ({
               size="compact"
               onPress={onPressCancel}
               pressScale
+              pill
               numberOfLines={1}
               style={[styles.cancelBtnOuter, compact && styles.actionBtnCompact]}
             />
@@ -273,6 +274,7 @@ export const BookingCard = ({
               icon="play-circle-filled"
               onPress={onPressRecording}
               pressScale
+              pill
               numberOfLines={1}
               style={[styles.recordingBtnOuter, compact && styles.actionBtnCompact]}
             />
@@ -285,6 +287,7 @@ export const BookingCard = ({
               icon="file-download"
               onPress={onPressDownload}
               pressScale
+              pill
               numberOfLines={1}
               style={[styles.downloadBtnOuter, compact && styles.actionBtnCompact]}
             />
@@ -297,6 +300,7 @@ export const BookingCard = ({
               icon="star-outline"
               onPress={onPressRate}
               pressScale
+              pill
               numberOfLines={1}
               style={[styles.rateBtnOuter, compact && styles.actionBtnCompact]}
             />

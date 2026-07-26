@@ -52,7 +52,16 @@ async function logAudit(
 // bookings(slot_id) WHERE status <> 'cancelled'.
 async function reconcileSessionBooking(
   supabase: ReturnType<typeof createClient>,
-  tx: { id: string; mentor_id: string; learner_id: string; slot_id: string; mentor_earning_paise: number; status: string },
+  tx: {
+    id: string;
+    mentor_id: string;
+    learner_id: string;
+    slot_id: string;
+    mentor_earning_paise: number;
+    status: string;
+    recording_requested?: boolean | null;
+    booking_message?: string | null;
+  },
   paymentId: string,
 ) {
   if (tx.status !== 'created') {
@@ -77,9 +86,22 @@ async function reconcileSessionBooking(
     return { outcome: 'already_handled' };
   }
 
+  const bookingInsert: Record<string, unknown> = {
+    mentor_id: tx.mentor_id,
+    learner_id: tx.learner_id,
+    slot_id: tx.slot_id,
+    status: 'confirmed',
+  };
+  if (typeof tx.recording_requested === 'boolean') {
+    bookingInsert.recording_requested = tx.recording_requested;
+  }
+  if (typeof tx.booking_message === 'string' && tx.booking_message.trim()) {
+    bookingInsert.message = tx.booking_message.trim();
+  }
+
   const { data: booking, error: bookingErr } = await supabase
     .from('bookings')
-    .insert({ mentor_id: tx.mentor_id, learner_id: tx.learner_id, slot_id: tx.slot_id, status: 'confirmed' })
+    .insert(bookingInsert)
     .select()
     .single();
 
@@ -266,7 +288,7 @@ serve(async (req) => {
 
       const { data: tx } = await supabase
         .from('transactions')
-        .select('id, mentor_id, learner_id, slot_id, mentor_earning_paise, status')
+        .select('id, mentor_id, learner_id, slot_id, mentor_earning_paise, status, recording_requested, booking_message')
         .eq('razorpay_order_id', orderId)
         .maybeSingle();
 

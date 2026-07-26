@@ -559,6 +559,10 @@ export default function OneToOneMeetingViewer({
   showIncomingRecordingConsentRef.current = showIncomingRecordingConsent;
 
   const requestRecordingConsent = () => {
+    if (!recordingRequestedAtBooking) {
+      Toast.show('Recording was not requested for this booking');
+      return;
+    }
     if (!bothParticipantsPresent) {
       showWaitForPeerAlert({ present: showDeferredAlert });
       return;
@@ -952,6 +956,10 @@ export default function OneToOneMeetingViewer({
                     (!recordingState ||
                       recordingState === Constants.recordingEvents.RECORDING_STOPPED)
                   ) {
+                    if (!recordingRequestedAtBooking) {
+                      Toast.show('Recording was not requested for this booking');
+                      return;
+                    }
                     requestRecordingConsent();
                     return;
                   }

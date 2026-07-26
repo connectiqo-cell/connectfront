@@ -158,11 +158,16 @@ function FadeSlideIn({ delay = 0, children, style }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(14)).current;
   const scale = useRef(new Animated.Value(0.97)).current;
-  const played = useRef(false);
 
   useEffect(() => {
-    if (played.current) return;
-    played.current = true;
+    opacity.setValue(0);
+    translateY.setValue(14);
+    if (Platform.OS === 'ios') {
+      scale.setValue(1);
+    } else {
+      scale.setValue(0.97);
+    }
+
     const anims = [
       Animated.timing(opacity, {
         toValue: 1,
@@ -189,10 +194,30 @@ function FadeSlideIn({ delay = 0, children, style }) {
           useNativeDriver: true,
         }),
       );
-    } else {
-      scale.setValue(1);
     }
-    Animated.parallel(anims).start();
+
+    const anim = Animated.parallel(anims);
+    anim.start(({ finished }) => {
+      if (!finished) {
+        opacity.setValue(1);
+        translateY.setValue(0);
+        scale.setValue(1);
+      }
+    });
+
+    const safety = setTimeout(() => {
+      opacity.setValue(1);
+      translateY.setValue(0);
+      scale.setValue(1);
+    }, delay + 700);
+
+    return () => {
+      clearTimeout(safety);
+      anim.stop();
+      opacity.setValue(1);
+      translateY.setValue(0);
+      scale.setValue(1);
+    };
   }, [delay, opacity, scale, translateY]);
 
   return (
@@ -203,17 +228,26 @@ function FadeSlideIn({ delay = 0, children, style }) {
 }
 
 function FadeInSection({ show, children, delay = 0, style }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(28)).current;
-  const scale = useRef(new Animated.Value(0.94)).current;
+  const opacity = useRef(new Animated.Value(show ? 1 : 0)).current;
+  const translateY = useRef(new Animated.Value(show ? 0 : 28)).current;
+  const scale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!show) {
       opacity.setValue(0);
       translateY.setValue(28);
-      scale.setValue(0.94);
-      return;
+      scale.setValue(Platform.OS === 'ios' ? 1 : 0.94);
+      return undefined;
     }
+
+    opacity.setValue(0);
+    translateY.setValue(28);
+    if (Platform.OS === 'ios') {
+      scale.setValue(1);
+    } else {
+      scale.setValue(0.94);
+    }
+
     const anims = [
       Animated.timing(opacity, {
         toValue: 1,
@@ -240,10 +274,33 @@ function FadeInSection({ show, children, delay = 0, style }) {
           useNativeDriver: true,
         }),
       );
-    } else {
-      scale.setValue(1);
     }
-    Animated.parallel(anims).start();
+
+    const anim = Animated.parallel(anims);
+    anim.start(({ finished }) => {
+      if (!finished) {
+        opacity.setValue(1);
+        translateY.setValue(0);
+        scale.setValue(1);
+      }
+    });
+
+    const safety = setTimeout(() => {
+      opacity.setValue(1);
+      translateY.setValue(0);
+      scale.setValue(1);
+    }, delay + 800);
+
+    return () => {
+      clearTimeout(safety);
+      anim.stop();
+      // Keep visible if this section is still meant to show (avoid flash to 0 on dep churn).
+      if (show) {
+        opacity.setValue(1);
+        translateY.setValue(0);
+        scale.setValue(1);
+      }
+    };
   }, [show, delay, opacity, translateY, scale]);
 
   if (!show) return null;
@@ -369,13 +426,13 @@ function BookingProgressSteps({
   const steps = [
     { id: 1, label: 'Date', icon: 'event', done: !!selectedDate },
     { id: 2, label: 'Time', icon: 'schedule', done: !!selectedTime },
-    { id: 3, label: 'Goal', icon: 'flag', done: message.trim().length > 0 },
     {
-      id: 4,
+      id: 3,
       label: 'Record',
       icon: 'videocam',
       done: typeof recordingRequested === 'boolean',
     },
+    { id: 4, label: 'Goal', icon: 'flag', done: message.trim().length > 0 },
     { id: 5, label: 'Pay', icon: 'lock', done: readyToPay },
   ];
   const activeIndex = steps.findIndex(s => !s.done);
@@ -437,14 +494,12 @@ function getBookingCtaLabel({
   recordingRequested,
 }) {
   if (paying) return 'Securing your spot…';
-  if (!fees) return 'Get started';
+  if (!selectedTime) return 'Choose your slot';
+  if (typeof recordingRequested !== 'boolean') return 'Choose recording preference';
+  if (!message.trim()) return 'Add your session goal';
+  if (!fees) return 'Loading pricing…';
   if (readyToPay) return `Secure My Spot · ₹${fees.totalAmount}`;
-  if (selectedTime && !message.trim()) return 'Add your session goal';
-  if (selectedTime && typeof recordingRequested !== 'boolean') {
-    return 'Choose recording preference';
-  }
-  if (selectedTime) return `Book My Session · ₹${fees.totalAmount}`;
-  return 'Choose your slot';
+  return `Book My Session · ₹${fees.totalAmount}`;
 }
 
 function SessionPreviewBar({ selectedDate, selectedTime, mentorName, readyToPay }) {
@@ -860,6 +915,7 @@ export default function BookingScreen({ navigation, route }) {
   const handleSelectTime = slot => {
     layoutSpring();
     setSelectedTime(slot);
+    setRecordingRequested(null);
   };
 
   const fees = pricePerHour > 0 ? calculateFees(pricePerHour, feeConfig || undefined) : null;
@@ -1281,52 +1337,9 @@ export default function BookingScreen({ navigation, route }) {
           </View>
         )}
 
-        <FadeInSection show={!!selectedTime} delay={100}>
-          <FadeSlideIn delay={nextDelay()}>
+        <FadeInSection show={!!selectedTime} delay={80}>
             <ScheduleSectionBlock
               step="03"
-              title="Session goal"
-              subtitle={`What should ${displayName.split(' ')[0]} focus on?`}
-              accent="gold"
-            >
-              <GoalPromptChips
-                selected={selectedPrompt}
-                onSelect={text => {
-                  setSelectedPrompt(text);
-                  setMessage(text);
-                }}
-              />
-              <TextInput
-                style={styles.messageInput}
-                placeholder="Describe your goals, questions, or what success looks like…"
-                placeholderTextColor={T.colors.text.muted}
-                value={message}
-                onChangeText={text => {
-                  setMessage(text);
-                  if (selectedPrompt && text !== selectedPrompt) {
-                    setSelectedPrompt(null);
-                  }
-                }}
-                multiline
-                numberOfLines={4}
-                maxLength={500}
-                autoCorrect
-                spellCheck
-                autoCapitalize="sentences"
-              />
-              <View style={styles.charRow}>
-                <MaterialIcons name="tips-and-updates" size={14} color={T.colors.text.muted} />
-                <Text style={styles.charHint}>Clear goals help mentors prepare better</Text>
-                <Text style={styles.charCount}>{message.length}/500</Text>
-              </View>
-            </ScheduleSectionBlock>
-          </FadeSlideIn>
-        </FadeInSection>
-
-        <FadeInSection show={!!selectedTime && message.trim().length > 0} delay={120}>
-          <FadeSlideIn delay={nextDelay()}>
-            <ScheduleSectionBlock
-              step="04"
               title="Session recording"
               subtitle="Would you like this session to be recorded?"
               accent="teal"
@@ -1399,6 +1412,47 @@ export default function BookingScreen({ navigation, route }) {
                 </Text>
               </View>
             </ScheduleSectionBlock>
+        </FadeInSection>
+
+        <FadeInSection show={!!selectedTime} delay={100}>
+          <FadeSlideIn delay={nextDelay()}>
+            <ScheduleSectionBlock
+              step="04"
+              title="Session goal"
+              subtitle={`What should ${displayName.split(' ')[0]} focus on?`}
+              accent="gold"
+            >
+              <GoalPromptChips
+                selected={selectedPrompt}
+                onSelect={text => {
+                  setSelectedPrompt(text);
+                  setMessage(text);
+                }}
+              />
+              <TextInput
+                style={styles.messageInput}
+                placeholder="Describe your goals, questions, or what success looks like…"
+                placeholderTextColor={T.colors.text.muted}
+                value={message}
+                onChangeText={text => {
+                  setMessage(text);
+                  if (selectedPrompt && text !== selectedPrompt) {
+                    setSelectedPrompt(null);
+                  }
+                }}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+                autoCorrect
+                spellCheck
+                autoCapitalize="sentences"
+              />
+              <View style={styles.charRow}>
+                <MaterialIcons name="tips-and-updates" size={14} color={T.colors.text.muted} />
+                <Text style={styles.charHint}>Clear goals help mentors prepare better</Text>
+                <Text style={styles.charCount}>{message.length}/500</Text>
+              </View>
+            </ScheduleSectionBlock>
           </FadeSlideIn>
         </FadeInSection>
 
@@ -1406,7 +1460,8 @@ export default function BookingScreen({ navigation, route }) {
           show={
             !!selectedTime &&
             !!fees &&
-            typeof recordingRequested === 'boolean'
+            typeof recordingRequested === 'boolean' &&
+            message.trim().length > 0
           }
           delay={140}
         >
@@ -1444,7 +1499,7 @@ export default function BookingScreen({ navigation, route }) {
           </FadeSlideIn>
         </FadeInSection>
 
-        <View style={{ height: 112 + stickyBottomPad }} />
+        <View style={{ height: 140 + stickyBottomPad }} />
       </SafeScreen>
 
       {/* Sticky checkout */}
@@ -1461,7 +1516,7 @@ export default function BookingScreen({ navigation, route }) {
         ]}
       >
         <View style={styles.checkoutFooter}>
-          {selectedTime && fees ? (
+          {readyToPay && selectedTime && fees ? (
             <Animated.View
               style={[
                 styles.checkoutTotalRow,
@@ -1478,22 +1533,32 @@ export default function BookingScreen({ navigation, route }) {
               ]}
             >
               <View>
-                <Text style={styles.checkoutTotalLabel}>
-                  {readyToPay ? 'Ready to book' : 'Session estimate'}
-                </Text>
+                <Text style={styles.checkoutTotalLabel}>Ready to book</Text>
               </View>
               <Text style={styles.checkoutTotalAmount}>₹{fees.totalAmount}</Text>
             </Animated.View>
           ) : (
-            <Text style={styles.checkoutHint}>
-              {!selectedTime
-                ? 'Select date & time to continue'
-                : !message.trim()
-                  ? 'Add your session goal to continue'
+            <View style={styles.checkoutHintBlock}>
+              {selectedTime && fees ? (
+                <View style={styles.checkoutTotalRow}>
+                  <View>
+                    <Text style={styles.checkoutTotalLabel}>Session estimate</Text>
+                  </View>
+                  <Text style={styles.checkoutTotalAmount}>₹{fees.totalAmount}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.checkoutHint}>
+                {!selectedTime
+                  ? 'Select date & time to continue'
                   : typeof recordingRequested !== 'boolean'
                     ? 'Choose a recording preference to continue'
-                    : 'Complete the steps above to continue'}
-            </Text>
+                    : !message.trim()
+                      ? 'Add your session goal to continue'
+                      : !fees
+                        ? 'Loading pricing…'
+                        : 'Complete the steps above to continue'}
+              </Text>
+            </View>
           )}
 
           <CelebrationPayButton
@@ -1510,6 +1575,7 @@ export default function BookingScreen({ navigation, route }) {
               !selectedTime ||
               !message.trim() ||
               typeof recordingRequested !== 'boolean' ||
+              !fees ||
               paying
             }
             loading={paying}
@@ -1951,6 +2017,9 @@ function createBookingStyles(theme) {
     fontSize: 13,
     color: C.text.muted,
     marginBottom: T.spacing.md,
+  },
+  checkoutHintBlock: {
+    marginBottom: 0,
   },
   checkoutPayBtn: {
     width: '100%',

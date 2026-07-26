@@ -801,8 +801,9 @@ export default function UnifiedSettingsScreen({ navigation }) {
   const subsCountLabel = subsLoading ? '…' : String(subscriptions.length);
 
   return (
-    <SafeScreen scrollable={false} padding={T.spacing.lg} hasBottomTabs={false}>
+    <SafeScreen scrollable={false} padding={T.spacing.lg} hasBottomTabs>
       <ScrollView
+        style={styles.scrollFlex}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -908,15 +909,6 @@ export default function UnifiedSettingsScreen({ navigation }) {
             </AnimatedPressable>
           </View>
         </FadeSlideIn>
-
-        {/* Theme toggle — outside FadeSlideIn so it never stays invisible */}
-        <View style={styles.secHdrWrap}>
-          <Text style={styles.secHdrTitle}>Appearance</Text>
-          <Text style={styles.secHdrSub}>Switch between light and dark theme</Text>
-        </View>
-        <View style={styles.card}>
-          <AppearanceMenuRow noBorder />
-        </View>
 
         <SectionHeaderRow
           title="Video subscriptions"
@@ -1037,34 +1029,34 @@ export default function UnifiedSettingsScreen({ navigation }) {
 
         <SectionHeaderRow
           title="Preferences"
-          subtitle="Notifications and bookings"
+          subtitle="Theme, notifications, and bookings"
           replayToken={replayToken}
           delay={0}
         />
-        <FadeSlideIn replayToken={replayToken} delay={0}>
-          <View style={styles.card}>
-            <MenuRow
-              icon="notifications"
-              accent="purple"
-              label="Notifications"
-              subtitle="Session updates, bookings, and reminders"
-              badge={unreadCount}
-              onPress={() => navigation.navigate(SCREEN_NAMES.Notifications)}
-              index={0}
-              replayToken={replayToken}
-            />
-            <MenuRow
-              icon="event"
-              accent="gold"
-              label="My Bookings"
-              subtitle="Upcoming and past sessions"
-              onPress={goToBookings}
-              noBorder
-              index={1}
-              replayToken={replayToken}
-            />
-          </View>
-        </FadeSlideIn>
+        {/* Appearance outside FadeSlideIn so the theme toggle never stays invisible */}
+        <View style={styles.card}>
+          <AppearanceMenuRow />
+          <MenuRow
+            icon="notifications"
+            accent="purple"
+            label="Notifications"
+            subtitle="Session updates, bookings, and reminders"
+            badge={unreadCount}
+            onPress={() => navigation.navigate(SCREEN_NAMES.Notifications)}
+            index={0}
+            replayToken={replayToken}
+          />
+          <MenuRow
+            icon="event"
+            accent="gold"
+            label="My Bookings"
+            subtitle="Upcoming and past sessions"
+            onPress={goToBookings}
+            noBorder
+            index={1}
+            replayToken={replayToken}
+          />
+        </View>
 
         <SectionHeaderRow
           title="Support & legal"
@@ -1151,6 +1143,10 @@ function createSettingsStyles(theme) {
   return StyleSheet.create({
   scrollContent: {
     paddingBottom: T.spacing.xxxl,
+    flexGrow: 1,
+  },
+  scrollFlex: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',

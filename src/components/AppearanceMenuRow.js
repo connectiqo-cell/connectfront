@@ -8,7 +8,7 @@ import { THEME_MODES } from '../unifiedTheme';
  * Uses a native Switch so it stays visible on all screen sizes.
  */
 export default function AppearanceMenuRow({ noBorder = false }) {
-  const { theme, isDark, setThemePreference, resetToSystemTheme } = useTheme();
+  const { theme, isDark, followsSystem, setThemePreference, resetToSystemTheme } = useTheme();
   const C = theme.colors;
   const isLight = !isDark;
   const TEAL = C.accent.secondary;
@@ -19,6 +19,12 @@ export default function AppearanceMenuRow({ noBorder = false }) {
     setThemePreference(value ? THEME_MODES.LIGHT : THEME_MODES.DARK);
   };
 
+  const subtitle = followsSystem
+    ? `System · ${isLight ? 'Light' : 'Dark'} · tap to override`
+    : isLight
+      ? 'Light · tap switch for Dark'
+      : 'Dark · tap switch for Light';
+
   return (
     <Pressable
       onPress={() => onToggle(!isLight)}
@@ -26,8 +32,8 @@ export default function AppearanceMenuRow({ noBorder = false }) {
       delayLongPress={450}
       accessibilityRole="switch"
       accessibilityState={{ checked: isLight }}
-      accessibilityLabel="Light theme"
-      accessibilityHint="Long press to follow system theme"
+      accessibilityLabel="Appearance"
+      accessibilityHint="Toggle light or dark theme. Long press to follow system theme."
       style={({ pressed }) => [
         styles.row,
         {
@@ -47,15 +53,15 @@ export default function AppearanceMenuRow({ noBorder = false }) {
           ]}
         >
           <MaterialIcons
-            name={isLight ? 'light-mode' : 'dark-mode'}
+            name={isLight ? 'wb-sunny' : 'nights-stay'}
             size={22}
             color={isLight ? PURPLE : TEAL}
           />
         </View>
         <View style={styles.textWrap}>
-          <Text style={[styles.label, { color: C.text.primary }]}>Light theme</Text>
+          <Text style={[styles.label, { color: C.text.primary }]}>Appearance</Text>
           <Text style={[styles.subtitle, { color: C.text.muted || C.text.secondary }]}>
-            {isLight ? 'On · tap to use Dark' : 'Off · tap to use Light'}
+            {subtitle}
           </Text>
         </View>
       </View>

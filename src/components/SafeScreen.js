@@ -21,6 +21,8 @@ export const SafeScreen = ({
   /** When false, top inset is omitted (material top tabs or iOS stack modal handles it). */
   includeTopInset = true,
   refreshControl,
+  scrollViewRef,
+  contentContainerStyle,
 }) => {
   const insets = useSafeAreaInsets();
 
@@ -39,9 +41,10 @@ export const SafeScreen = ({
     <View style={styles.safeArea}>
       {scrollable ? (
         <ScrollView
+          ref={scrollViewRef}
           style={styles.flex1}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={paddingStyle}
+          contentContainerStyle={[paddingStyle, contentContainerStyle]}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           refreshControl={refreshControl}

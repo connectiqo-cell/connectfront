@@ -228,90 +228,9 @@ function FadeSlideIn({ delay = 0, children, style }) {
 }
 
 function FadeInSection({ show, children, delay = 0, style }) {
-  const opacity = useRef(new Animated.Value(show ? 1 : 0)).current;
-  const translateY = useRef(new Animated.Value(show ? 0 : 28)).current;
-  const scale = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!show) {
-      opacity.setValue(0);
-      translateY.setValue(28);
-      scale.setValue(Platform.OS === 'ios' ? 1 : 0.94);
-      return undefined;
-    }
-
-    opacity.setValue(0);
-    translateY.setValue(28);
-    if (Platform.OS === 'ios') {
-      scale.setValue(1);
-    } else {
-      scale.setValue(0.94);
-    }
-
-    const anims = [
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 480,
-        delay,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.spring(translateY, {
-        toValue: 0,
-        friction: 8,
-        tension: 65,
-        delay,
-        useNativeDriver: true,
-      }),
-    ];
-    if (Platform.OS !== 'ios') {
-      anims.push(
-        Animated.spring(scale, {
-          toValue: 1,
-          friction: 7,
-          tension: 80,
-          delay,
-          useNativeDriver: true,
-        }),
-      );
-    }
-
-    const anim = Animated.parallel(anims);
-    anim.start(({ finished }) => {
-      if (!finished) {
-        opacity.setValue(1);
-        translateY.setValue(0);
-        scale.setValue(1);
-      }
-    });
-
-    const safety = setTimeout(() => {
-      opacity.setValue(1);
-      translateY.setValue(0);
-      scale.setValue(1);
-    }, delay + 800);
-
-    return () => {
-      clearTimeout(safety);
-      anim.stop();
-      // Keep visible if this section is still meant to show (avoid flash to 0 on dep churn).
-      if (show) {
-        opacity.setValue(1);
-        translateY.setValue(0);
-        scale.setValue(1);
-      }
-    };
-  }, [show, delay, opacity, translateY, scale]);
-
+  // Critical booking steps must never stay at opacity 0 — skip fade when revealing.
   if (!show) return null;
-
-  return (
-    <Animated.View
-      style={[style, { opacity, transform: iosEntranceTransform(translateY, scale) }]}
-    >
-      {children}
-    </Animated.View>
-  );
+  return <View style={style}>{children}</View>;
 }
 
 const GOAL_PROMPTS = [
@@ -809,6 +728,9 @@ export default function BookingScreen({ navigation, route }) {
   const [feeConfig, setFeeConfig] = useState(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [fxOrigin, setFxOrigin] = useState(null);
+  const scrollRef = useRef(null);
+  const recordingSectionY = useRef(0);
+  const scrolledToRecordingFor = useRef(null);
 
   const headerFade = useRef(new Animated.Value(0)).current;
   const headerSlide = useRef(new Animated.Value(-12)).current;
@@ -916,7 +838,21 @@ export default function BookingScreen({ navigation, route }) {
     layoutSpring();
     setSelectedTime(slot);
     setRecordingRequested(null);
+    scrolledToRecordingFor.current = null;
   };
+
+  useEffect(() => {
+    if (!selectedTime?.id) return undefined;
+    const timer = setTimeout(() => {
+      if (scrolledToRecordingFor.current === selectedTime.id) return;
+      const y = Math.max(0, recordingSectionY.current - 16);
+      if (y > 0) {
+        scrolledToRecordingFor.current = selectedTime.id;
+        scrollRef.current?.scrollTo?.({ y, animated: true });
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [selectedTime?.id]);
 
   const fees = pricePerHour > 0 ? calculateFees(pricePerHour, feeConfig || undefined) : null;
 
@@ -1129,7 +1065,13 @@ export default function BookingScreen({ navigation, route }) {
     <View style={styles.screenRoot}>
       <CelebrationScreenFx active={readyToPay && !paying} origin={fxOrigin} />
 
-      <SafeScreen scrollable padding={T.spacing.md} hasBottomTabs={false} includeTopInset={STACK_OVERLAY_LAYOUT.safeScreenIncludeTopInset}>
+      <SafeScreen
+        scrollable
+        padding={T.spacing.md}
+        hasBottomTabs={false}
+        includeTopInset={STACK_OVERLAY_LAYOUT.safeScreenIncludeTopInset}
+        scrollViewRef={scrollRef}
+      >
         <StackScreenHeader insetTop={STACK_OVERLAY_LAYOUT.headerInsetTop}>
         <View style={scheduleStyles.topBar}>
           <TouchableOpacity
@@ -1337,7 +1279,22 @@ export default function BookingScreen({ navigation, route }) {
           </View>
         )}
 
-        <FadeInSection show={!!selectedTime} delay={80}>
+        {selectedTime ? (
+          <View
+            style={styles.recordingSection}
+            onLayout={e => {
+              const y = e.nativeEvent.layout.y;
+              recordingSectionY.current = y;
+              if (
+                selectedTime?.id &&
+                y > 0 &&
+                scrolledToRecordingFor.current !== selectedTime.id
+              ) {
+                scrolledToRecordingFor.current = selectedTime.id;
+                scrollRef.current?.scrollTo?.({ y: Math.max(0, y - 16), animated: true });
+              }
+            }}
+          >
             <ScheduleSectionBlock
               step="03"
               title="Session recording"
@@ -1412,10 +1369,11 @@ export default function BookingScreen({ navigation, route }) {
                 </Text>
               </View>
             </ScheduleSectionBlock>
-        </FadeInSection>
+          </View>
+        ) : null}
 
         <FadeInSection show={!!selectedTime} delay={100}>
-          <FadeSlideIn delay={nextDelay()}>
+          <View>
             <ScheduleSectionBlock
               step="04"
               title="Session goal"
@@ -1453,7 +1411,7 @@ export default function BookingScreen({ navigation, route }) {
                 <Text style={styles.charCount}>{message.length}/500</Text>
               </View>
             </ScheduleSectionBlock>
-          </FadeSlideIn>
+          </View>
         </FadeInSection>
 
         <FadeInSection
@@ -1465,7 +1423,7 @@ export default function BookingScreen({ navigation, route }) {
           }
           delay={140}
         >
-          <FadeSlideIn delay={nextDelay()}>
+          <View>
             <ScheduleSectionBlock step="05" title="Confirm your session" subtitle="Clear, upfront pricing" accent="violet">
               <View style={styles.ticketCard}>
                 <View style={styles.ticketTop}>
@@ -1496,10 +1454,10 @@ export default function BookingScreen({ navigation, route }) {
               </View>
             </View>
           </ScheduleSectionBlock>
-          </FadeSlideIn>
+          </View>
         </FadeInSection>
 
-        <View style={{ height: 140 + stickyBottomPad }} />
+        <View style={{ height: 160 + stickyBottomPad }} />
       </SafeScreen>
 
       {/* Sticky checkout */}
@@ -1857,6 +1815,10 @@ function createBookingStyles(theme) {
 
   recordingChoices: {
     gap: T.spacing.sm,
+  },
+  recordingSection: {
+    marginTop: T.spacing.sm,
+    marginBottom: T.spacing.md,
   },
   recordingChoice: {
     minHeight: 78,

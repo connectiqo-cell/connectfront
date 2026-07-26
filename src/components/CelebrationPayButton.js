@@ -15,12 +15,17 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { UNIFIED_THEME } from '../unifiedTheme';
 import { useTheme } from '../hooks/useTheme';
 import { softFill } from '../theme/surfaceStyles';
+import { PLATFORM_LAYOUT } from '../utils/platformLayout';
 import IosGradientShell from './IosGradientShell';
 
 const T = UNIFIED_THEME;
 const B = T.colors.buttons;
 const GOLD = T.colors.accent.primary;
 const TEAL = T.colors.accent.secondary;
+const BTN_H = PLATFORM_LAYOUT.buttonMinHeight;
+const BTN_H_CHECKOUT = PLATFORM_LAYOUT.buttonMinHeight + 4;
+const BTN_RADIUS = Math.ceil(BTN_H / 2);
+const BTN_RADIUS_CHECKOUT = Math.ceil(BTN_H_CHECKOUT / 2);
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const PARTICLE_COUNT = 12;
@@ -601,40 +606,41 @@ const styles = StyleSheet.create({
   },
   buttonStage: {
     width: '100%',
-    minHeight: 48,
+    height: BTN_H,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
-    borderRadius: T.borderRadius.round,
+    borderRadius: BTN_RADIUS,
   },
   buttonStageCheckout: {
-    minHeight: 54,
-    borderRadius: T.borderRadius.round,
+    height: BTN_H_CHECKOUT,
+    borderRadius: BTN_RADIUS_CHECKOUT,
   },
   glow: {
     position: 'absolute',
     left: '50%',
     marginLeft: '-54%',
     width: '108%',
-    height: 56,
-    borderRadius: T.borderRadius.round,
+    height: BTN_H + 8,
+    borderRadius: BTN_RADIUS,
     backgroundColor: T.colors.accent.success,
   },
   glowCheckout: {
-    height: 60,
-    borderRadius: T.borderRadius.round,
+    height: BTN_H_CHECKOUT + 8,
+    borderRadius: BTN_RADIUS_CHECKOUT,
   },
   shell: {
     width: '100%',
-    minHeight: 48,
-    borderRadius: T.borderRadius.round,
+    height: BTN_H,
+    borderRadius: BTN_RADIUS,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: B.secondaryBorder,
+    justifyContent: 'center',
   },
   shellCheckout: {
-    minHeight: 54,
-    borderRadius: T.borderRadius.round,
+    height: BTN_H_CHECKOUT,
+    borderRadius: BTN_RADIUS_CHECKOUT,
   },
   shellReady: {
     borderColor: B.successBorder,
@@ -644,38 +650,20 @@ const styles = StyleSheet.create({
     borderColor: T.colors.border.light,
     opacity: 0.72,
   },
-  gradient: Platform.select({
-    ios: {
-      width: '100%',
-      minHeight: 48,
-      paddingHorizontal: T.spacing.md,
-      overflow: 'hidden',
-      borderRadius: T.borderRadius.round,
-    },
-    default: {
-      minHeight: 46,
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: T.spacing.md,
-      overflow: 'hidden',
-      borderRadius: T.borderRadius.round,
-    },
-  }),
-  gradientCheckout: Platform.select({
-    ios: {
-      width: '100%',
-      minHeight: 54,
-      paddingHorizontal: T.spacing.lg,
-      overflow: 'hidden',
-      borderRadius: T.borderRadius.round,
-    },
-    default: {
-      minHeight: 52,
-      paddingHorizontal: T.spacing.lg,
-      borderRadius: T.borderRadius.round,
-      overflow: 'hidden',
-    },
-  }),
+  gradient: {
+    width: '100%',
+    height: BTN_H - 2,
+    paddingHorizontal: T.spacing.md,
+    overflow: 'hidden',
+    borderRadius: BTN_RADIUS,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gradientCheckout: {
+    height: BTN_H_CHECKOUT - 2,
+    paddingHorizontal: T.spacing.lg,
+    borderRadius: BTN_RADIUS_CHECKOUT,
+  },
   shimmerStrip: {
     position: 'absolute',
     top: 0,
@@ -698,7 +686,7 @@ const styles = StyleSheet.create({
   },
   iosGradientRowWrap: {
     width: '100%',
-    minHeight: 52,
+    height: BTN_H_CHECKOUT - 2,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',

@@ -15,6 +15,7 @@ import CosmicButton from '../../components/CosmicButton';
 import { CircularGradientFrame } from '../../components/CircularGradientFrame';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
+import { PLATFORM_LAYOUT } from '../../utils/platformLayout';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
 const LOGO_FRAME_SIZE = 96;
@@ -445,7 +446,8 @@ function createThemedStyles(theme) {
     },
     welcomeButton: {
       marginVertical: 0,
-      borderRadius: T.borderRadius.round,
+      height: PLATFORM_LAYOUT.buttonMinHeight,
+      borderRadius: Math.ceil(PLATFORM_LAYOUT.buttonMinHeight / 2),
       overflow: 'hidden',
     },
     signInRow: {

@@ -73,15 +73,19 @@ function usePressScale(enabled) {
   return { scale, onPressIn, onPressOut };
 }
 
-function PressableShell({ pressScale, onPress, style, children, disabled, innerRadius }) {
+function PressableShell({ pressScale, onPress, style, children, disabled, innerRadius, compact }) {
   const { scale, onPressIn, onPressOut } = usePressScale(pressScale && !disabled);
+  const radiusStyle = innerRadius
+    ? { borderRadius: innerRadius, overflow: 'hidden' }
+    : null;
+  const fillStyle = compact ? styles.pressableFillCompact : styles.pressableFill;
 
   if (!pressScale || disabled) {
     return (
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.88}
-        style={[style, styles.touchableShell]}
+        style={[style, styles.touchableShell, radiusStyle]}
         disabled={disabled}
       >
         {children}
@@ -94,10 +98,10 @@ function PressableShell({ pressScale, onPress, style, children, disabled, innerR
       onPress={onPress}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
-      style={[style, styles.pressScaleWrap, styles.pressableFill, innerRadius && { borderRadius: innerRadius, overflow: 'hidden' }]}
+      style={[style, styles.pressScaleWrap, fillStyle, radiusStyle]}
       disabled={disabled}
     >
-      <Animated.View style={[{ transform: [{ scale }] }, styles.pressScaleInner]}>
+      <Animated.View style={[{ transform: [{ scale }] }, styles.pressScaleInner, radiusStyle]}>
         {children}
       </Animated.View>
     </Pressable>
@@ -129,12 +133,11 @@ export default function CosmicButton({
   const isDisabled = disabled || loading;
   const compact = size === 'compact';
   const gradientConfig = gradientVariants[resolvedVariant];
-  // Compact actions need visibly rounded corners; pill uses full capsule radius.
-  const cornerRadius = pill
-    ? T.borderRadius.round
-    : compact
-      ? T.borderRadius.lg
-      : T.borderRadius.md;
+  // Capsule radius = half the button height so edges stay round at any width.
+  const buttonHeight = compact
+    ? PLATFORM_LAYOUT.buttonCompactMinHeight
+    : PLATFORM_LAYOUT.buttonMinHeight;
+  const cornerRadius = pill ? Math.ceil(buttonHeight / 2) : compact ? 14 : 16;
 
   const textColor = (() => {
     if (isDisabled) return B.disabledText;
@@ -158,7 +161,7 @@ export default function CosmicButton({
   const content = (
     <View style={[styles.row, Platform.OS === 'ios' && styles.rowIos]}>
       {loading ? (
-        <ActivityIndicator size="small" color={textColor} style={[styles.loader, { marginRight: T.spacing.sm }]} />
+        <ActivityIndicator size="small" color={textColor} style={styles.icon} />
       ) : icon ? (
         <MaterialIcons
           name={icon}
@@ -183,46 +186,66 @@ export default function CosmicButton({
   );
 
   const shell = [
-    compact
-      ? [styles.shellCompact, { borderRadius: cornerRadius, marginVertical: 0 }]
-      : [styles.shell, { borderRadius: cornerRadius, marginVertical: T.spacing.md }],
+    compact ? styles.shellCompact : styles.shell,
+    {
+      height: buttonHeight,
+      minHeight: buttonHeight,
+      borderRadius: cornerRadius,
+      marginVertical: compact ? 0 : T.spacing.md,
+      overflow: 'hidden',
+    },
     isDisabled && styles.shellDisabled,
-    { overflow: 'hidden' },
     style,
-    // Keep pill / computed radius last so overflow clipping matches the visible corners.
-    { borderRadius: cornerRadius },
+    { borderRadius: cornerRadius, overflow: 'hidden', height: buttonHeight, minHeight: buttonHeight },
   ];
 
   if (isDisabled) {
     return (
-      <View style={[shell, styles.disabledBox, { borderColor: B.disabledBorder, backgroundColor: C.disabled, paddingHorizontal: T.spacing.lg }]}>
+      <View
+        style={[
+          shell,
+          styles.disabledBox,
+          {
+            borderColor: B.disabledBorder,
+            backgroundColor: C.disabled,
+            paddingHorizontal: compact ? T.spacing.md : T.spacing.lg,
+          },
+        ]}
+      >
         {content}
       </View>
     );
   }
 
   if (gradientConfig) {
-    const gradientFill = compact ? styles.gradientCompact : styles.gradient;
+    const gradientFill = [
+      compact ? styles.gradientCompact : styles.gradient,
+      {
+        height: buttonHeight - 2,
+        minHeight: buttonHeight - 2,
+        borderRadius: cornerRadius,
+        overflow: 'hidden',
+        paddingHorizontal: compact ? T.spacing.md : T.spacing.lg,
+      },
+    ];
     const gradientNode =
       Platform.OS === 'ios' ? (
-        <View style={[gradientFill, styles.iosGradientStack, { borderRadius: cornerRadius, overflow: 'hidden' }]}>
+        <View style={[gradientFill, styles.iosGradientStack]}>
           <LinearGradient
             colors={gradientConfig.colors}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
-            style={StyleSheet.absoluteFillObject}
+            style={[StyleSheet.absoluteFillObject, { borderRadius: cornerRadius }]}
             pointerEvents="none"
           />
-          <View style={compact ? [styles.iosGradientForegroundCompact, { paddingHorizontal: T.spacing.md }] : [styles.iosGradientForeground, { paddingHorizontal: T.spacing.lg }]}>
-            {content}
-          </View>
+          <View style={styles.iosGradientForegroundShared}>{content}</View>
         </View>
       ) : (
         <LinearGradient
           colors={gradientConfig.colors}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
-          style={[gradientFill, compact ? { paddingHorizontal: T.spacing.md } : { paddingHorizontal: T.spacing.lg }, { borderRadius: cornerRadius, overflow: 'hidden' }]}
+          style={gradientFill}
         >
           {content}
         </LinearGradient>
@@ -234,10 +257,8 @@ export default function CosmicButton({
         onPress={onPress}
         disabled={isDisabled}
         innerRadius={cornerRadius}
-        style={[
-          shell,
-          { borderColor: gradientConfig.border },
-        ]}
+        compact={compact}
+        style={[shell, { borderColor: gradientConfig.border }]}
       >
         {gradientNode}
       </PressableShell>
@@ -285,20 +306,17 @@ export default function CosmicButton({
       onPress={onPress}
       disabled={isDisabled}
       innerRadius={cornerRadius}
+      compact={compact}
       style={[
         shell,
         flat,
-        Platform.OS !== 'ios' && (compact ? [styles.flatCompact, { paddingHorizontal: T.spacing.md }] : [styles.flat, { paddingHorizontal: T.spacing.lg }]),
-        Platform.OS === 'ios' && styles.iosFlatShell,
+        {
+          paddingHorizontal: compact ? T.spacing.md : T.spacing.lg,
+          justifyContent: 'center',
+        },
       ]}
     >
-      {Platform.OS === 'ios' ? (
-        <View style={compact ? [styles.iosFlatForegroundCompact, { paddingHorizontal: T.spacing.md }] : [styles.iosFlatForeground, { paddingHorizontal: T.spacing.lg }]}>
-          {content}
-        </View>
-      ) : (
-        content
-      )}
+      {content}
     </PressableShell>
   );
 }
@@ -306,7 +324,6 @@ export default function CosmicButton({
 const styles = StyleSheet.create({
   touchableShell: {
     alignSelf: 'stretch',
-    ...Platform.select({ ios: { width: '100%' }, default: {} }),
   },
   pressScaleWrap: {
     alignSelf: 'stretch',
@@ -314,33 +331,29 @@ const styles = StyleSheet.create({
   pressScaleInner: {
     width: '100%',
     alignSelf: 'stretch',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  pressableFill: Platform.select({
-    ios: {
-      width: '100%',
-      flex: 1,
-      minHeight: PLATFORM_LAYOUT.buttonMinHeight,
-      justifyContent: 'center',
-      alignItems: 'stretch',
-    },
-    default: {
-      width: '100%',
-      flexGrow: 1,
-      justifyContent: 'center',
-      alignItems: 'stretch',
-    },
-  }),
+  pressableFill: {
+    alignSelf: 'stretch',
+    width: '100%',
+    justifyContent: 'center',
+  },
+  pressableFillCompact: {
+    alignSelf: 'stretch',
+    width: '100%',
+    justifyContent: 'center',
+  },
   shell: {
     width: '100%',
     alignSelf: 'stretch',
-    minHeight: PLATFORM_LAYOUT.buttonMinHeight,
     borderWidth: 1,
     overflow: 'hidden',
+    justifyContent: 'center',
   },
   shellCompact: {
     width: '100%',
     alignSelf: 'stretch',
-    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
     borderWidth: 1,
     overflow: 'hidden',
     minWidth: 0,
@@ -354,130 +367,65 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  gradient: Platform.select({
-    ios: {
-      width: '100%',
-      flex: 1,
-      minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
-      paddingVertical: 15,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    default: {
-      width: '100%',
-      flexGrow: 1,
-      minHeight: 48,
-      paddingVertical: 14,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-  }),
-  gradientCompact: Platform.select({
-    ios: {
-      width: '100%',
-      flex: 1,
-      minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
-      paddingVertical: 11,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    default: {
-      width: '100%',
-      minHeight: 38,
-      paddingVertical: 10,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-  }),
+  gradient: {
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gradientCompact: {
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   iosGradientStack: {
     position: 'relative',
     overflow: 'hidden',
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  iosGradientForeground: {
+  iosGradientForegroundShared: {
     zIndex: 2,
     width: '100%',
-    minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
-    paddingVertical: 15,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  iosGradientForegroundCompact: {
-    zIndex: 2,
-    width: '100%',
-    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
-    paddingVertical: 11,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  iosFlatShell: {
-    justifyContent: 'center',
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
-  flat: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 14,
-  },
-  flatCompact: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 10,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     maxWidth: '100%',
-    ...Platform.select({ ios: { width: '100%' }, default: {} }),
+    paddingHorizontal: 4,
   },
   rowIos: {
     zIndex: 1,
-    alignSelf: 'stretch',
   },
-  loader: {},
   icon: {
     marginRight: 6,
   },
   text: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     lineHeight: 20,
     textAlign: 'center',
-    ...(Platform.OS === 'ios' ? { letterSpacing: 0.2, flexShrink: 1, minWidth: 0 } : {}),
-  },
-  textCompact: {
-    fontSize: 12,
-    fontWeight: '700',
-    lineHeight: 16,
-    textAlign: 'center',
+    letterSpacing: 0.2,
     flexShrink: 1,
     minWidth: 0,
-    ...(Platform.OS === 'ios' ? { letterSpacing: 0.15 } : {}),
+  },
+  textCompact: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 17,
+    textAlign: 'center',
+    letterSpacing: 0.15,
+    flexShrink: 1,
+    minWidth: 0,
   },
   textOnGradient: {
     backgroundColor: 'transparent',
-    ...(Platform.OS === 'ios' ? { opacity: 1 } : {}),
   },
   textOnFlat: {
     backgroundColor: 'transparent',
-    zIndex: 1,
-  },
-  iosFlatForeground: {
-    width: '100%',
-    minHeight: PLATFORM_LAYOUT.buttonMinHeight - 2,
-    paddingVertical: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  iosFlatForegroundCompact: {
-    width: '100%',
-    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight - 2,
-    paddingVertical: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
     zIndex: 1,
   },
 });

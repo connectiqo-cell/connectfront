@@ -570,7 +570,7 @@ function createThemedStyles(theme) {
     width: '100%',
     alignSelf: 'stretch',
     marginVertical: 0,
-    minHeight: PLATFORM_LAYOUT.buttonMinHeight,
+    height: PLATFORM_LAYOUT.buttonMinHeight,
   },
 });
 }

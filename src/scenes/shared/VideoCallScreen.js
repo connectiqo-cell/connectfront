@@ -8,6 +8,7 @@ import {
   Alert,
   BackHandler,
   NativeModules,
+  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,7 +31,6 @@ import { showMentorBookingRecordingAlert } from '../../utils/recordingAlerts';
 import {
   markIosCallAudioSessionEnded,
   releaseIosCallAudioSession,
-  forceStopIosCallAudioSession,
 } from '../../utils/iosCallAudioSession';
 import { scheduleMeetingLeaveNavigation } from '../../utils/meetingLeave';
 import { resolveSessionEndOutcome } from '../../utils/sessionEndOutcome';
@@ -115,10 +115,12 @@ export default function VideoCallScreen({ navigation, route }) {
   const [mentorRecordingConsented, setMentorRecordingConsented] = useState(false);
   const [recordingRequested, setRecordingRequested] = useState(false);
   const [participantCount, setParticipantCount] = useState(1);
+  const [isExiting, setIsExiting] = useState(false);
   const joinTimeRef = useRef(null); // Track when both participants joined (use Ref to persist across re-renders)
   const recordingRef = useRef();
   const sessionEndedRef = useRef(false);
   const leaveNavTimerRef = useRef(null);
+  const postCallCleanupStartedRef = useRef(false);
   // Host authority must come from booking membership, never route params.
   const isMentorHost = Boolean(
     profile?.id && booking?.mentor_id && profile.id === booking.mentor_id,
@@ -211,7 +213,9 @@ export default function VideoCallScreen({ navigation, route }) {
     return () => {
       cancelled = true;
       if (Platform.OS === 'ios' && !sessionEndedRef.current) {
-        releaseIosCallAudioSession();
+        try {
+          releaseIosCallAudioSession();
+        } catch (_) {}
       }
     };
   }, []);
@@ -484,30 +488,53 @@ export default function VideoCallScreen({ navigation, route }) {
     }
   };
 
-  const handleMeetingLeft = useCallback(() => {
+  const handleMeetingLeft = useCallback((opts = {}) => {
+    const force = opts?.force === true;
     const snapshotCallParams = callParams;
 
+    // Drop MeetingProvider / RTC views before navigating — primary iOS crash
+    // source was tearing down live WebRTC + a second InCallManager.stop().
+    setIsExiting(true);
     markIosCallAudioSessionEnded();
 
-    scheduleMeetingLeaveNavigation({
+    const scheduled = scheduleMeetingLeaveNavigation({
       alreadyEndedRef: sessionEndedRef,
       timerRef: leaveNavTimerRef,
       platform: Platform.OS,
+      force,
       onNavigate: () => {
+        try {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate(SCREEN_NAMES.RootUnifiedTabs);
+          }
+        } catch (navErr) {
+          console.warn('[Call] leave navigation failed:', navErr?.message || navErr);
+          sessionEndedRef.current = false;
+          setIsExiting(false);
+          return;
+        }
+
+        if (!postCallCleanupStartedRef.current) {
+          postCallCleanupStartedRef.current = true;
+          runPostCallCleanup(snapshotCallParams).catch(error => {
+            console.error('Error ending call:', error);
+          });
+        }
+      },
+    });
+
+    // Already marked ended but still stuck on this screen — retry navigation.
+    if (!scheduled && force) {
+      try {
         if (navigation.canGoBack()) {
           navigation.goBack();
         } else {
           navigation.navigate(SCREEN_NAMES.RootUnifiedTabs);
         }
-        runPostCallCleanup(snapshotCallParams).catch(error => {
-          console.error('Error ending call:', error);
-        });
-        if (Platform.OS === 'ios') {
-          // Backup stop if VideoSDK leave() stalled but we already navigated away.
-          setTimeout(() => forceStopIosCallAudioSession(), 400);
-        }
-      },
-    });
+      } catch (_) {}
+    }
   }, [navigation, callParams]);
 
   const handleProviderMeetingJoined = useCallback(() => {
@@ -578,6 +605,26 @@ export default function VideoCallScreen({ navigation, route }) {
     otherUser: otherProfile,
   });
 
+  if (isExiting) {
+    return screenShell(
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: meetingBg }}>
+        <ActivityIndicator size="large" color={theme.colors.accent?.secondary || '#6366f1'} />
+        <Text style={{ color: theme.colors.text?.primary || '#fff', marginTop: 16, fontSize: 15, fontWeight: '600' }}>
+          Leaving session…
+        </Text>
+        <TouchableOpacity
+          onPress={() => handleMeetingLeft({ force: true })}
+          style={{ marginTop: 28, paddingVertical: 12, paddingHorizontal: 24 }}
+        >
+          <Text style={{ color: theme.colors.text?.muted || '#888', fontSize: 14 }}>
+            Still here? Tap to exit
+          </Text>
+        </TouchableOpacity>
+      </View>,
+      meetingBg,
+    );
+  }
+
   if (lobbyOnly && booking) {
     return screenShell(
       <SessionLobbyView
@@ -587,16 +634,47 @@ export default function VideoCallScreen({ navigation, route }) {
         meetingReady={meetingReady}
         onJoinCall={isMentorHost ? handleStartSession : handleJoinCall}
         startingSession={startingSession}
-        onLeave={() => navigation.goBack()}
+        onLeave={() => {
+          if (Platform.OS === 'ios') {
+            try {
+              releaseIosCallAudioSession();
+            } catch (_) {}
+          }
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate(SCREEN_NAMES.RootUnifiedTabs);
+          }
+        }}
         onReschedule={async () => {
           try {
             await rescheduleApi.markForReschedule(bookingId, 'mentor_noshow');
           } catch (e) {
             console.warn('⚠️ markForReschedule failed:', e.message);
           }
-          navigation.goBack();
+          if (Platform.OS === 'ios') {
+            try {
+              releaseIosCallAudioSession();
+            } catch (_) {}
+          }
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate(SCREEN_NAMES.RootUnifiedTabs);
+          }
         }}
-        onCancelRefund={() => navigation.goBack()}
+        onCancelRefund={() => {
+          if (Platform.OS === 'ios') {
+            try {
+              releaseIosCallAudioSession();
+            } catch (_) {}
+          }
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate(SCREEN_NAMES.RootUnifiedTabs);
+          }
+        }}
       />,
       lobbyBg,
     );
@@ -612,7 +690,7 @@ export default function VideoCallScreen({ navigation, route }) {
       token={callParams.token}
     >
       <View style={{ flex: 1, backgroundColor: meetingBg }}>
-        <CallErrorBoundary onLeave={handleMeetingLeft} theme={theme}>
+        <CallErrorBoundary onLeave={() => handleMeetingLeft({ force: true })} theme={theme}>
           <MeetingConsumer
             onMeetingJoined={handleProviderMeetingJoined}
             onMeetingLeft={handleProviderMeetingLeft}

@@ -1,6 +1,6 @@
 import { useMeeting } from '@videosdk.live/react-native-sdk';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { ActivityIndicator, Platform, Text, View } from 'react-native';
 import React from 'react';
 import Toast from 'react-native-simple-toast';
 import { ensureIosCallAudioSession } from '../../utils/iosCallAudioSession';
@@ -9,6 +9,25 @@ import { getMeetingParticipantSnapshot } from '../../utils/meetingParticipants';
 import OneToOneMeetingViewer from './OneToOne';
 import ConferenceMeetingViewer from './Conference/ConferenceMeetingViewer';
 import WaitingToJoinView from './Components/WaitingToJoinView';
+
+function LeavingCallView() {
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#0a0a1a',
+        paddingHorizontal: 24,
+      }}
+    >
+      <ActivityIndicator size="large" color="#6366f1" />
+      <Text style={{ color: '#fff', marginTop: 16, fontSize: 15, fontWeight: '600' }}>
+        Leaving session…
+      </Text>
+    </View>
+  );
+}
 
 export default function MeetingContainer({
   meetingType,
@@ -23,13 +42,16 @@ export default function MeetingContainer({
   maxDurationMs,
 }) {
   const [isJoined, setJoined] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const [joinStalled, setJoinStalled] = useState(false);
   const hasJoinedRef = useRef(false);
   const hasLeftRef = useRef(false);
+  const isLeavingRef = useRef(false);
   const joinRef = useRef(null);
   const leavePendingRef = useRef(false);
   const iosWebcamBootstrappedRef = useRef(false);
   const iosWebcamTimerRef = useRef(null);
+  const leaveSdkTimerRef = useRef(null);
   const joinTimerRef = useRef(null);
   const toggleWebcamRef = useRef(null);
   const onLeaveSessionRef = useRef(onLeaveSession);
@@ -44,12 +66,24 @@ export default function MeetingContainer({
     }
   }, []);
 
-  const finishLeaveSession = useCallback(() => {
-    clearLeaveFallback();
-    leavePendingRef.current = false;
-    hasLeftRef.current = true;
-    onLeaveSessionRef.current?.();
-  }, [clearLeaveFallback]);
+  const cancelIosWebcamBootstrap = useCallback(() => {
+    if (iosWebcamTimerRef.current) {
+      clearTimeout(iosWebcamTimerRef.current);
+      iosWebcamTimerRef.current = null;
+    }
+  }, []);
+
+  const finishLeaveSession = useCallback(
+    (opts = {}) => {
+      clearLeaveFallback();
+      leavePendingRef.current = false;
+      hasLeftRef.current = true;
+      isLeavingRef.current = true;
+      setIsLeaving(true);
+      onLeaveSessionRef.current?.(opts);
+    },
+    [clearLeaveFallback],
+  );
 
   const scheduleLeaveFallback = useCallback(() => {
     clearLeaveFallback();
@@ -62,7 +96,9 @@ export default function MeetingContainer({
   }, [clearLeaveFallback, finishLeaveSession]);
 
   const requestLeave = useCallback(() => {
+    // Parent may still be showing the call screen after a failed navigate — force exit.
     if (hasLeftRef.current) {
+      onLeaveSessionRef.current?.({ force: true });
       return;
     }
 
@@ -80,16 +116,27 @@ export default function MeetingContainer({
 
     leavePendingRef.current = true;
     leaveRequestedAtRef.current = now;
+    isLeavingRef.current = true;
+    setIsLeaving(true);
+    cancelIosWebcamBootstrap();
 
-    try {
-      leaveRef.current?.();
-    } catch (_) {}
+    // Unmount RTC views first, then ask VideoSDK to leave — avoids iOS crash
+    // from tearing down live RTCView / AVCapture while still on screen.
+    if (leaveSdkTimerRef.current) {
+      clearTimeout(leaveSdkTimerRef.current);
+    }
+    leaveSdkTimerRef.current = setTimeout(() => {
+      leaveSdkTimerRef.current = null;
+      try {
+        leaveRef.current?.();
+      } catch (_) {}
+    }, Platform.OS === 'ios' ? 80 : 0);
 
     scheduleLeaveFallback();
-  }, [scheduleLeaveFallback]);
+  }, [cancelIosWebcamBootstrap, scheduleLeaveFallback]);
 
   const markJoined = useCallback(() => {
-    if (hasJoinedRef.current || hasLeftRef.current) {
+    if (hasJoinedRef.current || hasLeftRef.current || isLeavingRef.current) {
       return;
     }
     hasJoinedRef.current = true;
@@ -100,10 +147,13 @@ export default function MeetingContainer({
       iosWebcamBootstrappedRef.current = true;
       iosWebcamTimerRef.current = setTimeout(() => {
         iosWebcamTimerRef.current = null;
-        if (!hasLeftRef.current) {
-          toggleWebcamRef.current?.();
+        if (hasLeftRef.current || isLeavingRef.current) {
+          return;
         }
-      }, 500);
+        try {
+          toggleWebcamRef.current?.();
+        } catch (_) {}
+      }, 900);
     }
   }, []);
 
@@ -112,6 +162,9 @@ export default function MeetingContainer({
   }, [finishLeaveSession]);
 
   const onError = useCallback(({ code, message } = {}) => {
+    if (isLeavingRef.current || hasLeftRef.current) {
+      return;
+    }
     setJoinStalled(true);
     Toast.show(message || code || 'Failed to join session');
   }, []);
@@ -145,7 +198,7 @@ export default function MeetingContainer({
   }, [participantCount, onParticipantCountChange]);
 
   const attemptJoin = useCallback(async () => {
-    if (hasLeftRef.current || hasJoinedRef.current) {
+    if (hasLeftRef.current || hasJoinedRef.current || isLeavingRef.current) {
       return;
     }
 
@@ -160,7 +213,7 @@ export default function MeetingContainer({
           return;
         }
       }
-      if (!hasLeftRef.current && !hasJoinedRef.current) {
+      if (!hasLeftRef.current && !hasJoinedRef.current && !isLeavingRef.current) {
         joinRef.current?.();
       }
     } catch (err) {
@@ -178,10 +231,10 @@ export default function MeetingContainer({
       if (!cancelled) {
         attemptJoin();
       }
-    }, Platform.OS === 'ios' ? 600 : 400);
+    }, Platform.OS === 'ios' ? 800 : 400);
 
     stallTimerId = setTimeout(() => {
-      if (!hasJoinedRef.current && !hasLeftRef.current) {
+      if (!hasJoinedRef.current && !hasLeftRef.current && !isLeavingRef.current) {
         setJoinStalled(true);
       }
     }, 20000);
@@ -195,18 +248,22 @@ export default function MeetingContainer({
       if (stallTimerId) {
         clearTimeout(stallTimerId);
       }
-      if (iosWebcamTimerRef.current) {
-        clearTimeout(iosWebcamTimerRef.current);
-        iosWebcamTimerRef.current = null;
+      cancelIosWebcamBootstrap();
+      if (leaveSdkTimerRef.current) {
+        clearTimeout(leaveSdkTimerRef.current);
+        leaveSdkTimerRef.current = null;
       }
       // Do not clearLeaveFallback here — join() identity changes during active
       // calls and would cancel an in-flight leave fallback before onMeetingLeft.
     };
-  }, [attemptJoin]);
+  }, [attemptJoin, cancelIosWebcamBootstrap]);
 
   // VideoSDK sometimes sets localParticipant / isMeetingJoined before the
   // meeting-joined event reaches this hook (especially on Android release builds).
   useEffect(() => {
+    if (isLeavingRef.current || hasLeftRef.current) {
+      return;
+    }
     if (isMeetingJoined || localParticipant?.id) {
       markJoined();
     }
@@ -226,6 +283,10 @@ export default function MeetingContainer({
     }, maxDurationMs);
     return () => clearTimeout(timer);
   }, [remoteParticipantCount, maxDurationMs, requestLeave]);
+
+  if (isLeaving) {
+    return <LeavingCallView />;
+  }
 
   // Show the call UI as soon as VideoSDK join succeeds — waiting for the peer
   // inside OneToOneMeetingViewer. Gating on remoteParticipantCount kept both

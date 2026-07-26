@@ -40,11 +40,10 @@ const ENTRANCE_STEP_MS = 50;
 function FadeSlideIn({ delay = 0, children, style, fromY = 16 }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(fromY)).current;
-  const played = useRef(false);
 
   useEffect(() => {
-    if (played.current) return undefined;
-    played.current = true;
+    opacity.setValue(0);
+    translateY.setValue(fromY);
     const anim = Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
@@ -61,8 +60,23 @@ function FadeSlideIn({ delay = 0, children, style, fromY = 16 }) {
         useNativeDriver: true,
       }),
     ]);
-    anim.start();
-    return () => anim.stop();
+    anim.start(({ finished }) => {
+      // Theme switches / remounts can stop the anim mid-flight and leave opacity 0.
+      if (!finished) {
+        opacity.setValue(1);
+        translateY.setValue(0);
+      }
+    });
+    const safety = setTimeout(() => {
+      opacity.setValue(1);
+      translateY.setValue(0);
+    }, delay + 700);
+    return () => {
+      clearTimeout(safety);
+      anim.stop();
+      opacity.setValue(1);
+      translateY.setValue(0);
+    };
   }, [delay, fromY, opacity, translateY]);
 
   return (
@@ -70,6 +84,21 @@ function FadeSlideIn({ delay = 0, children, style, fromY = 16 }) {
       {children}
     </Animated.View>
   );
+}
+
+/** Parent VideoCallScreen already applies SafeArea on iOS — avoid double insets. */
+function lobbyBottomPad(insets, themeSpacing) {
+  if (Platform.OS === 'ios') {
+    return Math.max(themeSpacing?.md ?? 16, 16);
+  }
+  return Math.max((insets?.bottom ?? 0) + 8, 20);
+}
+
+function lobbyHeaderTopPad(insets, themeSpacing) {
+  if (Platform.OS === 'ios') {
+    return themeSpacing?.sm ?? 8;
+  }
+  return (insets?.top ?? 0) + 10;
 }
 
 function PressScale({ onPress, children, style, disabled, hitSlop }) {
@@ -515,7 +544,7 @@ function LobbyControlBar({ micOn, camOn, onToggleMic, onToggleCam, onLeave, conn
 
   return (
     <FadeSlideIn delay={animDelay} fromY={24} style={styles.controlDockWrap}>
-      <View style={[styles.controlDock, { paddingBottom: Math.max(bottomInset, 12) }]}>
+      <View style={[styles.controlDock, { paddingBottom: Platform.OS === 'ios' ? 12 : Math.max(bottomInset, 12) }]}>
         <LinearGradient
           colors={C.tabBar.flatBarEdge}
           start={{ x: 0, y: 0 }}
@@ -756,11 +785,13 @@ export default function SessionLobbyView({
 
   // ── Mentor pre-start lobby ────────────────────────────────────────────────
   if (isMentor) {
+    const bottomPad = lobbyBottomPad(insets, T.spacing);
+    const headerTop = lobbyHeaderTopPad(insets, T.spacing);
     return (
       <CosmicBackground style={styles.root}>
         {/* Header */}
         <FadeSlideIn delay={0} fromY={-10}>
-          <View style={[styles.newHeader, { paddingTop: Platform.OS === 'ios' ? T.spacing.sm : insets.top + 10 }]}>
+          <View style={[styles.newHeader, { paddingTop: headerTop }]}>
             <PressScale onPress={onLeave} style={styles.backBtn} hitSlop={12}>
               <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
             </PressScale>
@@ -772,114 +803,126 @@ export default function SessionLobbyView({
           </View>
         </FadeSlideIn>
 
-        {/* Hero */}
-        <View style={styles.heroArea}>
-
-          {/* Learner avatar + ready chip */}
-          <FadeSlideIn delay={ENTRANCE_STEP_MS} style={styles.avatarSection}>
-            <PulseLoop
-              style={styles.heroPulseWrap}
-              color={SUCCESS}
-              minOpacity={0.12}
-              maxOpacity={0.5}
-            >
-              <LinearGradient
-                colors={B.successGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.heroAvatarRing}
+        {/* Hero — scrollable so small iPhones don't clip CTA */}
+        <ScrollView
+          style={styles.heroScroll}
+          contentContainerStyle={styles.heroScrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.heroArea}>
+            <FadeSlideIn delay={ENTRANCE_STEP_MS} style={styles.avatarSection}>
+              <PulseLoop
+                style={styles.heroPulseWrap}
+                color={SUCCESS}
+                minOpacity={0.12}
+                maxOpacity={0.5}
               >
-                <View style={styles.heroAvatarFrame}>
-                  {partner?.avatar_url ? (
-                    <Image source={{ uri: partner.avatar_url }} style={styles.heroAvatar} />
-                  ) : (
-                    <View style={styles.heroAvatarFallback}>
-                      <Text style={styles.heroAvatarInitial}>{otherName.charAt(0).toUpperCase()}</Text>
-                    </View>
-                  )}
-                </View>
-              </LinearGradient>
-            </PulseLoop>
-            <Text style={styles.heroName}>{otherName}</Text>
-            <Text style={styles.heroRole}>LEARNER</Text>
-            <View style={[styles.statusChip, styles.statusChipReady]}>
-              <PulseLoop style={styles.chipDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
-                <View style={styles.chipDot} />
+                <LinearGradient
+                  colors={B.successGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.heroAvatarRing}
+                >
+                  <View style={styles.heroAvatarFrame}>
+                    {partner?.avatar_url ? (
+                      <Image source={{ uri: partner.avatar_url }} style={styles.heroAvatar} />
+                    ) : (
+                      <View style={styles.heroAvatarFallback}>
+                        <Text style={styles.heroAvatarInitial}>{otherName.charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )}
+                  </View>
+                </LinearGradient>
               </PulseLoop>
-              <Text style={[styles.statusChipText, styles.statusChipTextReady]}>
-                Ready to start
+              <Text style={styles.heroName} numberOfLines={1}>
+                {otherName}
               </Text>
-            </View>
-          </FadeSlideIn>
-
-          {/* Countdown */}
-          <FadeSlideIn delay={ENTRANCE_STEP_MS * 2} style={styles.countdownSection}>
-            <View style={[
-              styles.countdownBox,
-              sessionTiming.status === 'live' && styles.countdownBoxLive,
-              sessionTiming.status === 'upcoming' && styles.countdownBoxUpcoming,
-            ]}>
-              <View style={styles.countdownTop}>
-                <StatusBadge status={sessionTiming.status} />
-                <View style={styles.durationTag}>
-                  <MaterialIcons name="timelapse" size={12} color={C.text.secondary} />
-                  <Text style={styles.durationTagText}>{durationMin} min</Text>
-                </View>
-              </View>
-              <Text style={[
-                styles.countdownTimer,
-                sessionTiming.status === 'live' && { color: TEAL },
-                sessionTiming.status === 'upcoming' && { color: GOLD },
-                sessionTiming.status === 'ended' && { color: ERROR },
-              ]}>
-                {sessionTiming.status === 'upcoming'
-                  ? formatCountdown(sessionTiming.untilStartSec)
-                  : sessionTiming.status === 'live'
-                    ? formatCountdown(sessionTiming.remainingSec)
-                    : '00:00'}
-              </Text>
-              <Text style={styles.countdownLabel}>
-                {sessionTiming.status === 'upcoming'
-                  ? 'until session starts'
-                  : sessionTiming.status === 'live'
-                    ? 'time remaining'
-                    : 'session window closed'}
-              </Text>
-              {sessionTiming.status === 'live' ? (
-                <View style={styles.progressTrack}>
-                  <AnimatedProgressFill progress={sessionProgress} colors={B.successGradient} />
-                </View>
-              ) : null}
-            </View>
-          </FadeSlideIn>
-
-          {/* Info strip */}
-          <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
-            <View style={styles.infoStrip}>
-              <View style={styles.infoStripItem}>
-                <MaterialIcons name="event" size={14} color={TEAL} />
-                <Text style={styles.infoStripText}>{formatDateForDisplay(slot.date)}</Text>
-              </View>
-              <View style={styles.infoStripDivider} />
-              <View style={styles.infoStripItem}>
-                <MaterialIcons name="access-time" size={14} color={TEAL} />
-                <Text style={styles.infoStripText}>
-                  {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
+              <Text style={styles.heroRole}>LEARNER</Text>
+              <View style={[styles.statusChip, styles.statusChipReady]}>
+                <PulseLoop style={styles.chipDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
+                  <View style={styles.chipDot} />
+                </PulseLoop>
+                <Text style={[styles.statusChipText, styles.statusChipTextReady]}>
+                  Ready to start
                 </Text>
               </View>
-            </View>
-          </FadeSlideIn>
-        </View>
+            </FadeSlideIn>
 
-        {recordingRequested ? (
-          <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
-            <RecordingPreferenceNotice isMentor />
-          </FadeSlideIn>
-        ) : null}
+            <FadeSlideIn delay={ENTRANCE_STEP_MS * 2} style={styles.countdownSection}>
+              <View
+                style={[
+                  styles.countdownBox,
+                  sessionTiming.status === 'live' && styles.countdownBoxLive,
+                  sessionTiming.status === 'upcoming' && styles.countdownBoxUpcoming,
+                ]}
+              >
+                <View style={styles.countdownTop}>
+                  <StatusBadge status={sessionTiming.status} />
+                  <View style={styles.durationTag}>
+                    <MaterialIcons name="timelapse" size={12} color={C.text.secondary} />
+                    <Text style={styles.durationTagText}>{durationMin} min</Text>
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    styles.countdownTimer,
+                    sessionTiming.status === 'live' && { color: TEAL },
+                    sessionTiming.status === 'upcoming' && { color: GOLD },
+                    sessionTiming.status === 'ended' && { color: ERROR },
+                  ]}
+                >
+                  {sessionTiming.status === 'upcoming'
+                    ? formatCountdown(sessionTiming.untilStartSec)
+                    : sessionTiming.status === 'live'
+                      ? formatCountdown(sessionTiming.remainingSec)
+                      : '00:00'}
+                </Text>
+                <Text style={styles.countdownLabel}>
+                  {sessionTiming.status === 'upcoming'
+                    ? 'until session starts'
+                    : sessionTiming.status === 'live'
+                      ? 'time remaining'
+                      : 'session window closed'}
+                </Text>
+                {sessionTiming.status === 'live' ? (
+                  <View style={styles.progressTrack}>
+                    <AnimatedProgressFill progress={sessionProgress} colors={B.successGradient} />
+                  </View>
+                ) : null}
+              </View>
+            </FadeSlideIn>
+
+            <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
+              <View style={styles.infoStrip}>
+                <View style={styles.infoStripItem}>
+                  <MaterialIcons name="event" size={14} color={TEAL} />
+                  <Text style={styles.infoStripText} numberOfLines={1}>
+                    {formatDateForDisplay(slot.date)}
+                  </Text>
+                </View>
+                <View style={styles.infoStripDivider} />
+                <View style={styles.infoStripItem}>
+                  <MaterialIcons name="access-time" size={14} color={TEAL} />
+                  <Text style={styles.infoStripText} numberOfLines={1}>
+                    {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
+                  </Text>
+                </View>
+              </View>
+            </FadeSlideIn>
+
+            {recordingRequested ? (
+              <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
+                <RecordingPreferenceNotice isMentor />
+              </FadeSlideIn>
+            ) : null}
+          </View>
+        </ScrollView>
 
         {/* Bottom CTA */}
         <FadeSlideIn delay={ENTRANCE_STEP_MS * 4} fromY={24}>
-          <View style={[styles.bottomCta, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
+          <View style={[styles.bottomCta, { paddingBottom: bottomPad }]}>
             <PressScale
               onPress={startingSession ? undefined : onJoinCall}
               disabled={startingSession}
@@ -894,9 +937,9 @@ export default function SessionLobbyView({
                 {startingSession ? (
                   <ActivityIndicator size="small" color={B.successText} />
                 ) : (
-                  <MaterialIcons name="video-call" size={26} color={B.successText} />
+                  <MaterialIcons name="video-call" size={24} color={B.successText} />
                 )}
-                <Text style={styles.joinCallText}>
+                <Text style={styles.joinCallText} numberOfLines={1}>
                   {startingSession ? 'Starting…' : 'Start Session'}
                 </Text>
                 {!startingSession ? (
@@ -918,11 +961,13 @@ export default function SessionLobbyView({
   }
 
   // ── Learner lobby ─────────────────────────────────────────────────────────
+  const bottomPad = lobbyBottomPad(insets, T.spacing);
+  const headerTop = lobbyHeaderTopPad(insets, T.spacing);
   return (
     <CosmicBackground style={styles.root}>
       {/* ── Header ─────────────────────────────────────── */}
       <FadeSlideIn delay={0} fromY={-10}>
-        <View style={[styles.newHeader, { paddingTop: Platform.OS === 'ios' ? T.spacing.sm : insets.top + 10 }]}>
+        <View style={[styles.newHeader, { paddingTop: headerTop }]}>
           <PressScale onPress={onLeave} style={styles.backBtn} hitSlop={12}>
             <MaterialIcons name="arrow-back" size={22} color={C.text.primary} />
           </PressScale>
@@ -935,116 +980,133 @@ export default function SessionLobbyView({
       </FadeSlideIn>
 
       {/* ── Hero ───────────────────────────────────────── */}
-      <View style={styles.heroArea}>
-
-        {/* Avatar + name + status */}
-        <FadeSlideIn delay={ENTRANCE_STEP_MS} style={styles.avatarSection}>
-          <PulseLoop
-            style={styles.heroPulseWrap}
-            color={meetingReady ? SUCCESS : TEAL}
-            minOpacity={0.12}
-            maxOpacity={0.5}
-          >
-            <LinearGradient
-              colors={meetingReady ? B.successGradient : [PURPLE_LINK, TEAL]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroAvatarRing}
+      <ScrollView
+        style={styles.heroScroll}
+        contentContainerStyle={styles.heroScrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.heroArea}>
+          <FadeSlideIn delay={ENTRANCE_STEP_MS} style={styles.avatarSection}>
+            <PulseLoop
+              style={styles.heroPulseWrap}
+              color={meetingReady ? SUCCESS : TEAL}
+              minOpacity={0.12}
+              maxOpacity={0.5}
             >
-              <View style={styles.heroAvatarFrame}>
-                {partner?.avatar_url ? (
-                  <Image source={{ uri: partner.avatar_url }} style={styles.heroAvatar} />
-                ) : (
-                  <View style={styles.heroAvatarFallback}>
-                    <Text style={styles.heroAvatarInitial}>{otherName.charAt(0).toUpperCase()}</Text>
-                  </View>
-                )}
-              </View>
-            </LinearGradient>
-          </PulseLoop>
-          <Text style={styles.heroName}>{otherName}</Text>
-          <Text style={styles.heroRole}>{otherLabel.toUpperCase()}</Text>
+              <LinearGradient
+                colors={meetingReady ? B.successGradient : [PURPLE_LINK, TEAL]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroAvatarRing}
+              >
+                <View style={styles.heroAvatarFrame}>
+                  {partner?.avatar_url ? (
+                    <Image source={{ uri: partner.avatar_url }} style={styles.heroAvatar} />
+                  ) : (
+                    <View style={styles.heroAvatarFallback}>
+                      <Text style={styles.heroAvatarInitial}>{otherName.charAt(0).toUpperCase()}</Text>
+                    </View>
+                  )}
+                </View>
+              </LinearGradient>
+            </PulseLoop>
+            <Text style={styles.heroName} numberOfLines={1}>
+              {otherName}
+            </Text>
+            <Text style={styles.heroRole}>{otherLabel.toUpperCase()}</Text>
 
-          {meetingReady ? (
-            <View style={[styles.statusChip, styles.statusChipReady]}>
-              <PulseLoop style={styles.chipDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
-                <View style={styles.chipDot} />
-              </PulseLoop>
-              <Text style={[styles.statusChipText, styles.statusChipTextReady]}>
-                Ready to join
+            {meetingReady ? (
+              <View style={[styles.statusChip, styles.statusChipReady]}>
+                <PulseLoop style={styles.chipDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
+                  <View style={styles.chipDot} />
+                </PulseLoop>
+                <Text style={[styles.statusChipText, styles.statusChipTextReady]}>
+                  Ready to join
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.statusChip}>
+                <MaterialIcons name="hourglass-top" size={14} color={GOLD} />
+                <Text style={styles.statusChipText}>Waiting for mentor</Text>
+              </View>
+            )}
+          </FadeSlideIn>
+
+          <FadeSlideIn delay={ENTRANCE_STEP_MS * 2} style={styles.countdownSection}>
+            <View
+              style={[
+                styles.countdownBox,
+                sessionTiming.status === 'live' && styles.countdownBoxLive,
+                sessionTiming.status === 'upcoming' && styles.countdownBoxUpcoming,
+              ]}
+            >
+              <View style={styles.countdownTop}>
+                <StatusBadge status={sessionTiming.status} />
+                <View style={styles.durationTag}>
+                  <MaterialIcons name="timelapse" size={12} color={C.text.secondary} />
+                  <Text style={styles.durationTagText}>{durationMin} min</Text>
+                </View>
+              </View>
+              <Text
+                style={[
+                  styles.countdownTimer,
+                  sessionTiming.status === 'live' && { color: TEAL },
+                  sessionTiming.status === 'upcoming' && { color: GOLD },
+                  sessionTiming.status === 'ended' && { color: ERROR },
+                ]}
+              >
+                {sessionTiming.status === 'upcoming'
+                  ? formatCountdown(sessionTiming.untilStartSec)
+                  : sessionTiming.status === 'live'
+                    ? formatCountdown(sessionTiming.remainingSec)
+                    : '00:00'}
               </Text>
+              <Text style={styles.countdownLabel}>
+                {sessionTiming.status === 'upcoming'
+                  ? 'until session starts'
+                  : sessionTiming.status === 'live'
+                    ? 'time remaining'
+                    : 'session window closed'}
+              </Text>
+              {sessionTiming.status === 'live' ? (
+                <View style={styles.progressTrack}>
+                  <AnimatedProgressFill progress={sessionProgress} colors={B.successGradient} />
+                </View>
+              ) : null}
             </View>
+          </FadeSlideIn>
+
+          <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
+            <View style={styles.infoStrip}>
+              <View style={styles.infoStripItem}>
+                <MaterialIcons name="event" size={14} color={TEAL} />
+                <Text style={styles.infoStripText} numberOfLines={1}>
+                  {formatDateForDisplay(slot.date)}
+                </Text>
+              </View>
+              <View style={styles.infoStripDivider} />
+              <View style={styles.infoStripItem}>
+                <MaterialIcons name="access-time" size={14} color={TEAL} />
+                <Text style={styles.infoStripText} numberOfLines={1}>
+                  {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
+                </Text>
+              </View>
+            </View>
+          </FadeSlideIn>
+
+          {recordingRequested ? (
+            <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
+              <RecordingPreferenceNotice isMentor={false} />
+            </FadeSlideIn>
           ) : null}
-        </FadeSlideIn>
-
-        {/* Countdown card */}
-        <FadeSlideIn delay={ENTRANCE_STEP_MS * 2} style={styles.countdownSection}>
-          <View style={[
-            styles.countdownBox,
-            sessionTiming.status === 'live' && styles.countdownBoxLive,
-            sessionTiming.status === 'upcoming' && styles.countdownBoxUpcoming,
-          ]}>
-            <View style={styles.countdownTop}>
-              <StatusBadge status={sessionTiming.status} />
-              <View style={styles.durationTag}>
-                <MaterialIcons name="timelapse" size={12} color={C.text.secondary} />
-                <Text style={styles.durationTagText}>{durationMin} min</Text>
-              </View>
-            </View>
-            <Text style={[
-              styles.countdownTimer,
-              sessionTiming.status === 'live' && { color: TEAL },
-              sessionTiming.status === 'upcoming' && { color: GOLD },
-              sessionTiming.status === 'ended' && { color: ERROR },
-            ]}>
-              {sessionTiming.status === 'upcoming'
-                ? formatCountdown(sessionTiming.untilStartSec)
-                : sessionTiming.status === 'live'
-                  ? formatCountdown(sessionTiming.remainingSec)
-                  : '00:00'}
-            </Text>
-            <Text style={styles.countdownLabel}>
-              {sessionTiming.status === 'upcoming'
-                ? 'until session starts'
-                : sessionTiming.status === 'live'
-                  ? 'time remaining'
-                  : 'session window closed'}
-            </Text>
-            {sessionTiming.status === 'live' ? (
-              <View style={styles.progressTrack}>
-                <AnimatedProgressFill progress={sessionProgress} colors={B.successGradient} />
-              </View>
-            ) : null}
-          </View>
-        </FadeSlideIn>
-
-        {/* Session info strip */}
-        <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
-          <View style={styles.infoStrip}>
-            <View style={styles.infoStripItem}>
-              <MaterialIcons name="event" size={14} color={TEAL} />
-              <Text style={styles.infoStripText}>{formatDateForDisplay(slot.date)}</Text>
-            </View>
-            <View style={styles.infoStripDivider} />
-            <View style={styles.infoStripItem}>
-              <MaterialIcons name="access-time" size={14} color={TEAL} />
-              <Text style={styles.infoStripText}>
-                {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
-              </Text>
-            </View>
-          </View>
-        </FadeSlideIn>
-      </View>
-
-      {recordingRequested ? (
-        <FadeSlideIn delay={ENTRANCE_STEP_MS * 3} style={styles.infoStripSection}>
-          <RecordingPreferenceNotice isMentor={false} />
-        </FadeSlideIn>
-      ) : null}
+        </View>
+      </ScrollView>
 
       {/* ── Bottom CTA ─────────────────────────────────── */}
       <FadeSlideIn delay={ENTRANCE_STEP_MS * 4} fromY={24}>
-        <View style={[styles.bottomCta, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
+        <View style={[styles.bottomCta, { paddingBottom: bottomPad }]}>
           <PressScale
             onPress={meetingReady ? onJoinCall : () => setShowNotReadyModal(true)}
             style={[styles.joinCallBtn, meetingReady && styles.joinCallBtnReady]}
@@ -1057,10 +1119,13 @@ export default function SessionLobbyView({
             >
               <MaterialIcons
                 name="video-call"
-                size={26}
+                size={24}
                 color={meetingReady ? B.successText : B.nebulaText}
               />
-              <Text style={[styles.joinCallText, !meetingReady && styles.joinCallTextWaiting]}>
+              <Text
+                style={[styles.joinCallText, !meetingReady && styles.joinCallTextWaiting]}
+                numberOfLines={1}
+              >
                 Join Call
               </Text>
               {meetingReady ? (
@@ -1088,7 +1153,6 @@ export default function SessionLobbyView({
       >
         <View style={styles.notReadyOverlay}>
           <View style={styles.notReadyCard}>
-            {/* Icon */}
             <View style={styles.notReadyIconOuter}>
               <View style={styles.notReadyIconInner}>
                 <MaterialIcons name="hourglass-top" size={38} color={GOLD} />
@@ -1104,7 +1168,9 @@ export default function SessionLobbyView({
 
             <Pressable
               onPress={() => setShowNotReadyModal(false)}
-              style={({ pressed }) => [{ width: '100%', borderRadius: T.borderRadius.lg, overflow: 'hidden', opacity: pressed ? 0.88 : 1 }]}
+              style={({ pressed }) => [
+                { width: '100%', borderRadius: T.borderRadius.lg, overflow: 'hidden', opacity: pressed ? 0.88 : 1 },
+              ]}
             >
               <IosGradientShell
                 colors={B.nebulaGradient}
@@ -1118,7 +1184,10 @@ export default function SessionLobbyView({
             </Pressable>
 
             <Pressable
-              onPress={() => { setShowNotReadyModal(false); onLeave?.(); }}
+              onPress={() => {
+                setShowNotReadyModal(false);
+                onLeave?.();
+              }}
               style={styles.notReadyLeave}
             >
               <Text style={styles.notReadyLeaveText}>Leave session</Text>
@@ -1664,8 +1733,9 @@ function createLobbyStyles(theme) {
     alignItems: 'center',
     paddingHorizontal: T.spacing.md,
     paddingBottom: T.spacing.sm,
+    zIndex: 2,
   },
-  newHeaderCenter: { flex: 1, alignItems: 'center' },
+  newHeaderCenter: { flex: 1, alignItems: 'center', minWidth: 0, paddingHorizontal: 8 },
   newHeaderTitle: {
     ...T.typography.headingXs,
     color: C.text.primary,
@@ -1677,28 +1747,39 @@ function createLobbyStyles(theme) {
     marginTop: 2,
   },
 
-  heroArea: {
+  heroScroll: {
     flex: 1,
+    minHeight: 0,
+  },
+  heroScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: T.spacing.sm,
+  },
+
+  heroArea: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: T.spacing.lg,
-    gap: T.spacing.lg,
+    gap: Platform.OS === 'ios' ? T.spacing.md : T.spacing.lg,
+    width: '100%',
   },
 
   avatarSection: {
     alignItems: 'center',
     gap: T.spacing.xs,
+    width: '100%',
   },
   heroPulseWrap: {
-    width: 120,
-    height: 120,
+    width: Platform.OS === 'ios' ? 104 : 120,
+    height: Platform.OS === 'ios' ? 104 : 120,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: T.spacing.sm,
   },
   heroAvatarFrame: {
-    width: 110,
-    height: 110,
+    width: Platform.OS === 'ios' ? 96 : 110,
+    height: Platform.OS === 'ios' ? 96 : 110,
     borderRadius: T.borderRadius.lg,
     borderWidth: 2,
     borderColor: C.border.default,
@@ -1713,7 +1794,7 @@ function createLobbyStyles(theme) {
     justifyContent: 'center',
   },
   heroAvatarInitial: {
-    fontSize: 44,
+    fontSize: Platform.OS === 'ios' ? 38 : 44,
     fontWeight: '800',
     color: PURPLE_LINK,
   },
@@ -1723,6 +1804,9 @@ function createLobbyStyles(theme) {
     fontWeight: '800',
     letterSpacing: -0.3,
     marginTop: T.spacing.xs,
+    textAlign: 'center',
+    maxWidth: '100%',
+    paddingHorizontal: T.spacing.md,
   },
   heroRole: {
     ...T.typography.labelSm,
@@ -1871,6 +1955,15 @@ function createLobbyStyles(theme) {
     borderTopWidth: 1,
     borderTopColor: GLASS_BORDER,
     backgroundColor: S.checkoutBar,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: -2 },
+      },
+      default: { elevation: 6 },
+    }),
   },
 
   heroAvatarRing: {
@@ -1906,21 +1999,22 @@ function createLobbyStyles(theme) {
     alignItems: 'center',
     justifyContent: 'center',
     gap: T.spacing.sm,
-    paddingVertical: 18,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 18,
     paddingHorizontal: T.spacing.md,
     width: '100%',
     alignSelf: 'stretch',
-    minHeight: 56,
+    minHeight: Platform.OS === 'ios' ? 54 : 56,
   },
   joinCallText: {
-    fontSize: 18,
+    fontSize: Platform.OS === 'ios' ? 17 : 18,
     fontWeight: '800',
     color: B.successText,
     letterSpacing: 0.3,
+    textAlign: 'center',
     ...Platform.select({
       ios: {
         flexShrink: 1,
-        flexGrow: 0,
+        minWidth: 0,
         backgroundColor: 'transparent',
         opacity: 1,
       },
@@ -1941,6 +2035,8 @@ function createLobbyStyles(theme) {
     textAlign: 'center',
     marginTop: 6,
     marginBottom: 2,
+    paddingHorizontal: T.spacing.sm,
+    lineHeight: 17,
   },
   joinBtnDotWrap: {
     width: 12,

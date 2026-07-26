@@ -82,7 +82,7 @@ async function openExternal(url, fallback) {
 function runEntrance(opacity, translateY, delay = 0) {
   opacity.setValue(0);
   translateY.setValue(16);
-  Animated.parallel([
+  const animation = Animated.parallel([
     Animated.timing(opacity, {
       toValue: 1,
       duration: 360,
@@ -97,7 +97,70 @@ function runEntrance(opacity, translateY, delay = 0) {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }),
-  ]).start();
+  ]);
+  animation.start(({ finished }) => {
+    // Interrupted animations (theme switch / refresh / blur) can leave opacity at 0.
+    if (!finished) {
+      opacity.setValue(1);
+      translateY.setValue(0);
+    }
+  });
+  return animation;
+}
+
+function useForceVisibleEntrance(opacity, translate, delay, replayToken, axis = 'y') {
+  const hasEntered = useRef(false);
+
+  useEffect(() => {
+    const play = () => {
+      if (axis === 'x') {
+        opacity.setValue(0);
+        translate.setValue(-8);
+        Animated.parallel([
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: 300,
+            delay,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(translate, {
+            toValue: 0,
+            duration: 300,
+            delay,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]).start(({ finished }) => {
+          if (!finished) {
+            opacity.setValue(1);
+            translate.setValue(0);
+          }
+        });
+      } else {
+        runEntrance(opacity, translate, delay);
+      }
+    };
+
+    if (!hasEntered.current) {
+      hasEntered.current = true;
+      play();
+    } else if (replayToken > 0) {
+      play();
+    }
+
+    // Hard fallback so Preferences / lower sections never stay invisible.
+    const safety = setTimeout(() => {
+      opacity.setValue(1);
+      translate.setValue(0);
+    }, delay + 700);
+
+    return () => {
+      clearTimeout(safety);
+      opacity.setValue(1);
+      translate.setValue(0);
+    };
+  }, [replayToken, delay, opacity, translate, axis]);
 }
 
 function AnimatedPressable({
@@ -163,18 +226,8 @@ function AnimatedPressable({
 function FadeSlideIn({ children, delay = 0, style, replayToken = 0 }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(16)).current;
-  const hasEntered = useRef(false);
 
-  useEffect(() => {
-    if (!hasEntered.current) {
-      hasEntered.current = true;
-      runEntrance(opacity, translateY, delay);
-      return;
-    }
-    if (replayToken > 0) {
-      runEntrance(opacity, translateY, delay);
-    }
-  }, [replayToken, delay, opacity, translateY]);
+  useForceVisibleEntrance(opacity, translateY, delay, replayToken, 'y');
 
   return (
     <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
@@ -185,42 +238,10 @@ function FadeSlideIn({ children, delay = 0, style, replayToken = 0 }) {
 
 function SectionHeaderRow({ title, count, subtitle, replayToken = 0, delay = 0 }) {
   const styles = useThemedStyles(createSettingsStyles);
-  const { C } = useSettingsPalette();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(-8)).current;
-  const hasEntered = useRef(false);
 
-  const play = useCallback(() => {
-    opacity.setValue(0);
-    translateX.setValue(-8);
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 300,
-        delay,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateX, {
-        toValue: 0,
-        duration: 300,
-        delay,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [delay, opacity, translateX]);
-
-  useEffect(() => {
-    if (!hasEntered.current) {
-      hasEntered.current = true;
-      play();
-      return;
-    }
-    if (replayToken > 0) {
-      play();
-    }
-  }, [replayToken, play]);
+  useForceVisibleEntrance(opacity, translateX, delay, replayToken, 'x');
 
   return (
     <Animated.View style={[styles.secHdrWrap, { opacity, transform: [{ translateX }] }]}>
@@ -310,14 +331,25 @@ function MenuRow({
   const hasEntered = useRef(false);
 
   useEffect(() => {
+    const play = () => runEntrance(rowOpacity, rowY, 40 + index * 35);
+
     if (!hasEntered.current) {
       hasEntered.current = true;
-      runEntrance(rowOpacity, rowY, 40 + index * 35);
-      return;
+      play();
+    } else if (replayToken > 0) {
+      play();
     }
-    if (replayToken > 0) {
-      runEntrance(rowOpacity, rowY, 40 + index * 35);
-    }
+
+    const safety = setTimeout(() => {
+      rowOpacity.setValue(1);
+      rowY.setValue(0);
+    }, 40 + index * 35 + 700);
+
+    return () => {
+      clearTimeout(safety);
+      rowOpacity.setValue(1);
+      rowY.setValue(0);
+    };
   }, [replayToken, index, rowOpacity, rowY]);
 
   const springTo = toValue => {
@@ -996,11 +1028,11 @@ export default function UnifiedSettingsScreen({ navigation }) {
 
         <SectionHeaderRow
           title="Preferences"
-          subtitle="Notifications and app diagnostics"
+          subtitle="Theme, notifications, and bookings"
           replayToken={replayToken}
-          delay={340}
+          delay={280}
         />
-        <FadeSlideIn replayToken={replayToken} delay={360}>
+        <FadeSlideIn replayToken={replayToken} delay={300}>
           <View style={styles.card}>
             <AppearanceMenuRow />
             <MenuRow

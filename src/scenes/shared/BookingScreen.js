@@ -19,7 +19,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
-import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
+import { STACK_OVERLAY_LAYOUT, PLATFORM_LAYOUT } from '../../utils/platformLayout';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
@@ -1955,10 +1955,7 @@ function createBookingStyles(theme) {
   checkoutPayBtn: {
     width: '100%',
     marginVertical: 0,
-    ...Platform.select({
-      ios: { minHeight: 54 },
-      default: {},
-    }),
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight + 6,
   },
 });
 }

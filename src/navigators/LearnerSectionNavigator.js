@@ -29,7 +29,7 @@ export const LearnerSectionNavigator = () => {
         swipeEnabled: true,
         lazy: true,
         lazyPreloadDistance: 0,
-        animationEnabled: false,
+        animationEnabled: true,
         ...Platform.select({
           ios: {
             sceneStyle: { paddingTop: 0, marginTop: 0 },

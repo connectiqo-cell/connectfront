@@ -29,7 +29,7 @@ import ReportUserSheet from '../../components/ReportUserSheet';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { softBorder, softFill, avatarRingColors } from '../../theme/surfaceStyles';
-import { iosFlexChild } from '../../utils/platformLayout';
+import { iosFlexChild, PLATFORM_LAYOUT } from '../../utils/platformLayout';
 import { profileApi } from '../../api/profileApi';
 import { videoApi } from '../../api/videoApi';
 import { bookingApi } from '../../api/bookingApi';
@@ -812,13 +812,25 @@ function createMentorRailCardStyles(theme) {
   const SHEET_BG = C.surface.sheet;
   const GLASS_BORDER = C.border.light;
   const SCREEN_BG = C.primary.void;
+  const isLight = theme.mode === 'light';
   return StyleSheet.create({
   card: {
-    borderRadius: 4,
+    borderRadius: isLight ? 10 : 4,
     overflow: 'hidden',
-    backgroundColor: 'transparent',
+    backgroundColor: isLight ? PANEL_BG : 'transparent',
+    ...(isLight
+      ? {
+          borderWidth: 1,
+          borderColor: softBorder(theme),
+        }
+      : {}),
   },
-  thumbWrap: { width: '100%', overflow: 'hidden', position: 'relative' },
+  thumbWrap: {
+    width: '100%',
+    overflow: 'hidden',
+    position: 'relative',
+    borderRadius: isLight ? 9 : 0,
+  },
   thumbPlaceholder: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
@@ -1559,12 +1571,13 @@ export default function MentorProfileScreen({ navigation, route }) {
               <ProfileFadeIn delayIndex={3} style={styles.dualCtas}>
                 {showSubscribeCta ? (
                   <CosmicButton
-                    label={`Subscribe · ₹${unlockPrice}/mo`}
+                    label={`Subscribe · ₹${unlockPrice}`}
                     variant="nebula"
                     size="compact"
                     icon="star"
                     onPress={() => setShowSubSheet(true)}
                     loading={unlocking}
+                    numberOfLines={2}
                     style={styles.ctaHalf}
                   />
                 ) : libraryUnlocked && hasLockedVideos && !isOwnProfile ? (
@@ -1574,6 +1587,7 @@ export default function MentorProfileScreen({ navigation, route }) {
                     size="compact"
                     icon="check-circle"
                     onPress={() => Toast.show('You are subscribed.', Toast.SHORT)}
+                    numberOfLines={1}
                     style={styles.ctaHalf}
                   />
                 ) : (
@@ -1588,17 +1602,19 @@ export default function MentorProfileScreen({ navigation, route }) {
                         Toast.SHORT,
                       )
                     }
+                    numberOfLines={1}
                     style={styles.ctaHalf}
                   />
                 )}
 
                 <CosmicButton
-                  label="Book 1-on-1"
+                  label="Book Session"
                   variant="premium"
                   size="compact"
                   icon="calendar-today"
                   onPress={goBook}
                   disabled={isOwnProfile}
+                  numberOfLines={1}
                   style={[styles.ctaHalf, isOwnProfile && { opacity: 0.45 }]}
                 />
               </ProfileFadeIn>
@@ -1980,18 +1996,23 @@ function createMentorProfileStyles(theme) {
   },
   dualCtas: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: T.spacing.sm,
     marginTop: T.spacing.md,
     marginBottom: T.spacing.md,
     paddingHorizontal: T.spacing.lg,
+    alignItems: 'stretch',
   },
   ctaHalf: {
-    flex: 1,
-    flexBasis: 0,
-    minWidth: 0,
-    borderRadius: 4,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '46%',
+    minWidth: 148,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
+    borderRadius: 12,
     overflow: 'hidden',
     alignSelf: 'stretch',
+    justifyContent: 'center',
   },
   ctaHalfInner: {
     flexDirection: 'row',
@@ -2017,7 +2038,7 @@ function createMentorProfileStyles(theme) {
     paddingHorizontal: T.spacing.sm,
     minHeight: 46,
     backgroundColor: TEAL_DEEP,
-    borderRadius: 4,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: TEAL,
   },
@@ -2033,7 +2054,7 @@ function createMentorProfileStyles(theme) {
     backgroundColor: softFill(theme),
     borderWidth: 1,
     borderColor: C.border.light,
-    borderRadius: 4,
+    borderRadius: 12,
   },
   ctaHalfTxtDark: { color: '#0c1228', fontWeight: '800', fontSize: 12 },
   ctaHalfTxtMuted: { color: C.text.muted, fontWeight: '700', fontSize: 12 },

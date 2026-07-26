@@ -18,7 +18,7 @@ import { CircularProfileImage } from './CircularGradientFrame';
 import { useAvatarPreview } from '../contexts/AvatarPreviewContext';
 import { UNIFIED_THEME } from '../unifiedTheme';
 import { useTheme, useThemedStyles } from '../hooks/useTheme';
-import { iosFlexChild } from '../utils/platformLayout';
+import { iosFlexChild, PLATFORM_LAYOUT } from '../utils/platformLayout';
 import { ringBorder } from '../theme/surfaceStyles';
 
 const T = UNIFIED_THEME;
@@ -346,6 +346,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             icon="person-outline"
             variant="outline"
             pressScale
+            numberOfLines={1}
             onPress={() => {
               onClose();
               onViewProfile(mentor);
@@ -358,6 +359,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             icon="event-available"
             variant="nebula"
             pressScale
+            numberOfLines={1}
             onPress={() => onBook(mentor)}
             style={styles.actionBtn}
           />
@@ -552,9 +554,9 @@ function createThemedStyles(theme) {
     lineHeight: 22,
   },
   actions: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'stretch',
-    gap: T.spacing.md,
+    gap: T.spacing.sm,
     paddingHorizontal: T.spacing.lg,
     paddingTop: T.spacing.lg,
     borderTopWidth: 1,
@@ -563,12 +565,11 @@ function createThemedStyles(theme) {
     zIndex: 1,
   },
   actionBtn: {
-    flex: 1,
-    minWidth: 0,
-    marginVertical: 0,
-    minHeight: 48,
-    borderRadius: 14,
+    width: '100%',
     alignSelf: 'stretch',
+    marginVertical: 0,
+    minHeight: PLATFORM_LAYOUT.buttonMinHeight,
+    borderRadius: 14,
   },
 });
 }

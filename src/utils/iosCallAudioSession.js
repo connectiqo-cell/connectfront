@@ -1,7 +1,7 @@
 import { Platform, NativeModules, NativeEventEmitter } from 'react-native';
 
 let eventEmitter = null;
-let routeListener = null;
+let routeSubscription = null;
 let iosCallSessionActive = false;
 
 function getInCallManager() {
@@ -41,15 +41,20 @@ export async function ensureIosCallAudioSession() {
     return false;
   }
 
-  InCallManager.start({ media: 'video' });
-  iosCallSessionActive = true;
-  InCallManager.setForceSpeakerphoneOn(true);
+  try {
+    InCallManager.start({ media: 'video' });
+    iosCallSessionActive = true;
+    InCallManager.setForceSpeakerphoneOn(true);
+  } catch (_) {
+    iosCallSessionActive = false;
+    return false;
+  }
 
   return true;
 }
 
 function attachIosCallAudioListeners() {
-  if (routeListener) {
+  if (routeSubscription) {
     return;
   }
 
@@ -58,23 +63,32 @@ function attachIosCallAudioListeners() {
     return;
   }
 
-  eventEmitter = new NativeEventEmitter(nativeModule);
-  routeListener = () => {};
-  eventEmitter.addListener('onAudioDeviceChanged', routeListener);
+  try {
+    eventEmitter = new NativeEventEmitter(nativeModule);
+    // RN EventEmitter returns a subscription — use .remove(), not removeListener().
+    routeSubscription = eventEmitter.addListener('onAudioDeviceChanged', () => {});
+  } catch (_) {
+    eventEmitter = null;
+    routeSubscription = null;
+  }
 }
 
 function detachIosCallAudioListeners() {
-  if (eventEmitter && routeListener) {
-    eventEmitter.removeListener('onAudioDeviceChanged', routeListener);
+  try {
+    routeSubscription?.remove?.();
+  } catch (_) {
+    // Subscription may already be gone after native teardown.
   }
+  routeSubscription = null;
   eventEmitter = null;
-  routeListener = null;
 }
 
 /**
  * Clear our session tracking without calling InCallManager.stop().
  * VideoSDK MeetingProvider already calls terminate() → stop() on leave/unmount;
  * a second native stop on iOS can crash the app.
+ *
+ * Leave path must use this (not forceStop) after the meeting UI unmounts.
  */
 export function markIosCallAudioSessionEnded() {
   if (Platform.OS !== 'ios' || !iosCallSessionActive) {
@@ -87,6 +101,8 @@ export function markIosCallAudioSessionEnded() {
 /** Full release — use only when the meeting never joined (lobby bail-out). */
 export function releaseIosCallAudioSession() {
   if (Platform.OS !== 'ios' || !iosCallSessionActive) {
+    // Still drop listeners if attach ran before permissions failed / session flag unset.
+    detachIosCallAudioListeners();
     return;
   }
 
@@ -101,7 +117,11 @@ export function releaseIosCallAudioSession() {
   detachIosCallAudioListeners();
 }
 
-/** Last-resort stop when leaving a call — safe to call even if VideoSDK already stopped. */
+/**
+ * Last-resort stop when leaving a call without MeetingProvider cleanup.
+ * Prefer markIosCallAudioSessionEnded() during normal leave — calling stop()
+ * while VideoSDK is also stopping is a known iOS crash source.
+ */
 export function forceStopIosCallAudioSession() {
   if (Platform.OS !== 'ios') {
     return;

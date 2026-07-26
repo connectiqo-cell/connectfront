@@ -243,34 +243,37 @@ export const BookingCard = ({
         <View style={[styles.actions, compact && styles.actionsCompact]}>
           {canJoin && onPressJoin ? (
             <CosmicButton
-              label={compact ? 'Start' : isMentor ? 'Start' : 'Join'}
+              label={isMentor ? 'Start' : 'Join'}
               variant="success"
               size="compact"
               icon="videocam"
               onPress={onPressJoin}
               pressScale
               pill
+              numberOfLines={1}
               style={[styles.joinBtn, compact && styles.actionBtnCompact]}
             />
           ) : null}
           {canCancel && onPressCancel ? (
             <CosmicButton
-              label={compact ? 'Cancel' : 'Cancel'}
+              label="Cancel"
               variant="outline"
               size="compact"
               onPress={onPressCancel}
               pressScale
+              numberOfLines={1}
               style={[styles.cancelBtnOuter, compact && styles.actionBtnCompact]}
             />
           ) : null}
           {canViewRecording ? (
             <CosmicButton
-              label={compact ? 'Replay' : 'Replay'}
+              label="Replay"
               variant="info"
               size="compact"
               icon="play-circle-filled"
               onPress={onPressRecording}
               pressScale
+              numberOfLines={1}
               style={[styles.recordingBtnOuter, compact && styles.actionBtnCompact]}
             />
           ) : null}
@@ -282,17 +285,19 @@ export const BookingCard = ({
               icon="file-download"
               onPress={onPressDownload}
               pressScale
+              numberOfLines={1}
               style={[styles.downloadBtnOuter, compact && styles.actionBtnCompact]}
             />
           ) : null}
           {onPressRate ? (
             <CosmicButton
-              label={compact ? 'Rate' : 'Rate'}
+              label="Rate"
               variant="warning"
               size="compact"
               icon="star-outline"
               onPress={onPressRate}
               pressScale
+              numberOfLines={1}
               style={[styles.rateBtnOuter, compact && styles.actionBtnCompact]}
             />
           ) : null}
@@ -425,47 +430,63 @@ function createThemedStyles(theme) {
   },
   actions: {
     flexDirection: 'row',
-    flexWrap: Platform.OS === 'ios' ? 'wrap' : 'nowrap',
+    flexWrap: 'wrap',
     marginTop: UNIFIED_THEME.spacing.md,
     gap: UNIFIED_THEME.spacing.sm,
+    alignItems: 'stretch',
   },
   actionsCompact: {
     marginTop: UNIFIED_THEME.spacing.sm,
   },
-  actionBtnCompact: Platform.select({
-    ios: {
-      flexGrow: 1,
-      flexBasis: '47%',
-      minWidth: 108,
-      minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
-      justifyContent: 'center',
-    },
-    default: {
-      flex: 1,
-      minHeight: 40,
-      justifyContent: 'center',
-    },
-  }),
-  joinBtn: Platform.select({
-    ios: { flexGrow: 1, flexBasis: '47%', minWidth: 108 },
-    default: { flex: 1 },
-  }),
-  cancelBtnOuter: Platform.select({
-    ios: { flexGrow: 1, flexBasis: '47%', minWidth: 108 },
-    default: { flex: 1 },
-  }),
-  recordingBtnOuter: Platform.select({
-    ios: { flexGrow: 1, flexBasis: '47%', minWidth: 108 },
-    default: { flex: 1 },
-  }),
-  downloadBtnOuter: Platform.select({
-    ios: { flexGrow: 1, flexBasis: '47%', minWidth: 108 },
-    default: { flex: 1 },
-  }),
-  rateBtnOuter: Platform.select({
-    ios: { flexGrow: 1, flexBasis: '47%', minWidth: 108 },
-    default: { flex: 1 },
-  }),
+  actionBtnCompact: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '46%',
+    minWidth: 132,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+  },
+  joinBtn: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '46%',
+    minWidth: 132,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
+    justifyContent: 'center',
+  },
+  cancelBtnOuter: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '46%',
+    minWidth: 132,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
+    justifyContent: 'center',
+  },
+  recordingBtnOuter: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '46%',
+    minWidth: 132,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
+    justifyContent: 'center',
+  },
+  downloadBtnOuter: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '46%',
+    minWidth: 132,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
+    justifyContent: 'center',
+  },
+  rateBtnOuter: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '46%',
+    minWidth: 132,
+    minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
+    justifyContent: 'center',
+  },
 });
 }
 

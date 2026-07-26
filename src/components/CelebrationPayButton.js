@@ -547,7 +547,7 @@ export default function CelebrationPayButton({
                           : T.colors.text.primary,
                     },
                   ]}
-                  numberOfLines={Platform.OS === 'ios' ? 2 : 1}
+                  numberOfLines={2}
                   ellipsizeMode="tail"
                 >
                   {label}
@@ -709,13 +709,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     flexShrink: 1,
-  },
-  labelCheckoutIos: {
-    flex: 1,
-    flexShrink: 1,
     minWidth: 0,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  labelCheckoutIos: {
+    flex: 1,
     backgroundColor: 'transparent',
     opacity: 1,
     fontWeight: '800',

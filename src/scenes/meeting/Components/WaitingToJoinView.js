@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme, useThemedStyles } from '../../../hooks/useTheme';
@@ -37,10 +37,10 @@ export default function WaitingToJoinView({
         </Text>
         {stalled ? (
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.primaryBtn} onPress={onRetry}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={onRetry} activeOpacity={0.85}>
               <Text style={styles.primaryBtnText}>Try again</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={onLeave}>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={onLeave} activeOpacity={0.85}>
               <Text style={styles.secondaryBtnText}>Leave</Text>
             </TouchableOpacity>
           </View>
@@ -62,14 +62,18 @@ function createWaitingStyles(theme) {
       justifyContent: 'center',
       alignItems: 'center',
       backgroundColor: C.primary.void,
+      paddingHorizontal: T.spacing.xl,
+      // Parent VideoCallScreen SafeAreaView already pads iOS edges.
+      paddingBottom: Platform.OS === 'ios' ? T.spacing.md : T.spacing.lg,
     },
     content: {
       alignItems: 'center',
-      paddingHorizontal: T.spacing.xl,
+      width: '100%',
+      maxWidth: 360,
     },
     iconRing: {
-      width: 72,
-      height: 72,
+      width: Platform.OS === 'ios' ? 68 : 72,
+      height: Platform.OS === 'ios' ? 68 : 72,
       borderRadius: 36,
       backgroundColor: `${TEAL}1F`,
       borderWidth: 1,
@@ -79,7 +83,7 @@ function createWaitingStyles(theme) {
       marginBottom: T.spacing.lg,
     },
     title: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 17 : 18,
       fontWeight: '800',
       color: C.text.primary,
       textAlign: 'center',
@@ -90,6 +94,7 @@ function createWaitingStyles(theme) {
       textAlign: 'center',
       marginTop: T.spacing.sm,
       lineHeight: 20,
+      paddingHorizontal: T.spacing.sm,
     },
     spinner: {
       marginTop: T.spacing.xl,
@@ -102,9 +107,11 @@ function createWaitingStyles(theme) {
     },
     primaryBtn: {
       backgroundColor: C.component.button,
-      borderRadius: 10,
-      paddingVertical: 12,
+      borderRadius: 12,
+      paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+      minHeight: 48,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     primaryBtnText: {
       color: C.text.onAccent,
@@ -112,9 +119,11 @@ function createWaitingStyles(theme) {
       fontSize: 15,
     },
     secondaryBtn: {
-      borderRadius: 10,
-      paddingVertical: 12,
+      borderRadius: 12,
+      paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+      minHeight: 48,
       alignItems: 'center',
+      justifyContent: 'center',
       borderWidth: 1,
       borderColor: C.border.light,
     },

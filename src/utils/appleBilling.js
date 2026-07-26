@@ -7,6 +7,7 @@ import {
   purchaseErrorListener,
   getAvailablePurchases,
 } from 'react-native-iap';
+import { Platform } from 'react-native';
 import { VIDEO_UNLOCK_PRICE_TIERS } from './playBilling';
 
 // Apple App Store Connect In-App Purchase product IDs — created as Consumable
@@ -36,7 +37,44 @@ export function getAppleProductIdForPrice(price) {
 
 let connected = false;
 
+function mapStoreKitError(error) {
+  const raw = error?.message || String(error || 'Purchase failed');
+  const code = error?.code;
+  const lower = raw.toLowerCase();
+
+  if (code === 'E_USER_CANCELLED' || lower.includes('cancelled')) {
+    const err = new Error('Purchase cancelled');
+    err.code = 'PAYMENT_CANCELLED';
+    return err;
+  }
+
+  if (
+    lower.includes('storekitd') ||
+    lower.includes('invalidrequest') ||
+    lower.includes("couldn't be completed") ||
+    lower.includes('could not be completed')
+  ) {
+    const err = new Error(
+      'Apple StoreKit could not load this product. Check App Store Connect ' +
+        '(Paid Apps Agreement, product Ready to Submit, localization), ' +
+        'sign in with a Sandbox Apple ID on device, then retry. ' +
+        'If it keeps failing, reboot the phone or update iOS.',
+    );
+    err.code = code || 'STOREKIT_REQUEST_FAILED';
+    err.cause = error;
+    return err;
+  }
+
+  const err = new Error(raw);
+  err.code = code;
+  err.cause = error;
+  return err;
+}
+
 async function ensureConnected() {
+  if (Platform.OS !== 'ios') {
+    throw new Error('Apple IAP is only available on iOS');
+  }
   if (connected) return;
   await initConnection();
   connected = true;
@@ -50,7 +88,26 @@ async function ensureConnected() {
 export async function purchaseIosProduct(productId) {
   await ensureConnected();
 
-  await getProducts({ skus: [productId] });
+  let products = [];
+  try {
+    products = await getProducts({ skus: [productId] });
+  } catch (err) {
+    throw mapStoreKitError(err);
+  }
+
+  const matched = (products || []).find(
+    p => p?.productId === productId || p?.productIdentifier === productId,
+  );
+  if (!matched) {
+    const err = new Error(
+      `Apple product "${productId}" is not available on this device. ` +
+        'In App Store Connect the product needs Display Name + Description, ' +
+        'and your device must use a Sandbox Apple ID. Also confirm Xcode has ' +
+        'In-App Purchase capability and `pod install` linked react-native-iap.',
+    );
+    err.code = 'E_PRODUCT_NOT_AVAILABLE';
+    throw err;
+  }
 
   // Recover a purchase StoreKit queued but the app never finished (crash /
   // backgrounding between purchase success and finishIosPurchase). Without
@@ -83,18 +140,16 @@ export async function purchaseIosProduct(productId) {
       if (settled) return;
       settled = true;
       cleanup();
-      const code = error?.code;
-      const message = error?.message || 'Purchase failed';
-      const err = new Error(message);
-      err.code = code === 'E_USER_CANCELLED' ? 'PAYMENT_CANCELLED' : code;
-      reject(err);
+      reject(mapStoreKitError(error));
     });
 
-    requestPurchase({ sku: productId }).catch(err => {
+    // react-native-iap accepts sku (iOS) and skus (Android). Send both so
+    // StoreKit gets a valid request shape across v12/v13 bridges.
+    requestPurchase({ sku: productId, skus: [productId] }).catch(err => {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(err instanceof Error ? err : new Error(String(err)));
+      reject(mapStoreKitError(err));
     });
   });
 }

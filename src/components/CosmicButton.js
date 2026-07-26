@@ -340,10 +340,9 @@ const styles = StyleSheet.create({
     minHeight: PLATFORM_LAYOUT.buttonCompactMinHeight,
     borderWidth: 1,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: { minWidth: 0, flexShrink: 1 },
-      default: {},
-    }),
+    minWidth: 0,
+    flexShrink: 1,
+    justifyContent: 'center',
   },
   shellDisabled: {
     opacity: 0.55,
@@ -447,11 +446,12 @@ const styles = StyleSheet.create({
   },
   textCompact: {
     fontSize: 12,
-    fontWeight: Platform.OS === 'ios' ? '700' : '800',
+    fontWeight: '700',
     lineHeight: 16,
     textAlign: 'center',
     flexShrink: 1,
-    ...(Platform.OS === 'ios' ? { minWidth: 0, letterSpacing: 0.15 } : {}),
+    minWidth: 0,
+    ...(Platform.OS === 'ios' ? { letterSpacing: 0.15 } : {}),
   },
   textOnGradient: {
     backgroundColor: 'transparent',

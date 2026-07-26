@@ -27,11 +27,11 @@ export const MentorSectionNavigator = () => {
     <TopTab.Navigator
       tabBar={props => <CosmicTopTabBar {...props} compact />}
       screenOptions={{
-        // iOS: horizontal pager swipe often cancels taps on dense slot grids.
-        swipeEnabled: Platform.OS !== 'ios',
+        swipeEnabled: true,
         lazy: true,
         lazyPreloadDistance: 1,
-        animationEnabled: false,
+        // Slide between Me tabs on tap + swipe (was false → instant jump).
+        animationEnabled: true,
         ...Platform.select({
           ios: {
             sceneStyle: { paddingTop: 0, marginTop: 0 },
@@ -72,6 +72,8 @@ export const MentorSectionNavigator = () => {
         options={{
           tabBarLabel: 'Schedule',
           tabBarIcon: tabIcon('calendar-today'),
+          // Dense slot grid — keep swipe off here so slot taps aren't stolen.
+          swipeEnabled: false,
         }}
       />
     </TopTab.Navigator>

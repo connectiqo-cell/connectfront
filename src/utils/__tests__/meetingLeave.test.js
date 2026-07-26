@@ -53,6 +53,26 @@ describe('meetingLeave', () => {
       expect(result).toBe(false);
       expect(onNavigate).not.toHaveBeenCalled();
     });
+
+    it('allows force navigation when already ended', () => {
+      jest.useFakeTimers();
+      const alreadyEndedRef = { current: true };
+      const onNavigate = jest.fn();
+      const timerRef = { current: null };
+
+      const result = scheduleMeetingLeaveNavigation({
+        alreadyEndedRef,
+        onNavigate,
+        platform: 'ios',
+        timerRef,
+        force: true,
+      });
+
+      expect(result).toBe(true);
+      jest.advanceTimersByTime(MEETING_LEAVE_IOS_NAV_DELAY_MS);
+      expect(onNavigate).toHaveBeenCalledTimes(1);
+      jest.useRealTimers();
+    });
   });
 
   it('exports sensible fallback timing', () => {

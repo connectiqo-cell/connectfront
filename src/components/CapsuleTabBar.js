@@ -85,7 +85,6 @@ export const CosmicTopTabBar = ({ state, descriptors, navigation, compact = fals
               >
                 {label}
               </Text>
-              {isFocused ? <View style={styles.compactDot} /> : null}
             </View>
           </TouchableOpacity>
         </View>
@@ -421,13 +420,6 @@ function createThemedStyles(theme) {
     ...T.typography.labelSm,
     fontWeight: '600',
     letterSpacing: 0.2,
-  },
-  compactDot: {
-    width: 4,
-    height: 4,
-    borderRadius: T.borderRadius.sm / 4,
-    backgroundColor: PURPLE_LINK,
-    marginLeft: 2,
   },
 });
 }

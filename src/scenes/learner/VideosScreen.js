@@ -34,6 +34,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { isSameUserId } from '../../utils/mentorOwnership';
 import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
 import { purchaseAndroidProduct, finishAndroidPurchase, getPlayProductIdForPrice } from '../../utils/playBilling';
+import { purchaseIosProduct, finishIosPurchase, getAppleProductIdForPrice } from '../../utils/appleBilling';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { consumePendingLearnerVideo } from '../../navigators/pendingVideoNavigation';
@@ -350,6 +351,20 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
         // otherwise a crash between verify and consume would leave the token
         // consumable-but-uncredited.
         await finishAndroidPurchase(purchase);
+      } else if (Platform.OS === 'ios') {
+        const productId = getAppleProductIdForPrice(price);
+        const purchase = await purchaseIosProduct(productId);
+
+        await videoApi.verifyApplePurchase({
+          mentorId:      video.mentor_id,
+          learnerId:     user.id,
+          productId:     purchase.productId,
+          transactionId: purchase.transactionId,
+        });
+
+        // Only finish after the server has confirmed + credited the purchase —
+        // same ordering rule as Android's consume-after-verify.
+        await finishIosPurchase(purchase);
       } else {
         const order = await videoApi.createVideoOrder({
           mentorId:  video.mentor_id,

@@ -41,6 +41,7 @@ import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
 import { isSameUserId } from '../../utils/mentorOwnership';
 import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
 import { purchaseAndroidProduct, finishAndroidPurchase, getPlayProductIdForPrice } from '../../utils/playBilling';
+import { purchaseIosProduct, finishIosPurchase, getAppleProductIdForPrice } from '../../utils/appleBilling';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 
 const T = UNIFIED_THEME;
@@ -1178,6 +1179,18 @@ export default function MentorProfileScreen({ navigation, route }) {
         });
 
         await finishAndroidPurchase(purchase);
+      } else if (Platform.OS === 'ios') {
+        const productId = getAppleProductIdForPrice(mentor?.unlock_price || 299);
+        const purchase = await purchaseIosProduct(productId);
+
+        await videoApi.verifyApplePurchase({
+          mentorId,
+          learnerId:     user.id,
+          productId:     purchase.productId,
+          transactionId: purchase.transactionId,
+        });
+
+        await finishIosPurchase(purchase);
       } else {
         const order = await videoApi.createVideoOrder({ mentorId, learnerId: user.id });
         const displayName = mentor?.profiles?.name || 'Mentor';

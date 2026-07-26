@@ -311,6 +311,32 @@ export const videoApi = {
     }
   },
 
+  // ─── Verify an Apple StoreKit purchase + record subscription server-side ─────
+  verifyApplePurchase: async ({ mentorId, learnerId, productId, transactionId }) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userToken = session?.access_token ?? SUPABASE_ANON_KEY;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-apple-purchase`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${userToken}`,
+          'apikey':        SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ mentorId, learnerId, productId, transactionId }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        console.error('[verifyApplePurchase] error response:', text);
+        const parsed = tryParseJson(text);
+        throw new Error(extractErrorMsg(parsed) || `Verification failed (${res.status})`);
+      }
+      return JSON.parse(text);
+    } catch (error) {
+      throw new Error(typeof error.message === 'string' ? error.message : 'Purchase verification failed');
+    }
+  },
+
   // ─── Get all videos for a mentor (ordered by position then created_at) ───────
   getMentorVideos: async (mentorId) => {
     try {

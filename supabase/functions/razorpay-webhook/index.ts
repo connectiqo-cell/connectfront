@@ -50,6 +50,7 @@ async function logAudit(
 // the client never confirmed. Safe to call even if the client wins the race
 // in parallel — guarded by transaction status + a unique index on
 // bookings(slot_id) WHERE status <> 'cancelled'.
+// Supports multi-slot orders via tx.slot_ids (falls back to [slot_id]).
 async function reconcileSessionBooking(
   supabase: ReturnType<typeof createClient>,
   tx: {
@@ -57,6 +58,7 @@ async function reconcileSessionBooking(
     mentor_id: string;
     learner_id: string;
     slot_id: string;
+    slot_ids?: string[] | null;
     mentor_earning_paise: number;
     status: string;
     recording_requested?: boolean | null;
@@ -68,16 +70,23 @@ async function reconcileSessionBooking(
     return { outcome: 'already_handled' };
   }
 
-  const { data: slot, error: slotErr } = await supabase
+  const slotIds =
+    Array.isArray(tx.slot_ids) && tx.slot_ids.length
+      ? tx.slot_ids
+      : tx.slot_id
+        ? [tx.slot_id]
+        : [];
+  if (!slotIds.length) throw new Error('Transaction has no slot_id(s)');
+
+  const { data: slots, error: slotErr } = await supabase
     .from('availability_slots')
-    .select('is_booked')
-    .eq('id', tx.slot_id)
-    .single();
+    .select('id, start_time, end_time, is_booked')
+    .in('id', slotIds);
   if (slotErr) throw slotErr;
 
-  if (slot.is_booked) {
-    // The client's verify call already won this race and created the
-    // booking. Just make sure the transaction is marked paid.
+  const anyBooked = (slots || []).some((s: { is_booked: boolean }) => s.is_booked);
+  if (anyBooked || (slots || []).length !== slotIds.length) {
+    // Client verify likely already won (or slots vanished). Mark paid if still created.
     await supabase
       .from('transactions')
       .update({ status: 'paid', razorpay_payment_id: paymentId, updated_at: new Date().toISOString() })
@@ -86,24 +95,37 @@ async function reconcileSessionBooking(
     return { outcome: 'already_handled' };
   }
 
-  const bookingInsert: Record<string, unknown> = {
+  const sortedSlots = [...(slots || [])].sort((a: { start_time: string }, b: { start_time: string }) =>
+    String(a.start_time).substring(0, 5).localeCompare(String(b.start_time).substring(0, 5)),
+  );
+  for (let i = 0; i < sortedSlots.length - 1; i += 1) {
+    const end = String(sortedSlots[i].end_time || '').substring(0, 5);
+    const nextStart = String(sortedSlots[i + 1].start_time).substring(0, 5);
+    if (!end || end !== nextStart) {
+      throw new Error('Selected slots must be continuous back-to-back times');
+    }
+  }
+  const orderedSlotIds = sortedSlots.map((s: { id: string }) => s.id);
+  const primarySlotId = orderedSlotIds[0];
+
+  const bookingRow: Record<string, unknown> = {
     mentor_id: tx.mentor_id,
     learner_id: tx.learner_id,
-    slot_id: tx.slot_id,
+    slot_id: primarySlotId,
+    slot_ids: orderedSlotIds,
     status: 'confirmed',
   };
   if (typeof tx.recording_requested === 'boolean') {
-    bookingInsert.recording_requested = tx.recording_requested;
+    bookingRow.recording_requested = tx.recording_requested;
   }
   if (typeof tx.booking_message === 'string' && tx.booking_message.trim()) {
-    bookingInsert.message = tx.booking_message.trim();
+    bookingRow.message = tx.booking_message.trim();
   }
 
-  const { data: booking, error: bookingErr } = await supabase
+  const { data: bookings, error: bookingErr } = await supabase
     .from('bookings')
-    .insert(bookingInsert)
-    .select()
-    .single();
+    .insert([bookingRow])
+    .select();
 
   if (bookingErr) {
     // Unique-violation on the active-slot index means the client's verify
@@ -119,30 +141,36 @@ async function reconcileSessionBooking(
     throw bookingErr;
   }
 
-  await supabase.from('availability_slots').update({ is_booked: true }).eq('id', tx.slot_id);
+  const created = bookings || [];
+  const primaryBookingId = created[0]?.id;
+  const mentorAmountTotal = tx.mentor_earning_paise / 100;
+
+  await supabase.from('availability_slots').update({ is_booked: true }).in('id', orderedSlotIds);
 
   await supabase
     .from('transactions')
     .update({
-      booking_id: booking.id,
+      booking_id: primaryBookingId,
       razorpay_payment_id: paymentId,
       status: 'paid',
       updated_at: new Date().toISOString(),
     })
     .eq('id', tx.id);
 
-  await supabase.from('earnings').insert({
-    mentor_id: tx.mentor_id,
-    booking_id: booking.id,
-    amount: tx.mentor_earning_paise / 100,
-    status: 'pending',
-  });
+  if (primaryBookingId) {
+    await supabase.from('earnings').insert([{
+      mentor_id: tx.mentor_id,
+      booking_id: primaryBookingId,
+      amount: mentorAmountTotal,
+      status: 'pending',
+    }]);
+  }
 
   // Note: no FCM push here (unlike verify-razorpay-payment) — this path only
   // runs when the client-driven flow never completed, so it's rare enough
   // that the mentor simply sees the new booking next time they open the app.
 
-  return { outcome: 'reconciled', bookingId: booking.id };
+  return { outcome: 'reconciled', bookingId: primaryBookingId, bookingIds: primaryBookingId ? [primaryBookingId] : [] };
 }
 
 // Mirrors verify-video-subscription, for a payment the client never confirmed.
@@ -288,7 +316,7 @@ serve(async (req) => {
 
       const { data: tx } = await supabase
         .from('transactions')
-        .select('id, mentor_id, learner_id, slot_id, mentor_earning_paise, status, recording_requested, booking_message')
+        .select('id, mentor_id, learner_id, slot_id, slot_ids, mentor_earning_paise, status, recording_requested, booking_message')
         .eq('razorpay_order_id', orderId)
         .maybeSingle();
 

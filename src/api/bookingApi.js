@@ -3,6 +3,7 @@ import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
 import { cancelSessionReminder } from '../utils/sessionReminder';
 import { resolveRecordingRequestedFromRows } from '../utils/recordingConsent';
 import { recordingsApi } from './recordingsApi';
+import { normalizeSlotTime } from '../utils/contiguousSlots';
 
 /** Fetch recordings for a list of bookings and merge them in (no FK → can't use PostgREST join). */
 async function attachRecordings(bookings) {
@@ -19,6 +20,56 @@ async function attachRecordings(bookings) {
   } catch {
     return bookings.map(b => ({ ...b, recordings: null }));
   }
+}
+
+async function finalizeBookings(bookings) {
+  const withRec = await attachRecordings(bookings);
+  return enrichBookingTimeSpans(withRec);
+}
+
+/**
+ * Continuous multi-slot bookings store all inventory IDs in slot_ids but join only
+ * the primary slot. Expand availability_slots start/end to the full continuous span
+ * so timers and UI treat it as one meeting.
+ */
+async function enrichBookingTimeSpans(bookings) {
+  if (!bookings?.length) return bookings;
+  const needIds = new Set();
+  bookings.forEach(b => {
+    const ids = Array.isArray(b.slot_ids) && b.slot_ids.length ? b.slot_ids : null;
+    if (ids && ids.length > 1) ids.forEach(id => needIds.add(id));
+  });
+  if (!needIds.size) return bookings;
+
+  const { data: slots, error } = await supabase
+    .from('availability_slots')
+    .select('id, date, start_time, end_time')
+    .in('id', [...needIds]);
+  if (error || !slots?.length) return bookings;
+
+  const byId = {};
+  slots.forEach(s => { byId[s.id] = s; });
+
+  return bookings.map(b => {
+    const ids = Array.isArray(b.slot_ids) && b.slot_ids.length > 1 ? b.slot_ids : null;
+    if (!ids) return b;
+    const block = ids.map(id => byId[id]).filter(Boolean);
+    if (block.length < 2) return b;
+    block.sort((a, c) =>
+      normalizeSlotTime(a.start_time).localeCompare(normalizeSlotTime(c.start_time)),
+    );
+    const first = block[0];
+    const last = block[block.length - 1];
+    return {
+      ...b,
+      availability_slots: {
+        ...(b.availability_slots || {}),
+        date: first.date,
+        start_time: first.start_time,
+        end_time: last.end_time,
+      },
+    };
+  });
 }
 
 export const bookingApi = {
@@ -91,8 +142,8 @@ export const bookingApi = {
         .single();
 
       if (error) throw error;
-      const [withRec] = await attachRecordings([data]);
-      return withRec;
+      const [withSpan] = await finalizeBookings([data]);
+      return withSpan;
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -170,7 +221,7 @@ export const bookingApi = {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return attachRecordings(data || []);
+      return finalizeBookings(data || []);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -194,7 +245,7 @@ export const bookingApi = {
         const db = `${b.availability_slots?.date ?? ''} ${b.availability_slots?.start_time ?? ''}`;
         return da.localeCompare(db);
       });
-      return attachRecordings(sorted);
+      return finalizeBookings(sorted);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -218,7 +269,7 @@ export const bookingApi = {
         .range(from, to);
 
       if (error) throw error;
-      return attachRecordings(data || []);
+      return finalizeBookings(data || []);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -237,7 +288,7 @@ export const bookingApi = {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return attachRecordings(data || []);
+      return finalizeBookings(data || []);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -261,7 +312,7 @@ export const bookingApi = {
         const db = `${b.availability_slots?.date ?? ''} ${b.availability_slots?.start_time ?? ''}`;
         return da.localeCompare(db);
       });
-      return attachRecordings(sorted);
+      return finalizeBookings(sorted);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -285,7 +336,7 @@ export const bookingApi = {
         .range(from, to);
 
       if (error) throw error;
-      return attachRecordings(data || []);
+      return finalizeBookings(data || []);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -314,7 +365,7 @@ export const bookingApi = {
         .limit(limit);
 
       if (error) throw error;
-      return attachRecordings(data || []);
+      return finalizeBookings(data || []);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -339,7 +390,7 @@ export const bookingApi = {
         .limit(limit);
 
       if (error) throw error;
-      return attachRecordings(data || []);
+      return finalizeBookings(data || []);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -462,7 +513,7 @@ export const bookingApi = {
 
       if (error) throw error;
       const price = mentorProfile?.price_per_hour ?? null;
-      const withRecs = await attachRecordings(data || []);
+      const withRecs = await finalizeBookings(data || []);
       return withRecs.map(b => ({ ...b, mentor_profiles: { price_per_hour: price } }));
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
@@ -482,7 +533,7 @@ export const bookingApi = {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      const rows = await attachRecordings(data || []);
+      const rows = await finalizeBookings(data || []);
 
       // Fetch price for each unique mentor in one query
       const mentorIds = [...new Set(rows.map(b => b.mentor_id).filter(Boolean))];
@@ -506,14 +557,22 @@ export const bookingApi = {
 
   cancelBooking: async (bookingId) => {
     try {
-      // Get the booking to find the slot
+      // Get the booking to find the slot(s)
       const booking = await bookingApi.getBooking(bookingId);
+      const slotIds =
+        Array.isArray(booking.slot_ids) && booking.slot_ids.length
+          ? booking.slot_ids
+          : booking.slot_id
+            ? [booking.slot_id]
+            : [];
 
-      // Mark slot as available again
-      await supabase
-        .from('availability_slots')
-        .update({ is_booked: false })
-        .eq('id', booking.slot_id);
+      // Mark all inventory slots in the continuous block as available again
+      if (slotIds.length) {
+        await supabase
+          .from('availability_slots')
+          .update({ is_booked: false })
+          .in('id', slotIds);
+      }
 
       // Update booking status
       const { data, error } = await supabase

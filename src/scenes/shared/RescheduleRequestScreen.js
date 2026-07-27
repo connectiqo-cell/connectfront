@@ -68,7 +68,7 @@ function generateTimeSlots() {
   return slots;
 }
 
-const SESSION_DURATION_MINUTES = 20;
+const SESSION_DURATION_MINUTES = 30;
 
 function addMinutes(timeStr, minutes) {
   const [h, m] = timeStr.split(':').map(Number);
@@ -324,7 +324,7 @@ export default function RescheduleRequestScreen({ navigation, route }) {
           {/* Fixed duration chip */}
           <View style={styles.durationChip}>
             <MaterialIcons name="timelapse" size={16} color={TEAL} />
-            <Text style={styles.durationChipText}>Session duration: 20 minutes</Text>
+            <Text style={styles.durationChipText}>Session duration: 30 minutes</Text>
           </View>
         </View>
 

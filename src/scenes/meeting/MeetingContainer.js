@@ -278,7 +278,7 @@ export default function MeetingContainer({
   useEffect(() => {
     if (!maxDurationMs || remoteParticipantCount < 1) return undefined;
     const timer = setTimeout(() => {
-      Toast.show('Session time limit reached (20 min)');
+      Toast.show(`Session time limit reached (${Math.round(maxDurationMs / 60000)} min)`);
       requestLeave();
     }, maxDurationMs);
     return () => clearTimeout(timer);

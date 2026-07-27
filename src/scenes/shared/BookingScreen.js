@@ -42,6 +42,7 @@ import { mentorApi } from '../../api/mentorApi';
 import { paymentApi } from '../../api/paymentApi';
 import { scheduleSessionReminder, requestNotificationPermission } from '../../utils/sessionReminder';
 import { calculateFees } from '../../utils/feeCalculator';
+import { areSlotsContiguous } from '../../utils/contiguousSlots';
 import { useAuth } from '../../hooks/useAuth';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
@@ -74,7 +75,6 @@ const iosEntranceTransform = (translateY, scale) =>
   Platform.OS === 'ios' ? [{ translateY }] : [{ translateY }, { scale }];
 
 const ENTRANCE_STEP_MS = 45;
-const SLOT_BUFFER_MINS = 30;
 const BOOKING_WINDOW_DAYS = 30;
 
 const SLOT_PERIODS = [
@@ -123,7 +123,7 @@ const isTimeInPast = (dateStr, timeStr) => {
   const [hours, mins] = timeStr.substring(0, 5).split(':').map(Number);
   const slotTime = new Date();
   slotTime.setHours(hours, mins, 0, 0);
-  return slotTime.getTime() - now.getTime() < SLOT_BUFFER_MINS * 60 * 1000;
+  return slotTime.getTime() <= now.getTime();
 };
 
 const formatSlotTime = time24 => {
@@ -131,6 +131,19 @@ const formatSlotTime = time24 => {
   const period = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 || 12;
   return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+};
+
+const formatSlotRange = (start24, end24) => {
+  const [sh, sm] = start24.substring(0, 5).split(':').map(Number);
+  const [eh, em] = end24.substring(0, 5).split(':').map(Number);
+  const startPeriod = sh >= 12 ? 'PM' : 'AM';
+  const endPeriod = eh >= 12 ? 'PM' : 'AM';
+  const start12 = `${sh % 12 || 12}:${String(sm).padStart(2, '0')}`;
+  const end12 = `${eh % 12 || 12}:${String(em).padStart(2, '0')}`;
+  if (startPeriod === endPeriod) {
+    return `${start12} – ${end12} ${endPeriod}`;
+  }
+  return `${start12} ${startPeriod} – ${end12} ${endPeriod}`;
 };
 
 const getSlotPeriodId = startTime => {
@@ -332,7 +345,7 @@ function createSkeletonStyles(theme) {
 
 function BookingProgressSteps({
   selectedDate,
-  selectedTime,
+  selectedTimes,
   message,
   recordingRequested,
   readyToPay,
@@ -344,7 +357,7 @@ function BookingProgressSteps({
   const GOLD = C.accent.primary;
   const steps = [
     { id: 1, label: 'Date', icon: 'event', done: !!selectedDate },
-    { id: 2, label: 'Time', icon: 'schedule', done: !!selectedTime },
+    { id: 2, label: 'Time', icon: 'schedule', done: selectedTimes.length > 0 },
     {
       id: 3,
       label: 'Record',
@@ -408,29 +421,46 @@ function getBookingCtaLabel({
   paying,
   readyToPay,
   fees,
-  selectedTime,
+  selectedTimes,
   message,
   recordingRequested,
 }) {
-  if (paying) return 'Securing your spot…';
-  if (!selectedTime) return 'Choose your slot';
+  const count = selectedTimes?.length || 0;
+  if (paying) return 'Securing your session…';
+  if (!count) return 'Choose your slot';
   if (typeof recordingRequested !== 'boolean') return 'Choose recording preference';
   if (!message.trim()) return 'Add your session goal';
   if (!fees) return 'Loading pricing…';
-  if (readyToPay) return `Secure My Spot · ₹${fees.totalAmount}`;
-  return `Book My Session · ₹${fees.totalAmount}`;
+  if (readyToPay) {
+    return count > 1
+      ? `Secure Continuous Session · ₹${fees.totalAmount}`
+      : `Secure My Spot · ₹${fees.totalAmount}`;
+  }
+  return count > 1
+    ? `Book Continuous Session · ₹${fees.totalAmount}`
+    : `Book My Session · ₹${fees.totalAmount}`;
 }
 
-function SessionPreviewBar({ selectedDate, selectedTime, mentorName, readyToPay }) {
+function SessionPreviewBar({ selectedDate, selectedTimes, mentorName, readyToPay }) {
   const { theme } = useTheme();
   const T = theme;
   const B = theme.colors.buttons;
-  if (!selectedDate && !selectedTime) return null;
+  if (!selectedDate && !selectedTimes?.length) return null;
 
-  const fmt = t => (t ? t.substring(0, 5) : '');
-  const timeLabel = selectedTime
-    ? `${fmt(selectedTime.start_time)} – ${fmt(selectedTime.end_time)}`
-    : null;
+  const count = selectedTimes?.length || 0;
+  const totalMins = (selectedTimes || []).reduce(
+    (sum, slot) => sum + slotDurationMinutes(slot.start_time, slot.end_time),
+    0,
+  );
+  const spanLabel =
+    count === 1
+      ? formatSlotRange(selectedTimes[0].start_time, selectedTimes[0].end_time)
+      : count > 1
+        ? `${formatSlotRange(
+            selectedTimes[0].start_time,
+            selectedTimes[count - 1].end_time,
+          )} · ${totalMins} min`
+        : null;
 
   return (
     <SchedulePreviewBar>
@@ -444,10 +474,11 @@ function SessionPreviewBar({ selectedDate, selectedTime, mentorName, readyToPay 
           label={formatDisplayDate(selectedDate)}
         />
       ) : null}
-      {timeLabel ? (
+      {spanLabel ? (
         <SchedulePreviewChip
           icon={<MaterialIcons name="schedule" size={13} color={T.colors.accent.success} />}
-          label={timeLabel}
+          label={spanLabel}
+          textStyle={{ maxWidth: 200 }}
         />
       ) : null}
       {readyToPay ? (
@@ -510,7 +541,6 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
   const styles = useThemedStyles(createBookingStyles);
   const { theme } = useTheme();
   const B = theme.colors.buttons;
-  const C = theme.colors;
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
   const entrance = useRef(new Animated.Value(0)).current;
@@ -557,6 +587,8 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
   const chipOpacity = entrance.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
   const chipY = entrance.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
 
+  const durationMin = slotDurationMinutes(slot.start_time, slot.end_time);
+
   const cellBody = (
     <View style={[styles.timeSlotCell, selected ? styles.timeSlotSelected : styles.timeSlotAvailable]}>
       {selected ? (
@@ -570,19 +602,25 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
       {selected ? (
         <MaterialIcons
           name="check-circle"
-          size={13}
+          size={14}
           color={B.successText}
           style={styles.timeSlotStatusIcon}
         />
-      ) : (
-        <MaterialIcons name="videocam" size={12} color={C.accent.success} style={styles.timeSlotStatusIcon} />
-      )}
+      ) : null}
       <Text style={[styles.timeSlotStart, selected && styles.timeSlotTextSelected]} numberOfLines={1}>
         {formatSlotTime(slot.start_time)}
       </Text>
       <Text style={[styles.timeSlotEnd, selected && styles.timeSlotTextSelected]} numberOfLines={1}>
-        to {formatSlotTime(slot.end_time)}
+        – {formatSlotTime(slot.end_time)}
       </Text>
+      <View style={[styles.timeSlotDurationPill, selected && styles.timeSlotDurationPillSelected]}>
+        <Text
+          style={[styles.timeSlotDurationText, selected && styles.timeSlotDurationTextSelected]}
+          numberOfLines={1}
+        >
+          {durationMin}m
+        </Text>
+      </View>
     </View>
   );
 
@@ -611,11 +649,19 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
   );
 }
 
-function BookingSlotPeriodSection({ period, items, selectedTime, onSelect }) {
+function BookingSlotPeriodSection({ period, items, selectedTimes, onSelect }) {
   const styles = useThemedStyles(createBookingStyles);
   const { theme } = useTheme();
   const slotAccent = theme.colors.accent.success;
   if (!items.length) return null;
+
+  const selectedInPeriod = items.filter(({ slot }) =>
+    selectedTimes.some(
+      s =>
+        (s.id && slot.id && s.id === slot.id) ||
+        (s.start_time === slot.start_time && s.end_time === slot.end_time),
+    ),
+  ).length;
 
   return (
     <View style={styles.slotPeriodBlock}>
@@ -630,30 +676,45 @@ function BookingSlotPeriodSection({ period, items, selectedTime, onSelect }) {
           </View>
         </View>
         <View style={styles.slotPeriodBadge}>
-          <Text style={styles.slotPeriodBadgeText}>{items.length} open</Text>
+          <Text style={styles.slotPeriodBadgeText}>
+            {selectedInPeriod > 0 ? `${selectedInPeriod} selected` : `${items.length} open`}
+          </Text>
         </View>
       </View>
       <View style={styles.slotsGrid}>
-        {items.map(({ slot, index }) => (
-          <BookingTimeChip
-            key={slot.id || `${slot.start_time}-${slot.end_time}`}
-            slot={slot}
-            selected={
-              selectedTime?.start_time === slot.start_time &&
-              selectedTime?.end_time === slot.end_time
-            }
-            delayIndex={index}
-            onPress={() => onSelect(slot)}
-          />
-        ))}
+        {items.map(({ slot, index }) => {
+          const selected = selectedTimes.some(
+            s =>
+              (s.id && slot.id && s.id === slot.id) ||
+              (s.start_time === slot.start_time && s.end_time === slot.end_time),
+          );
+          return (
+            <BookingTimeChip
+              key={slot.id || `${slot.start_time}-${slot.end_time}`}
+              slot={slot}
+              selected={selected}
+              delayIndex={index}
+              onPress={() => onSelect(slot)}
+            />
+          );
+        })}
       </View>
     </View>
   );
 }
 
-function BookingSlotsPanel({ selectedDate, slots, selectedTime, onSelect }) {
+function BookingSlotsPanel({ selectedDate, slots, selectedTimes, onSelect }) {
   const styles = useThemedStyles(createBookingStyles);
+  const { theme } = useTheme();
+  const B = theme.colors.buttons;
   const grouped = groupSlotsByPeriod(slots);
+  const selectedCount = selectedTimes.length;
+  const totalMins = selectedTimes.reduce(
+    (sum, slot) => sum + slotDurationMinutes(slot.start_time, slot.end_time),
+    0,
+  );
+  const spanStart = selectedCount ? selectedTimes[0].start_time : null;
+  const spanEnd = selectedCount ? selectedTimes[selectedCount - 1].end_time : null;
 
   return (
     <View style={styles.slotsPanel}>
@@ -661,22 +722,42 @@ function BookingSlotsPanel({ selectedDate, slots, selectedTime, onSelect }) {
         <View style={styles.slotsPanelHeaderText}>
           <Text style={styles.slotsPanelDate}>{formatDisplayDate(selectedDate)}</Text>
           <Text style={styles.slotsPanelMeta}>
-            {slots.length} slot{slots.length !== 1 ? 's' : ''} available
+            {slots.length} available · choose continuous times for one meeting
           </Text>
         </View>
-        {slots.length > 0 ? (
-          <View style={styles.slotsPanelBadge}>
-            <Text style={styles.slotsPanelBadgeText}>{slots.length}</Text>
-          </View>
-        ) : null}
+        <View style={styles.slotsPanelBadge}>
+          <Text style={styles.slotsPanelBadgeText}>
+            {selectedCount > 0 ? selectedCount : slots.length}
+          </Text>
+        </View>
       </View>
+
+      {selectedCount > 0 ? (
+        <View style={styles.selectedSessionCard}>
+          <View style={styles.selectedSessionIconWrap}>
+            <MaterialIcons name="event-available" size={18} color={B.successText} />
+          </View>
+          <View style={styles.selectedSessionBody}>
+            <Text style={styles.selectedSessionLabel}>
+              {selectedCount > 1 ? 'Continuous session' : 'Selected session'}
+            </Text>
+            <Text style={styles.selectedSessionRange}>
+              {formatSlotRange(spanStart, spanEnd)}
+            </Text>
+            <Text style={styles.selectedSessionMeta}>
+              {totalMins} min
+              {selectedCount > 1 ? ` · ${selectedCount} back-to-back slots` : ''}
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       {SLOT_PERIODS.map(period => (
         <BookingSlotPeriodSection
           key={period.id}
           period={period}
           items={grouped[period.id]}
-          selectedTime={selectedTime}
+          selectedTimes={selectedTimes}
           onSelect={onSelect}
         />
       ))}
@@ -717,7 +798,7 @@ export default function BookingScreen({ navigation, route }) {
   const [paying, setPaying] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
-  const [selectedTime, setSelectedTime] = useState(null);
+  const [selectedTimes, setSelectedTimes] = useState([]);
   const [mentorAvailability, setMentorAvailability] = useState({});
   const [timeSlotsForDate, setTimeSlotsForDate] = useState([]);
   const [message, setMessage] = useState('');
@@ -818,8 +899,24 @@ export default function BookingScreen({ navigation, route }) {
       .filter(s => !s.is_booked && !isTimeInPast(selectedDate, s.start_time))
       .sort((a, b) => a.start_time.localeCompare(b.start_time));
     setTimeSlotsForDate(available);
-    setSelectedTime(null);
+    setSelectedTimes([]);
   }, [selectedDate, mentorAvailability]);
+
+  // Drop selected slots that have already started while the user is on screen.
+  useEffect(() => {
+    if (!selectedDate || !selectedTimes.length) return undefined;
+    const prune = () => {
+      setSelectedTimes(prev => {
+        const next = prev.filter(s => !isTimeInPast(selectedDate, s.start_time));
+        if (next.length < prev.length) {
+          Toast.show('A selected slot has already started and was removed');
+        }
+        return next;
+      });
+    };
+    const id = setInterval(prune, 60_000);
+    return () => clearInterval(id);
+  }, [selectedDate, selectedTimes.length]);
 
   const handleSelectDate = dateStr => {
     if (!isDateAllowed(dateStr)) {
@@ -836,28 +933,64 @@ export default function BookingScreen({ navigation, route }) {
 
   const handleSelectTime = slot => {
     layoutSpring();
-    setSelectedTime(slot);
+    setSelectedTimes(prev => {
+      const sameSlot = s =>
+        (s.id && slot.id && s.id === slot.id) ||
+        (s.start_time === slot.start_time && s.end_time === slot.end_time);
+      const exists = prev.some(sameSlot);
+      if (exists) {
+        const next = prev.filter(s => !sameSlot(s));
+        if (!areSlotsContiguous(next)) {
+          Toast.show('Remove slots from either end of your continuous block');
+          return prev;
+        }
+        return next;
+      }
+      const next = [...prev, slot].sort((a, b) => a.start_time.localeCompare(b.start_time));
+      if (!areSlotsContiguous(next)) {
+        Toast.show('Select continuous back-to-back slots only');
+        return prev;
+      }
+      return next;
+    });
     setRecordingRequested(null);
     scrolledToRecordingFor.current = null;
   };
 
+  const selectedSlotKey = selectedTimes.map(s => s.id || s.start_time).join('|');
+
   useEffect(() => {
-    if (!selectedTime?.id) return undefined;
+    if (!selectedTimes.length) return undefined;
+    const firstId = selectedTimes[0]?.id || selectedTimes[0]?.start_time;
     const timer = setTimeout(() => {
-      if (scrolledToRecordingFor.current === selectedTime.id) return;
+      if (scrolledToRecordingFor.current === firstId) return;
       const y = Math.max(0, recordingSectionY.current - 16);
       if (y > 0) {
-        scrolledToRecordingFor.current = selectedTime.id;
+        scrolledToRecordingFor.current = firstId;
         scrollRef.current?.scrollTo?.({ y, animated: true });
       }
     }, 200);
     return () => clearTimeout(timer);
-  }, [selectedTime?.id]);
+  }, [selectedSlotKey]);
 
-  const fees = pricePerHour > 0 ? calculateFees(pricePerHour, feeConfig || undefined) : null;
+  const slotCount = selectedTimes.length;
+  const feesOne = pricePerHour > 0 ? calculateFees(pricePerHour, feeConfig || undefined) : null;
+  const fees = feesOne && slotCount > 0
+    ? {
+        ...feesOne,
+        mentorAmount: feesOne.mentorAmount * slotCount,
+        platformBaseFee: feesOne.platformBaseFee * slotCount,
+        gstOnFee: feesOne.gstOnFee * slotCount,
+        convenienceFee: feesOne.convenienceFee * slotCount,
+        totalAmount: feesOne.totalAmount * slotCount,
+        totalAmountPaise: feesOne.totalAmountPaise * slotCount,
+        mentorAmountPaise: feesOne.mentorAmountPaise * slotCount,
+        platformFeePaise: feesOne.platformFeePaise * slotCount,
+      }
+    : feesOne;
 
   const readyToPay = Boolean(
-    selectedTime &&
+    slotCount > 0 &&
       message.trim().length > 0 &&
       typeof recordingRequested === 'boolean' &&
       fees &&
@@ -896,8 +1029,23 @@ export default function BookingScreen({ navigation, route }) {
   const mentorInitial = (mentorName || 'M').charAt(0).toUpperCase();
 
   const handlePay = async () => {
-    if (!selectedDate || !selectedTime) {
-      Toast.show('Please select a date and time slot');
+    if (!selectedDate || !selectedTimes.length) {
+      Toast.show('Please select a date and at least one time slot');
+      return;
+    }
+    // Final client-side prune for slots that already started
+    const stillValid = selectedTimes.filter(s => !isTimeInPast(selectedDate, s.start_time));
+    if (stillValid.length !== selectedTimes.length) {
+      setSelectedTimes(stillValid);
+      Toast.show('A selected slot has already started and was removed');
+      return;
+    }
+    if (!areSlotsContiguous(stillValid)) {
+      Toast.show('Selected slots must be continuous back-to-back times');
+      return;
+    }
+    if (!stillValid.length) {
+      Toast.show('Please select a time slot');
       return;
     }
     if (!message.trim()) {
@@ -920,19 +1068,34 @@ export default function BookingScreen({ navigation, route }) {
       return;
     }
 
+    const slotIds = stillValid.map(s => s.id).filter(Boolean);
+    if (slotIds.length !== stillValid.length) {
+      Toast.show('Some slots are invalid. Please reselect and try again.');
+      return;
+    }
+
     try {
       setPaying(true);
 
       const order = await paymentApi.createOrder({
         mentorId,
         learnerId: payLearnerId,
-        slotId: selectedTime.id,
+        slotIds,
         message: message.trim(),
         recordingRequested,
       });
 
+      const spanMins = stillValid.reduce(
+        (sum, s) => sum + slotDurationMinutes(s.start_time, s.end_time),
+        0,
+      );
+      const sessionLabel =
+        slotIds.length > 1
+          ? `Continuous session (${spanMins} min) with ${mentorName}`
+          : `1-on-1 session with ${mentorName}`;
+
       const paymentData = await openRazorpayCheckout({
-        description: `1-on-1 session with ${mentorName}`,
+        description: sessionLabel,
         currency: order.currency,
         key: order.keyId,
         amount: order.amount,
@@ -952,36 +1115,48 @@ export default function BookingScreen({ navigation, route }) {
         razorpaySignature: paymentData.razorpay_signature,
         mentorId,
         learnerId: payLearnerId,
-        slotId: selectedTime.id,
+        slotIds,
         message: message.trim(),
         recordingRequested,
       });
 
-      const newBookingId = verifyResult?.bookingId;
-      if (!newBookingId) {
+      const bookingIds =
+        Array.isArray(verifyResult?.bookingIds) && verifyResult.bookingIds.length
+          ? verifyResult.bookingIds
+          : verifyResult?.bookingId
+            ? [verifyResult.bookingId]
+            : [];
+      if (!bookingIds.length) {
         console.warn('verifyAndBook returned no bookingId; reminder not scheduled');
       }
 
-      Toast.show('Booking confirmed! Payment successful.');
+      Toast.show(
+        slotIds.length > 1
+          ? 'Continuous session booked! Payment successful.'
+          : 'Booking confirmed! Payment successful.',
+      );
       setPaying(false);
       navigation.navigate(SCREEN_NAMES.RootUnifiedTabs, {
         screen: SCREEN_NAMES.LearnerSection,
         params: { screen: SCREEN_NAMES.LearnerBookings },
       });
 
-      // Schedule reminder in background — don't block navigation
+      // Schedule reminders in background — don't block navigation
       void (async () => {
         try {
           await requestNotificationPermission();
-          if (newBookingId) {
-            await scheduleSessionReminder({
-              bookingId: newBookingId,
-              sessionDate: selectedDate,
-              sessionTime: selectedTime.start_time,
-              mentorName,
-              isMentor: false,
-            });
-          }
+          await Promise.all(
+            bookingIds.map((bookingId, index) => {
+              const slot = stillValid[index] || stillValid[0];
+              return scheduleSessionReminder({
+                bookingId,
+                sessionDate: selectedDate,
+                sessionTime: slot?.start_time,
+                mentorName,
+                isMentor: false,
+              });
+            }),
+          );
         } catch (reminderErr) {
           console.warn('Session reminder scheduling failed:', reminderErr?.message || reminderErr);
         }
@@ -1024,9 +1199,13 @@ export default function BookingScreen({ navigation, route }) {
   const avatarUrl = mentorData?.profiles?.avatar_url;
   const specialization = mentorData?.specialization;
   const mentorRating = mentorData?.rating;
-  const sessionDurationMin = selectedTime
-    ? slotDurationMinutes(selectedTime.start_time, selectedTime.end_time)
+  const sessionDurationMin = selectedTimes[0]
+    ? slotDurationMinutes(selectedTimes[0].start_time, selectedTimes[0].end_time)
     : null;
+  const totalSessionMins = selectedTimes.reduce(
+    (sum, slot) => sum + slotDurationMinutes(slot.start_time, slot.end_time),
+    0,
+  );
 
   let animStep = 0;
   const nextDelay = () => {
@@ -1101,7 +1280,11 @@ export default function BookingScreen({ navigation, route }) {
               <View style={scheduleStyles.metaItem}>
                 <MaterialIcons name="videocam" size={12} color={T.colors.accent.secondary} />
                 <Text style={scheduleStyles.metaPillText}>
-                  {sessionDurationMin ? `Live · ${sessionDurationMin} min` : 'Live · 1-on-1'}
+                  {selectedTimes.length > 1
+                    ? `Live · ${totalSessionMins} min continuous session`
+                    : sessionDurationMin
+                      ? `Live · ${sessionDurationMin} min`
+                      : 'Live · 1-on-1'}
                 </Text>
               </View>
               {specialization ? (
@@ -1138,14 +1321,14 @@ export default function BookingScreen({ navigation, route }) {
 
           <SessionPreviewBar
             selectedDate={selectedDate}
-            selectedTime={selectedTime}
+            selectedTimes={selectedTimes}
             mentorName={displayName}
             readyToPay={readyToPay}
           />
 
           <BookingProgressSteps
             selectedDate={selectedDate}
-            selectedTime={selectedTime}
+            selectedTimes={selectedTimes}
             message={message}
             recordingRequested={recordingRequested}
             readyToPay={readyToPay}
@@ -1247,14 +1430,14 @@ export default function BookingScreen({ navigation, route }) {
           <FadeSlideIn delay={nextDelay()}>
             <ScheduleSectionBlock
               step="02"
-              title="Choose a time"
-              subtitle="Tap a slot to reserve your session"
+              title="Choose your time"
+              subtitle="Select back-to-back slots to book one continuous meeting"
               accent="teal"
             >
               <BookingSlotsPanel
                 selectedDate={selectedDate}
                 slots={timeSlotsForDate}
-                selectedTime={selectedTime}
+                selectedTimes={selectedTimes}
                 onSelect={handleSelectTime}
               />
             </ScheduleSectionBlock>
@@ -1279,18 +1462,19 @@ export default function BookingScreen({ navigation, route }) {
           </View>
         )}
 
-        {selectedTime ? (
+        {selectedTimes.length > 0 ? (
           <View
             style={styles.recordingSection}
             onLayout={e => {
               const y = e.nativeEvent.layout.y;
               recordingSectionY.current = y;
+              const firstId = selectedTimes[0]?.id || selectedTimes[0]?.start_time;
               if (
-                selectedTime?.id &&
+                firstId &&
                 y > 0 &&
-                scrolledToRecordingFor.current !== selectedTime.id
+                scrolledToRecordingFor.current !== firstId
               ) {
-                scrolledToRecordingFor.current = selectedTime.id;
+                scrolledToRecordingFor.current = firstId;
                 scrollRef.current?.scrollTo?.({ y: Math.max(0, y - 16), animated: true });
               }
             }}
@@ -1298,7 +1482,11 @@ export default function BookingScreen({ navigation, route }) {
             <ScheduleSectionBlock
               step="03"
               title="Session recording"
-              subtitle="Would you like this session to be recorded?"
+              subtitle={
+                selectedTimes.length > 1
+                  ? 'This preference applies to your continuous session'
+                  : 'Would you like this session to be recorded?'
+              }
               accent="teal"
             >
               <View style={styles.recordingChoices}>
@@ -1372,12 +1560,16 @@ export default function BookingScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        <FadeInSection show={!!selectedTime} delay={100}>
+        <FadeInSection show={selectedTimes.length > 0} delay={100}>
           <View>
             <ScheduleSectionBlock
               step="04"
               title="Session goal"
-              subtitle={`What should ${displayName.split(' ')[0]} focus on?`}
+              subtitle={
+                selectedTimes.length > 1
+                  ? `Goal for your ${totalSessionMins} min continuous session with ${displayName.split(' ')[0]}`
+                  : `What should ${displayName.split(' ')[0]} focus on?`
+              }
               accent="gold"
             >
               <GoalPromptChips
@@ -1416,7 +1608,7 @@ export default function BookingScreen({ navigation, route }) {
 
         <FadeInSection
           show={
-            !!selectedTime &&
+            selectedTimes.length > 0 &&
             !!fees &&
             typeof recordingRequested === 'boolean' &&
             message.trim().length > 0
@@ -1424,16 +1616,30 @@ export default function BookingScreen({ navigation, route }) {
           delay={140}
         >
           <View>
-            <ScheduleSectionBlock step="05" title="Confirm your session" subtitle="Clear, upfront pricing" accent="violet">
+            <ScheduleSectionBlock
+              step="05"
+              title="Confirm your session"
+              subtitle="Clear, upfront pricing"
+              accent="violet"
+            >
               <View style={styles.ticketCard}>
                 <View style={styles.ticketTop}>
                   <View>
                     <Text style={styles.ticketLabel}>Session ticket</Text>
                     <Text style={styles.ticketMentor}>{displayName}</Text>
-                    {selectedTime ? (
-                      <Text style={styles.ticketSlotMeta}>
-                        {formatDisplayDate(selectedDate)} · {formatSlotTime(selectedTime.start_time)} – {formatSlotTime(selectedTime.end_time)}
-                      </Text>
+                    {selectedTimes.length > 0 ? (
+                      <View style={styles.ticketSlotMetaBlock}>
+                        <Text style={styles.ticketSlotMeta}>{formatDisplayDate(selectedDate)}</Text>
+                        <Text style={styles.ticketSlotMeta}>
+                          {formatSlotRange(
+                            selectedTimes[0].start_time,
+                            selectedTimes[selectedTimes.length - 1].end_time,
+                          )}
+                          {' · '}
+                          {totalSessionMins} min
+                          {selectedTimes.length > 1 ? ' continuous' : ''}
+                        </Text>
+                      </View>
                     ) : null}
                   </View>
                   <MaterialIcons name="confirmation-number" size={28} color={GOLD} />
@@ -1443,11 +1649,26 @@ export default function BookingScreen({ navigation, route }) {
                   <View key={i} style={styles.perfDot} />
                 ))}
               </View>
-              <FeeRow label="Session fee (20 min)" amount={fees?.mentorAmount} />
+              {selectedTimes.length > 1 ? (
+                <FeeRow
+                  label={`${selectedTimes.length} × block fee (${sessionDurationMin || 30} min)`}
+                  amount={fees?.mentorAmount}
+                />
+              ) : (
+                <FeeRow
+                  label={`Session fee (${sessionDurationMin || 30} min)`}
+                  amount={fees?.mentorAmount}
+                />
+              )}
               <FeeRow label={`Convenience (${fees?.platformFeePercent}%)`} amount={fees?.platformBaseFee} />
               <FeeRow label={`GST (${fees?.gstPercent}%)`} amount={fees?.gstOnFee} />
               <View style={styles.feeDivider} />
-              <FeeRow label="Your session total" amount={fees?.totalAmount} bold accent />
+              <FeeRow
+                label="Your session total"
+                amount={fees?.totalAmount}
+                bold
+                accent
+              />
               <View style={styles.secureRow}>
                 <MaterialIcons name="lock" size={14} color={T.colors.accent.success} />
                 <Text style={styles.secureText}>Safe & encrypted checkout</Text>
@@ -1474,7 +1695,7 @@ export default function BookingScreen({ navigation, route }) {
         ]}
       >
         <View style={styles.checkoutFooter}>
-          {readyToPay && selectedTime && fees ? (
+          {readyToPay && selectedTimes.length > 0 && fees ? (
             <Animated.View
               style={[
                 styles.checkoutTotalRow,
@@ -1491,23 +1712,31 @@ export default function BookingScreen({ navigation, route }) {
               ]}
             >
               <View>
-                <Text style={styles.checkoutTotalLabel}>Ready to book</Text>
+                <Text style={styles.checkoutTotalLabel}>
+                  {selectedTimes.length > 1
+                    ? `Ready to book · ${totalSessionMins} min continuous`
+                    : 'Ready to book'}
+                </Text>
               </View>
               <Text style={styles.checkoutTotalAmount}>₹{fees.totalAmount}</Text>
             </Animated.View>
           ) : (
             <View style={styles.checkoutHintBlock}>
-              {selectedTime && fees ? (
+              {selectedTimes.length > 0 && fees ? (
                 <View style={styles.checkoutTotalRow}>
                   <View>
-                    <Text style={styles.checkoutTotalLabel}>Session estimate</Text>
+                    <Text style={styles.checkoutTotalLabel}>
+                      {selectedTimes.length > 1
+                        ? `${totalSessionMins} min continuous estimate`
+                        : 'Session estimate'}
+                    </Text>
                   </View>
                   <Text style={styles.checkoutTotalAmount}>₹{fees.totalAmount}</Text>
                 </View>
               ) : null}
               <Text style={styles.checkoutHint}>
-                {!selectedTime
-                  ? 'Select date & time to continue'
+                {!selectedTimes.length
+                  ? 'Select date & time slots to continue'
                   : typeof recordingRequested !== 'boolean'
                     ? 'Choose a recording preference to continue'
                     : !message.trim()
@@ -1524,13 +1753,13 @@ export default function BookingScreen({ navigation, route }) {
               paying,
               readyToPay,
               fees,
-              selectedTime,
+              selectedTimes,
               message,
               recordingRequested,
             })}
             onPress={handlePay}
             disabled={
-              !selectedTime ||
+              !selectedTimes.length ||
               !message.trim() ||
               typeof recordingRequested !== 'boolean' ||
               !fees ||
@@ -1672,6 +1901,48 @@ function createBookingStyles(theme) {
     fontSize: 12,
     fontWeight: '600',
     color: C.text.muted,
+    marginTop: 4,
+    lineHeight: 17,
+  },
+  selectedSessionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: S.accentSuccess,
+    borderWidth: 1,
+    borderColor: B.successBorder,
+  },
+  selectedSessionIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: softFill(theme),
+    borderWidth: 1,
+    borderColor: B.successBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedSessionBody: { flex: 1 },
+  selectedSessionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: C.accent.success,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  selectedSessionRange: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: C.text.primary,
+    marginTop: 3,
+  },
+  selectedSessionMeta: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.text.muted,
     marginTop: 2,
   },
   slotsPanelBadge: {
@@ -1733,9 +2004,10 @@ function createBookingStyles(theme) {
     borderColor: B.successBorder,
   },
   timeSlotCell: {
-    minHeight: 62,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    minHeight: 72,
+    paddingTop: 12,
+    paddingBottom: 10,
+    paddingHorizontal: 6,
     borderRadius: T.borderRadius.md,
     borderWidth: 1,
     alignItems: 'center',
@@ -1751,9 +2023,39 @@ function createBookingStyles(theme) {
     borderWidth: 1.5,
   },
   timeSlotStatusIcon: { position: 'absolute', top: 6, right: 6 },
-  timeSlotStart: { fontSize: 13, fontWeight: '800', color: C.text.primary },
-  timeSlotEnd: { fontSize: 10, fontWeight: '600', color: C.text.muted, marginTop: 2 },
+  timeSlotStart: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: C.text.primary,
+    textAlign: 'center',
+    letterSpacing: 0.1,
+  },
+  timeSlotEnd: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: C.text.muted,
+    marginTop: 2,
+    textAlign: 'center',
+  },
   timeSlotTextSelected: { color: B.successText },
+  timeSlotDurationPill: {
+    marginTop: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: softFillStrong(theme),
+  },
+  timeSlotDurationPillSelected: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  timeSlotDurationText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.text.muted,
+  },
+  timeSlotDurationTextSelected: {
+    color: B.successText,
+  },
 
   promptRow: {
     flexDirection: 'row',
@@ -1909,10 +2211,19 @@ function createBookingStyles(theme) {
     color: C.text.primary,
     marginTop: 4,
   },
+  ticketSlotMetaBlock: {
+    marginTop: 4,
+    gap: 2,
+  },
   ticketSlotMeta: {
     fontSize: 12,
     fontWeight: '600',
     color: C.text.muted,
+  },
+  ticketSlotTotal: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: C.accent.success,
     marginTop: 4,
   },
   ticketPerforation: {

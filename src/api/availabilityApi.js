@@ -73,7 +73,7 @@ export const availabilityApi = {
             .eq('is_booked', false),
           supabase
             .from('bookings')
-            .select('slot_id')
+            .select('slot_id, slot_ids')
             .eq('mentor_id', mentorId)
             .not('slot_id', 'is', null),
         ]);
@@ -81,7 +81,12 @@ export const availabilityApi = {
       if (fetchError) throw fetchError;
       if (bookingsError) throw bookingsError;
 
-      const protectedIds = new Set((bookings || []).map(row => row.slot_id));
+      const protectedIds = new Set(
+        (bookings || []).flatMap(row => [
+          row.slot_id,
+          ...(Array.isArray(row.slot_ids) ? row.slot_ids : []),
+        ]),
+      );
       const idsToDelete = (existing || [])
         .filter(slot => !protectedIds.has(slot.id))
         .map(slot => slot.id);
@@ -108,13 +113,13 @@ export const availabilityApi = {
             .eq('mentor_id', mentorId),
           supabase
             .from('bookings')
-            .select('slot_id')
+            .select('slot_id, slot_ids')
             .eq('mentor_id', mentorId)
             .not('slot_id', 'is', null),
-          // transactions also holds a slot_id FK — must protect those too
+          // transactions also holds slot_id / slot_ids — must protect those too
           supabase
             .from('transactions')
-            .select('slot_id')
+            .select('slot_id, slot_ids')
             .not('slot_id', 'is', null),
         ]);
 
@@ -123,8 +128,14 @@ export const availabilityApi = {
       if (txnsError) throw txnsError;
 
       const protectedIds = new Set([
-        ...(bookings || []).map(row => row.slot_id),
-        ...(txns || []).map(row => row.slot_id),
+        ...(bookings || []).flatMap(row => [
+          row.slot_id,
+          ...(Array.isArray(row.slot_ids) ? row.slot_ids : []),
+        ]),
+        ...(txns || []).flatMap(row => [
+          row.slot_id,
+          ...(Array.isArray(row.slot_ids) ? row.slot_ids : []),
+        ]),
       ]);
       const desiredKeys = new Set(
         slotEntries.map(entry =>

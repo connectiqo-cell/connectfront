@@ -18,14 +18,21 @@ async function invokeFunction(name, body) {
 export const paymentApi = {
   /**
    * Step 1: Create a Razorpay order via Supabase Edge Function.
+   * Accepts slotId (legacy) and/or slotIds (multi-slot same-day).
    * Returns { orderId, amount, currency, keyId }
    */
-  createOrder: async ({ mentorId, learnerId, slotId, message, recordingRequested }) => {
+  createOrder: async ({ mentorId, learnerId, slotId, slotIds, message, recordingRequested }) => {
     try {
+      const ids = Array.isArray(slotIds) && slotIds.length
+        ? slotIds
+        : slotId
+          ? [slotId]
+          : [];
       return await invokeFunction('create-razorpay-order', {
         mentorId,
         learnerId,
-        slotId,
+        slotId: ids[0],
+        slotIds: ids,
         message,
         recordingRequested,
       });
@@ -36,9 +43,9 @@ export const paymentApi = {
   },
 
   /**
-   * Step 2: Verify payment + create booking atomically via Edge Function.
+   * Step 2: Verify payment + create booking(s) atomically via Edge Function.
    * Called after Razorpay checkout returns success.
-   * Returns { success: true, bookingId }
+   * Returns { success: true, bookingId, bookingIds }
    */
   verifyAndBook: async ({
     razorpayOrderId,
@@ -47,17 +54,24 @@ export const paymentApi = {
     mentorId,
     learnerId,
     slotId,
+    slotIds,
     message,
     recordingRequested,
   }) => {
     try {
+      const ids = Array.isArray(slotIds) && slotIds.length
+        ? slotIds
+        : slotId
+          ? [slotId]
+          : [];
       return await invokeFunction('verify-razorpay-payment', {
         razorpayOrderId,
         razorpayPaymentId,
         razorpaySignature,
         mentorId,
         learnerId,
-        slotId,
+        slotId: ids[0],
+        slotIds: ids,
         message,
         recordingRequested,
       });

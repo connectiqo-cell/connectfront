@@ -1,4 +1,5 @@
 // Supabase Edge Function: verify-razorpay-payment
+// Supports single or multi-slot (same-day) checkout → N bookings.
 import { serve }        from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { crypto }       from 'https://deno.land/std@0.168.0/crypto/mod.ts';
@@ -37,6 +38,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const APP_TIMEZONE = 'Asia/Kolkata';
+
+function dateInAppTz(d = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+}
+
+function minutesNowInAppTz(d = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: APP_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(d);
+  const hour = Number(parts.find(p => p.type === 'hour')?.value ?? 0);
+  const minute = Number(parts.find(p => p.type === 'minute')?.value ?? 0);
+  return hour * 60 + minute;
+}
+
+function isSlotStarted(dateStr: string, startTime: string, now = new Date()) {
+  if (dateStr !== dateInAppTz(now)) return false;
+  const [hours, mins] = String(startTime).substring(0, 5).split(':').map(Number);
+  const slotMins = hours * 60 + mins;
+  return slotMins <= minutesNowInAppTz(now);
+}
+
 async function hmacSha256Hex(secret: string, message: string): Promise<string> {
   const enc     = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -48,20 +79,28 @@ async function hmacSha256Hex(secret: string, message: string): Promise<string> {
   return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function resolveSlotIds(tx: { slot_id?: string | null; slot_ids?: string[] | null }, body: { slotId?: string; slotIds?: string[] }) {
+  if (Array.isArray(tx.slot_ids) && tx.slot_ids.length) return tx.slot_ids;
+  if (Array.isArray(body.slotIds) && body.slotIds.length) return body.slotIds;
+  if (tx.slot_id) return [tx.slot_id];
+  if (body.slotId) return [body.slotId];
+  return [];
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
+    const body = await req.json();
     const {
       razorpayOrderId,
       razorpayPaymentId,
       razorpaySignature,
       mentorId,
       learnerId,
-      slotId,
       message,
       recordingRequested,
-    } = await req.json();
+    } = body;
 
     if (typeof recordingRequested !== 'boolean') {
       throw new Error('Recording preference is required');
@@ -93,7 +132,7 @@ serve(async (req) => {
     // ── 3. Fetch server-calculated amounts from stored transaction ────────────
     const { data: tx, error: txFetchErr } = await supabase
       .from('transactions')
-      .select('mentor_earning_paise, status, booking_id, recording_requested, booking_message')
+      .select('mentor_earning_paise, status, booking_id, recording_requested, booking_message, slot_id, slot_ids')
       .eq('razorpay_order_id', razorpayOrderId)
       .single();
 
@@ -109,66 +148,97 @@ serve(async (req) => {
         ? message.trim()
         : (tx.booking_message || null);
 
+    const slotIds = resolveSlotIds(tx, body);
+    if (!slotIds.length) throw new Error('No slots found for this order');
+
     // Already reconciled (e.g. retry after crash) — backfill preference if missing.
     if (tx.status === 'paid' && tx.booking_id) {
       if (typeof resolvedRecordingRequested === 'boolean') {
         await supabase
           .from('bookings')
           .update({ recording_requested: resolvedRecordingRequested })
-          .eq('id', tx.booking_id)
+          .in('id', [tx.booking_id])
           .is('recording_requested', null);
       }
       return new Response(
-        JSON.stringify({ success: true, bookingId: tx.booking_id }),
+        JSON.stringify({
+          success: true,
+          bookingId: tx.booking_id,
+          bookingIds: [tx.booking_id],
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
-
-    const mentorAmount = tx.mentor_earning_paise / 100;
-
-    // ── 4. Check slot is still available (race-condition guard) ───────────────
-    const { data: slot, error: slotErr } = await supabase
-      .from('availability_slots')
-      .select('is_booked')
-      .eq('id', slotId)
-      .single();
-
-    if (slotErr) throw slotErr;
-    if (slot.is_booked) throw new Error('This slot was just booked by someone else. Please select another slot.');
 
     if (typeof resolvedRecordingRequested !== 'boolean') {
       throw new Error('Recording preference is required');
     }
 
-    // ── 5. Create booking ─────────────────────────────────────────────────────
-    const { data: booking, error: bookingErr } = await supabase
+    // ── 4. Race-check all slots still available + not started ───────────────
+    const { data: slots, error: slotsErr } = await supabase
+      .from('availability_slots')
+      .select('id, date, start_time, end_time, is_booked')
+      .in('id', slotIds);
+
+    if (slotsErr) throw slotsErr;
+    if (!slots || slots.length !== slotIds.length) {
+      throw new Error('One or more slots are no longer available');
+    }
+    for (const slot of slots) {
+      if (slot.is_booked) {
+        throw new Error('One of the selected slots was just booked by someone else. Please select again.');
+      }
+      if (isSlotStarted(slot.date, slot.start_time)) {
+        throw new Error('One selected slot has already started. Please pick a later time.');
+      }
+    }
+
+    const sortedSlots = [...slots].sort((a: { start_time: string }, b: { start_time: string }) =>
+      String(a.start_time).substring(0, 5).localeCompare(String(b.start_time).substring(0, 5)),
+    );
+    for (let i = 0; i < sortedSlots.length - 1; i += 1) {
+      const end = String((sortedSlots[i] as { end_time?: string }).end_time || '').substring(0, 5);
+      const nextStart = String(sortedSlots[i + 1].start_time).substring(0, 5);
+      if (!end || end !== nextStart) {
+        throw new Error('Selected slots must be continuous back-to-back times');
+      }
+    }
+    const orderedSlotIds = sortedSlots.map((s: { id: string }) => s.id);
+    const primarySlotId = orderedSlotIds[0];
+    const slotCount = orderedSlotIds.length;
+    const mentorAmountTotal = tx.mentor_earning_paise / 100;
+
+    // ── 5. Create ONE booking spanning the continuous block ─────────────────
+    const { data: bookings, error: bookingErr } = await supabase
       .from('bookings')
-      .insert({
-        mentor_id:  mentorId,
+      .insert([{
+        mentor_id: mentorId,
         learner_id: learnerId,
-        slot_id:    slotId,
-        message:    resolvedMessage,
+        slot_id: primarySlotId,
+        slot_ids: orderedSlotIds,
+        message: resolvedMessage,
         recording_requested: resolvedRecordingRequested,
-        status:     'confirmed',
-      })
-      .select()
-      .single();
+        status: 'confirmed',
+      }])
+      .select();
 
     if (bookingErr) {
-      // Unique-violation on the active-slot index: something else (e.g. the
-      // razorpay-webhook reconciler) already booked this slot for this order.
       if ((bookingErr as { code?: string }).code === '23505') {
-        throw new Error('This slot was just booked by someone else. Please select another slot.');
+        throw new Error('One of the selected slots was just booked by someone else. Please select again.');
       }
       throw bookingErr;
     }
 
-    // ── 6. Mark slot as booked ────────────────────────────────────────────────
-    await supabase.from('availability_slots').update({ is_booked: true }).eq('id', slotId);
+    const created = bookings || [];
+    const primaryBookingId = created[0]?.id;
+    const bookingIds = primaryBookingId ? [primaryBookingId] : [];
+
+    // ── 6. Mark all slots booked ──────────────────────────────────────────────
+    await supabase.from('availability_slots').update({ is_booked: true }).in('id', orderedSlotIds);
 
     // ── 7. Update transaction to paid ───────────────────────────────────────────
     await supabase.from('transactions').update({
-      booking_id:          booking.id,
+      booking_id:          primaryBookingId,
       razorpay_payment_id: razorpayPaymentId,
       razorpay_signature:  razorpaySignature,
       recording_requested: resolvedRecordingRequested,
@@ -177,15 +247,17 @@ serve(async (req) => {
       updated_at:          new Date().toISOString(),
     }).eq('razorpay_order_id', razorpayOrderId);
 
-    // ── 8. Save earnings as pending (server-calculated amount only) ────────────
-    await supabase.from('earnings').insert({
-      mentor_id:  mentorId,
-      booking_id: booking.id,
-      amount:     mentorAmount,
-      status:     'pending',
-    });
+    // ── 8. Save earnings as pending (one row for the continuous session) ─────
+    if (primaryBookingId) {
+      await supabase.from('earnings').insert([{
+        mentor_id: mentorId,
+        booking_id: primaryBookingId,
+        amount: mentorAmountTotal,
+        status: 'pending',
+      }]);
+    }
 
-    // ── 9. Notify mentor of new booking (fire-and-forget) ────────────────────
+    // ── 9. Notify mentor of new booking ────────────────────────────────────
     try {
       const [mentorToken, learnerProfile] = await Promise.all([
         getFcmToken(supabase, mentorId),
@@ -193,11 +265,14 @@ serve(async (req) => {
       ]);
       const learnerName = (learnerProfile.data as { name?: string } | null)?.name || 'A learner';
       if (mentorToken) {
+        const bodyText = slotCount > 1
+          ? `${learnerName} booked a continuous ${slotCount}-block session with you.`
+          : `${learnerName} has booked a session with you.`;
         await sendFcmNotification({
           token: mentorToken,
           title: '📅 New session booked',
-          body:  `${learnerName} has booked a session with you.`,
-          data:  { bookingId: booking.id, type: 'new_booking' },
+          body:  bodyText,
+          data:  { bookingId: primaryBookingId, type: 'new_booking' },
         });
       }
     } catch (notifErr) {
@@ -205,7 +280,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, bookingId: booking.id }),
+      JSON.stringify({ success: true, bookingId: primaryBookingId, bookingIds }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (err) {

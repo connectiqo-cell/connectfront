@@ -319,8 +319,7 @@ const TIME_SLOTS = (() => {
   return slots;
 })();
 
-const SLOT_DURATION = 20;
-const SLOT_BUFFER_MINS = 30;
+const SLOT_DURATION = 30;
 
 const SLOT_PERIODS = [
   { id: 'night',      label: 'Night',      hint: '0:00 – 5:30',   icon: 'nights-stay',    startHour: 0,  endHour: 6  },
@@ -624,7 +623,7 @@ const isTimeInPast = (dateStr, timeStr) => {
   const [hours, mins] = timeStr.split(':').map(Number);
   const slotTime = new Date();
   slotTime.setHours(hours, mins, 0, 0);
-  return slotTime.getTime() - now.getTime() < SLOT_BUFFER_MINS * 60 * 1000;
+  return slotTime.getTime() <= now.getTime();
 };
 
 const parseLocalDate = dateStr => {
@@ -902,7 +901,7 @@ export default function MentorAvailabilityScreen() {
               <Text style={scheduleStyles.metaSep}>·</Text>
               <View style={scheduleStyles.metaItem}>
                 <MaterialIcons name="timelapse" size={12} color={accentPrimary} />
-                <Text style={scheduleStyles.metaPillText}>20 min slots</Text>
+                <Text style={scheduleStyles.metaPillText}>30 min slots</Text>
               </View>
             </View>
           </ScheduleHeroBanner>
@@ -1020,7 +1019,7 @@ export default function MentorAvailabilityScreen() {
           <ScheduleSectionBlock
             step="02"
             title="Choose time slots"
-            subtitle="Tap to toggle · 20 min sessions"
+            subtitle="Tap to toggle · 30 min sessions"
             accent="teal"
           >
             <View style={styles.slotsPanel}>

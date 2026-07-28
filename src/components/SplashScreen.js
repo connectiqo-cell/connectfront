@@ -2,6 +2,7 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import CosmicBackground from './CosmicBackground';
 import { CosmicLoader } from './LoadingSpinner';
 import { useTheme } from '../hooks/useTheme';
+import { getBrandLogo } from '../utils/brandLogo';
 
 export function SplashScreen() {
   const { theme, isDark } = useTheme();
@@ -11,7 +12,7 @@ export function SplashScreen() {
     <CosmicBackground style={styles.bg}>
       <View style={styles.center}>
         <Image
-          source={require('../assets/images/logo.png')}
+          source={getBrandLogo(isDark)}
           style={[
             styles.logo,
             { marginBottom: T.spacing.lg },

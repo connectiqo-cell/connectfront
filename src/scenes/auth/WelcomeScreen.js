@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,22 +7,34 @@ import {
   Animated,
   Easing,
   Image,
+  ScrollView,
+  ActivityIndicator,
+  Dimensions,
+  Platform,
+  AppState,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import Video from 'react-native-video';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useIsFocused } from '@react-navigation/native';
 import CosmicBackground from '../../components/CosmicBackground';
 import CosmicButton from '../../components/CosmicButton';
-import { CircularGradientFrame } from '../../components/CircularGradientFrame';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
-import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
-import { PLATFORM_LAYOUT } from '../../utils/platformLayout';
+import { softBorder, softFill, softFillStrong, cardFill } from '../../theme/surfaceStyles';
+import { PLATFORM_LAYOUT, iosFlexChild } from '../../utils/platformLayout';
+import { getBrandLogo } from '../../utils/brandLogo';
+import { formatCurrency } from '../../utils/formatCurrency';
+import { mentorApi } from '../../api/mentorApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
-const LOGO_FRAME_SIZE = 96;
-const LOGO_IMAGE_SIZE = 58;
+const WELCOME_VIDEO = require('../../assets/videos/welcome.mp4');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const VIDEO_HEIGHT = Math.min(320, SCREEN_WIDTH * 0.92);
+const CREATOR_CARD_WIDTH = 148;
+const VIDEO_RADIUS = Platform.OS === 'ios' ? 28 : 28;
 
 const ENTRANCE = {
-  duration: 520,
+  duration: 480,
   easing: Easing.out(Easing.cubic),
 };
 
@@ -47,233 +59,229 @@ function runFadeSlide(opacity, translateY, delay = 0) {
 
 export default function WelcomeScreen({ navigation }) {
   const styles = useThemedStyles(createThemedStyles);
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
+  const brandLogo = getBrandLogo(isDark);
+  const isFocused = useIsFocused();
   const C = theme.colors;
   const B = C.buttons;
   const PURPLE_LINK = B.nebulaGradient[0];
   const GOLD = C.accent.primary;
   const TEAL = C.accent.secondary;
+  const STAR = C.accent.warning;
+  const VERIFIED = C.accent.info;
 
-  const logoO = useRef(new Animated.Value(0)).current;
-  const logoY = useRef(new Animated.Value(28)).current;
-  const logoPulse = useRef(new Animated.Value(1)).current;
-  const ringSpin = useRef(new Animated.Value(0)).current;
+  const [mentors, setMentors] = useState([]);
+  const [mentorsLoading, setMentorsLoading] = useState(true);
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  const [videoReady, setVideoReady] = useState(false);
 
-  const titleO = useRef(new Animated.Value(0)).current;
-  const titleY = useRef(new Animated.Value(20)).current;
+  const heroO = useRef(new Animated.Value(0)).current;
+  const heroY = useRef(new Animated.Value(22)).current;
+  const videoO = useRef(new Animated.Value(0)).current;
+  const videoY = useRef(new Animated.Value(28)).current;
+  const ctaO = useRef(new Animated.Value(0)).current;
+  const ctaY = useRef(new Animated.Value(24)).current;
+  const trendO = useRef(new Animated.Value(0)).current;
+  const trendY = useRef(new Animated.Value(20)).current;
 
-  const nameO = useRef(new Animated.Value(0)).current;
-  const nameY = useRef(new Animated.Value(22)).current;
-  const nameScale = useRef(new Animated.Value(0.92)).current;
+  // iOS: pause when unfocused OR app backgrounded so AVPlayer releases cleanly.
+  const shouldPlay = isFocused && appActive;
+  const videoPaused = !shouldPlay;
 
-  const subO = useRef(new Animated.Value(0)).current;
-  const subY = useRef(new Animated.Value(18)).current;
+  const goSignup = useCallback(() => {
+    navigation.navigate(SCREEN_NAMES.Signup);
+  }, [navigation]);
 
-  const btnO = useRef(new Animated.Value(0)).current;
-  const btnY = useRef(new Animated.Value(24)).current;
-
-  const statsO = useRef(new Animated.Value(0)).current;
-  const statsY = useRef(new Animated.Value(20)).current;
-
-  const linkO = useRef(new Animated.Value(0)).current;
+  const goLogin = useCallback(() => {
+    navigation.navigate(SCREEN_NAMES.Login);
+  }, [navigation]);
 
   useEffect(() => {
-    Animated.stagger(85, [
-      runFadeSlide(logoO, logoY, 0),
-      runFadeSlide(titleO, titleY, 0),
-      Animated.parallel([
-        Animated.timing(nameO, {
-          toValue: 1,
-          duration: ENTRANCE.duration,
-          easing: ENTRANCE.easing,
-          useNativeDriver: true,
-        }),
-        Animated.timing(nameY, {
-          toValue: 0,
-          duration: ENTRANCE.duration,
-          easing: ENTRANCE.easing,
-          useNativeDriver: true,
-        }),
-        Animated.spring(nameScale, {
-          toValue: 1,
-          friction: 7,
-          tension: 80,
-          useNativeDriver: true,
-        }),
-      ]),
-      runFadeSlide(subO, subY, 0),
-      runFadeSlide(btnO, btnY, 0),
-      runFadeSlide(statsO, statsY, 0),
-      Animated.timing(linkO, {
-        toValue: 1,
-        duration: 420,
-        easing: ENTRANCE.easing,
-        useNativeDriver: true,
-      }),
+    const sub = AppState.addEventListener('change', nextState => {
+      setAppActive(nextState === 'active');
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!isFocused) setVideoReady(false);
+  }, [isFocused]);
+
+  useEffect(() => {
+    Animated.stagger(90, [
+      runFadeSlide(heroO, heroY, 0),
+      runFadeSlide(videoO, videoY, 0),
+      runFadeSlide(ctaO, ctaY, 0),
+      runFadeSlide(trendO, trendY, 0),
     ]).start();
+  }, [heroO, heroY, videoO, videoY, ctaO, ctaY, trendO, trendY]);
 
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(logoPulse, {
-          toValue: 1.06,
-          duration: 2200,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoPulse, {
-          toValue: 1,
-          duration: 2200,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    const spinLoop = Animated.loop(
-      Animated.timing(ringSpin, {
-        toValue: 1,
-        duration: 24000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-    pulseLoop.start();
-    spinLoop.start();
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await mentorApi.getTopMentors(8);
+        if (!cancelled) setMentors(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setMentors([]);
+      } finally {
+        if (!cancelled) setMentorsLoading(false);
+      }
+    })();
     return () => {
-      pulseLoop.stop();
-      spinLoop.stop();
+      cancelled = true;
     };
-  }, [logoPulse, ringSpin]);
+  }, []);
 
-  const ringRotate = ringSpin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-  const ringRotateSlow = ringSpin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '-360deg'],
-  });
+  const avatarStack = mentors
+    .map(m => m?.profiles?.avatar_url)
+    .filter(Boolean)
+    .slice(0, 3);
 
   return (
     <CosmicBackground style={styles.background}>
       <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
-        <View style={styles.content}>
-          <Animated.View
-            style={[
-              styles.logoOrbitWrap,
-              { opacity: logoO, transform: [{ translateY: logoY }] },
-            ]}
-          >
-            <Animated.View
-              style={[
-                styles.orbitRing,
-                styles.orbitRingOuter,
-                { transform: [{ rotate: ringRotate }] },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.orbitRing,
-                styles.orbitRingInner,
-                { transform: [{ rotate: ringRotateSlow }] },
-              ]}
-            />
-            <Animated.View
-              style={[styles.logoContainer, { transform: [{ scale: logoPulse }] }]}
-            >
-              <CircularGradientFrame
-                size={LOGO_FRAME_SIZE}
-                ringWidth={3}
-                colors={B.premiumGradient}
-                innerBg={C.primary.void}
-                style={theme.shadows.medium}
-              >
-                <Image
-                  source={require('../../assets/images/logo.png')}
-                  style={styles.logoImage}
-                  resizeMode="contain"
-                />
-              </CircularGradientFrame>
-            </Animated.View>
-          </Animated.View>
-
-          <Animated.Text
-            style={[
-              styles.eyebrow,
-              { opacity: titleO, transform: [{ translateY: titleY }] },
-            ]}
-          >
-            1-on-1 Live Mentorship
-          </Animated.Text>
-
-          <Animated.Text
-            style={[
-              styles.title,
-              { opacity: titleO, transform: [{ translateY: titleY }] },
-            ]}
-          >
-            Connect with your
-          </Animated.Text>
-
-          <Animated.View
-            style={[
-              styles.appNameContainer,
-              {
-                opacity: nameO,
-                transform: [{ translateY: nameY }, { scale: nameScale }],
-              },
-            ]}
-          >
-            <Text style={styles.appName}>Connectiqo</Text>
-            <View style={styles.nameUnderline} />
-          </Animated.View>
-
-          <Animated.Text
-            style={[
-              styles.subtitle,
-              { opacity: subO, transform: [{ translateY: subY }] },
-            ]}
-          >
-            Learn from experts — or share your expertise with the world.
-          </Animated.Text>
-
-          <View style={styles.chipsRow}>
-            <Animated.View
-              style={[styles.chip, styles.chipAccent, { opacity: subO, transform: [{ translateY: subY }] }]}
-            >
-              <MaterialIcons name="bolt" size={14} color={GOLD} />
-              <Text style={styles.chipText}>Live sessions</Text>
-            </Animated.View>
-            <Animated.View
-              style={[styles.chip, { opacity: subO, transform: [{ translateY: subY }] }]}
-            >
-              <MaterialIcons name="verified" size={14} color={TEAL} />
-              <Text style={styles.chipText}>Trusted mentors</Text>
-            </Animated.View>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.brandRow}>
+              <Image source={brandLogo} style={styles.headerLogo} resizeMode="contain" />
+              <Text style={styles.headerBrand}>Connectiqo</Text>
+            </View>
           </View>
 
+          {/* Hero copy */}
           <Animated.View
             style={[
-              styles.buttonWrap,
-              {
-                opacity: btnO,
-                transform: [{ translateY: btnY }],
-              },
+              styles.heroCopy,
+              { opacity: heroO, transform: [{ translateY: heroY }] },
+            ]}
+          >
+            <View style={styles.badge}>
+              <MaterialIcons name="bolt" size={14} color={PURPLE_LINK} />
+              <Text style={styles.badgeText}>1-ON-1 LIVE MENTORSHIP</Text>
+            </View>
+
+            <Text style={styles.headline}>
+              Connect with{' '}
+              <Text style={styles.headlineAccent}>Connectiqo</Text>
+            </Text>
+
+            <Text style={styles.subtitle}>
+              Join 1-on-1 video sessions with top creators, mentors & experts.
+              Learn, grow and achieve together.
+            </Text>
+
+            <View style={styles.chipsRow}>
+              <View style={[styles.chip, styles.chipAccent]}>
+                <MaterialIcons name="bolt" size={14} color={GOLD} />
+                <Text style={styles.chipText}>Live sessions</Text>
+              </View>
+              <View style={styles.chip}>
+                <MaterialIcons name="verified" size={14} color={TEAL} />
+                <Text style={styles.chipText}>Trusted mentors</Text>
+              </View>
+            </View>
+          </Animated.View>
+
+          {/* Looping hero video */}
+          <Animated.View
+            style={[
+              styles.videoSection,
+              { opacity: videoO, transform: [{ translateY: videoY }] },
+            ]}
+          >
+            <View style={styles.videoFrame}>
+              {/*
+                Mount only when focused so iOS tears down AVPlayer on navigate away.
+                borderRadius on Video itself — parent overflow:hidden does not clip AVPlayerLayer.
+              */}
+              {isFocused ? (
+                <Video
+                  key="welcome-hero-video"
+                  source={WELCOME_VIDEO}
+                  style={styles.video}
+                  resizeMode="cover"
+                  repeat
+                  muted
+                  volume={0}
+                  paused={videoPaused}
+                  controls={false}
+                  playInBackground={false}
+                  playWhenInactive={false}
+                  preventsDisplaySleepDuringVideoPlayback={false}
+                  ignoreSilentSwitch="ignore"
+                  mixWithOthers="mix"
+                  shutterColor="transparent"
+                  onLoad={() => setVideoReady(true)}
+                  onError={() => setVideoReady(false)}
+                  {...(Platform.OS === 'android' ? { disableFocus: true } : null)}
+                />
+              ) : null}
+              {!videoReady && <View style={styles.videoPlaceholder} />}
+              <View style={styles.playHint} pointerEvents="none">
+                <View style={styles.playHintCircle}>
+                  <MaterialIcons name="play-arrow" size={28} color="#fff" />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.floatingCard}>
+              <View style={styles.avatarStack}>
+                {avatarStack.length > 0
+                  ? avatarStack.map((uri, index) => (
+                      <Image
+                        key={`${uri}-${index}`}
+                        source={{ uri }}
+                        style={[
+                          styles.stackAvatar,
+                          { marginLeft: index === 0 ? 0 : -10, zIndex: 3 - index },
+                        ]}
+                      />
+                    ))
+                  : [0, 1, 2].map(i => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.stackAvatar,
+                          styles.stackAvatarPlaceholder,
+                          { marginLeft: i === 0 ? 0 : -10, zIndex: 3 - i },
+                        ]}
+                      >
+                        <MaterialIcons name="person" size={14} color={C.text.muted} />
+                      </View>
+                    ))}
+              </View>
+              <View style={styles.floatingTextWrap}>
+                <Text style={styles.floatingTitle}>5K+ Happy Users</Text>
+                <Text style={styles.floatingSub}>Successful Connections Made</Text>
+              </View>
+              <MaterialIcons name="favorite" size={16} color={PURPLE_LINK} />
+            </View>
+          </Animated.View>
+
+          {/* CTA */}
+          <Animated.View
+            style={[
+              styles.ctaBlock,
+              { opacity: ctaO, transform: [{ translateY: ctaY }] },
             ]}
           >
             <CosmicButton
               label="Get started"
               variant="nebula"
               icon="arrow-forward"
-              onPress={() => navigation.navigate(SCREEN_NAMES.Signup)}
+              onPress={goSignup}
               pressScale
               pill
               style={styles.welcomeButton}
             />
-          </Animated.View>
-
-          <Animated.View style={{ opacity: linkO, width: '100%' }}>
             <TouchableOpacity
-              onPress={() => navigation.navigate(SCREEN_NAMES.Login)}
+              onPress={goLogin}
               activeOpacity={0.7}
               style={styles.signInRow}
             >
@@ -282,32 +290,115 @@ export default function WelcomeScreen({ navigation }) {
             </TouchableOpacity>
           </Animated.View>
 
+          {/* Trending creators (guest teaser → Signup) */}
           <Animated.View
             style={[
-              styles.statsContainer,
-              { opacity: statsO, transform: [{ translateY: statsY }] },
+              styles.trendingSection,
+              { opacity: trendO, transform: [{ translateY: trendY }] },
             ]}
           >
-            <View style={styles.statItem}>
-              <MaterialIcons name="verified-user" size={20} color={GOLD} style={styles.statIcon} />
-              <Text style={styles.statText}>Expert Mentors</Text>
+            <View style={styles.trendingHeader}>
+              <Text style={styles.trendingTitle}>Trending Creators 🔥</Text>
+              <TouchableOpacity onPress={goSignup} activeOpacity={0.7} hitSlop={8}>
+                <Text style={styles.viewAll}>View all ›</Text>
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.divider} />
+            {mentorsLoading ? (
+              <View style={styles.trendingLoading}>
+                <ActivityIndicator color={PURPLE_LINK} />
+              </View>
+            ) : mentors.length === 0 ? (
+              <Text style={styles.trendingEmpty}>
+                Creators will appear here — tap Get started to explore.
+              </Text>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.creatorList}
+                nestedScrollEnabled
+                directionalLockEnabled
+                decelerationRate="fast"
+              >
+                {mentors.map(mentor => {
+                  const name = mentor.profiles?.name || 'Mentor';
+                  const avatar = mentor.profiles?.avatar_url;
+                  const title = mentor.specialization || 'Creator';
+                  const rating = Number(mentor.rating) || 0;
+                  const sessions = mentor.total_sessions || 0;
+                  const price = mentor.price_per_hour;
 
-            <View style={styles.statItem}>
-              <MaterialIcons name="videocam" size={20} color={PURPLE_LINK} style={styles.statIcon} />
-              <Text style={styles.statText}>Live 1-on-1</Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.statItem}>
-              <MaterialIcons name="lock" size={20} color={TEAL} style={styles.statIcon} />
-              <Text style={styles.statText}>Secure Payments</Text>
-            </View>
+                  return (
+                    <TouchableOpacity
+                      key={mentor.id}
+                      style={styles.creatorCard}
+                      activeOpacity={0.85}
+                      onPress={goSignup}
+                    >
+                      {avatar ? (
+                        <Image source={{ uri: avatar }} style={styles.creatorImage} />
+                      ) : (
+                        <View style={[styles.creatorImage, styles.creatorImagePlaceholder]}>
+                          <MaterialIcons name="person" size={36} color={C.text.muted} />
+                        </View>
+                      )}
+                      <View style={styles.creatorBody}>
+                        <View style={styles.creatorNameRow}>
+                          <Text style={styles.creatorName} numberOfLines={1}>
+                            {name}
+                          </Text>
+                          <MaterialIcons name="verified" size={14} color={VERIFIED} />
+                        </View>
+                        <Text style={styles.creatorTitle} numberOfLines={1}>
+                          {title}
+                        </Text>
+                        <View style={styles.creatorMeta}>
+                          <MaterialIcons name="star" size={13} color={STAR} />
+                          <Text style={styles.creatorRating}>
+                            {rating.toFixed(1)}
+                            {sessions > 0 ? ` (${sessions})` : ''}
+                          </Text>
+                        </View>
+                        <Text style={styles.creatorPrice}>
+                          {formatCurrency(price)} / session
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.bookNowBtn}
+                          onPress={goSignup}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.bookNowText}>Book Now</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </Animated.View>
-        </View>
+
+          {/* Platform stats */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <MaterialIcons name="groups" size={18} color={PURPLE_LINK} />
+              <Text style={styles.statValue}>10K+</Text>
+              <Text style={styles.statLabel}>Active Creators</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <MaterialIcons name="videocam" size={18} color={PURPLE_LINK} />
+              <Text style={styles.statValue}>50K+</Text>
+              <Text style={styles.statLabel}>Sessions Booked</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <MaterialIcons name="person" size={18} color={PURPLE_LINK} />
+              <Text style={styles.statValue}>100K+</Text>
+              <Text style={styles.statLabel}>Happy Users</Text>
+            </View>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     </CosmicBackground>
   );
@@ -319,8 +410,9 @@ function createThemedStyles(theme) {
   const B = C.buttons;
   const S = C.surface;
   const PURPLE_LINK = B.nebulaGradient[0];
-  const GOLD = C.accent.primary;
   const isLight = T.mode === 'light';
+  const panelFill = cardFill(theme);
+  const avatarRing = isLight ? C.component.card : C.surface.panel;
 
   return StyleSheet.create({
     background: {
@@ -329,102 +421,79 @@ function createThemedStyles(theme) {
     overlay: {
       flex: 1,
     },
-    content: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
+    scrollContent: {
       paddingHorizontal: T.spacing.lg,
-      paddingVertical: T.spacing.xl,
+      paddingBottom: T.spacing.xl,
     },
-    logoOrbitWrap: {
-      width: 140,
-      height: 140,
-      justifyContent: 'center',
+    header: {
+      paddingTop: T.spacing.sm,
+      paddingBottom: T.spacing.md,
+    },
+    brandRow: {
+      flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: T.spacing.xl,
+      gap: 8,
     },
-    orbitRing: {
-      position: 'absolute',
-      borderWidth: 1,
-      borderColor: isLight ? 'rgba(109, 74, 255, 0.28)' : 'rgba(167, 139, 250, 0.35)',
-      borderRadius: 999,
-      borderStyle: 'dashed',
+    headerLogo: {
+      width: 28,
+      height: 28,
     },
-    orbitRingOuter: {
-      width: 132,
-      height: 132,
-    },
-    orbitRingInner: {
-      width: 108,
-      height: 108,
-      borderColor: isLight ? 'rgba(109, 74, 255, 0.18)' : 'rgba(94, 234, 212, 0.25)',
-    },
-    logoContainer: {
-      width: LOGO_FRAME_SIZE,
-      height: LOGO_FRAME_SIZE,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    logoImage: {
-      width: LOGO_IMAGE_SIZE,
-      height: LOGO_IMAGE_SIZE,
-    },
-    eyebrow: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: PURPLE_LINK,
-      letterSpacing: 0.8,
-      textTransform: 'uppercase',
-      marginBottom: T.spacing.sm,
-      textAlign: 'center',
-    },
-    title: {
-      fontSize: 16,
-      color: C.text.secondary,
-      textAlign: 'center',
-      marginBottom: T.spacing.xs,
-      fontWeight: '600',
-    },
-    appNameContainer: {
-      marginBottom: T.spacing.lg,
-      alignItems: 'center',
-    },
-    appName: {
-      fontSize: 42,
+    headerBrand: {
+      fontSize: 20,
       fontWeight: '800',
-      color: C.text.primary,
-      textAlign: 'center',
-      letterSpacing: -0.5,
-      lineHeight: 50,
+      color: PURPLE_LINK,
+      letterSpacing: -0.3,
     },
-    nameUnderline: {
-      marginTop: T.spacing.sm,
-      height: 3,
-      width: 56,
-      borderRadius: 2,
-      backgroundColor: GOLD,
-      opacity: 0.9,
+    heroCopy: {
+      marginBottom: T.spacing.md,
+    },
+    badge: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+      backgroundColor: S.accentViolet,
+      borderWidth: 1,
+      borderColor: softBorder(theme),
+      marginBottom: T.spacing.md,
+    },
+    badgeText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: PURPLE_LINK,
+      letterSpacing: 0.6,
+    },
+    headline: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: C.text.primary,
+      lineHeight: 36,
+      marginBottom: T.spacing.sm,
+    },
+    headlineAccent: {
+      fontSize: 32,
+      fontWeight: '800',
+      color: PURPLE_LINK,
     },
     subtitle: {
-      fontSize: 15,
+      fontSize: 14,
       color: C.text.secondary,
-      textAlign: 'center',
+      lineHeight: 22,
       marginBottom: T.spacing.md,
-      lineHeight: 24,
-      paddingHorizontal: T.spacing.sm,
     },
     chipsRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      justifyContent: 'center',
       gap: T.spacing.xs,
-      marginBottom: T.spacing.xl,
     },
     chip: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      paddingVertical: 4,
+      paddingVertical: 5,
       paddingHorizontal: T.spacing.sm,
       borderRadius: T.borderRadius.chip,
       backgroundColor: softFill(theme),
@@ -433,16 +502,109 @@ function createThemedStyles(theme) {
     },
     chipAccent: {
       backgroundColor: S.accentGold,
-      borderColor: isLight ? 'rgba(109,74,255,0.22)' : 'rgba(240,216,117,0.25)',
+      borderColor: isLight ? C.border.default : 'rgba(240,216,117,0.25)',
     },
     chipText: {
-      fontSize: 10,
+      fontSize: 11,
       color: C.text.primary,
       fontWeight: '700',
     },
-    buttonWrap: {
+    videoSection: {
+      marginTop: T.spacing.lg,
+      marginBottom: T.spacing.xl + 8,
+    },
+    videoFrame: {
       width: '100%',
-      marginBottom: T.spacing.md,
+      height: VIDEO_HEIGHT,
+      borderRadius: VIDEO_RADIUS,
+      overflow: 'hidden',
+      backgroundColor: softFillStrong(theme),
+      ...(Platform.OS === 'ios'
+        ? { shadowColor: 'transparent' }
+        : null),
+    },
+    video: {
+      width: '100%',
+      height: '100%',
+      borderRadius: VIDEO_RADIUS,
+      overflow: 'hidden',
+      backgroundColor: 'transparent',
+    },
+    videoPlaceholder: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: softFillStrong(theme),
+      borderRadius: VIDEO_RADIUS,
+    },
+    playHint: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      paddingBottom: 28,
+    },
+    playHintCircle: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      // Over media (not theme chrome) — light glass reads on both modes.
+      backgroundColor: 'rgba(255,255,255,0.28)',
+      borderWidth: 1.5,
+      borderColor: 'rgba(255,255,255,0.55)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    floatingCard: {
+      position: 'absolute',
+      left: 16,
+      right: 16,
+      bottom: -22,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 16,
+      backgroundColor: panelFill,
+      borderWidth: 1,
+      borderColor: softBorder(theme),
+      zIndex: 2,
+      ...Platform.select({
+        ios: T.shadows.medium,
+        android: { elevation: 6 },
+      }),
+    },
+    avatarStack: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    stackAvatar: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      borderWidth: 2,
+      borderColor: avatarRing,
+    },
+    stackAvatarPlaceholder: {
+      backgroundColor: softFill(theme),
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    floatingTextWrap: {
+      flex: 1,
+    },
+    floatingTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: C.text.primary,
+    },
+    floatingSub: {
+      fontSize: 10,
+      color: C.text.muted,
+      marginTop: 1,
+    },
+    ctaBlock: {
+      width: '100%',
+      marginTop: T.spacing.sm,
+      marginBottom: T.spacing.lg,
     },
     welcomeButton: {
       marginVertical: 0,
@@ -454,8 +616,8 @@ function createThemedStyles(theme) {
       flexDirection: 'row',
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: T.spacing.xl,
-      paddingVertical: T.spacing.sm,
+      marginTop: T.spacing.md,
+      paddingVertical: T.spacing.xs,
     },
     signInMuted: {
       fontSize: 14,
@@ -466,37 +628,138 @@ function createThemedStyles(theme) {
       color: PURPLE_LINK,
       fontWeight: '700',
     },
+    trendingSection: {
+      marginBottom: T.spacing.lg,
+    },
+    trendingHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: T.spacing.md,
+    },
+    trendingTitle: {
+      fontSize: 17,
+      fontWeight: '800',
+      color: C.text.primary,
+    },
+    viewAll: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: PURPLE_LINK,
+    },
+    trendingLoading: {
+      height: 180,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    trendingEmpty: {
+      fontSize: 13,
+      color: C.text.muted,
+      lineHeight: 20,
+    },
+    creatorList: {
+      paddingRight: T.spacing.sm,
+      gap: 12,
+    },
+    creatorCard: {
+      width: CREATOR_CARD_WIDTH,
+      borderRadius: 16,
+      overflow: 'hidden',
+      backgroundColor: panelFill,
+      borderWidth: 1,
+      borderColor: softBorder(theme),
+    },
+    creatorImage: {
+      width: '100%',
+      height: 110,
+      backgroundColor: softFillStrong(theme),
+    },
+    creatorImagePlaceholder: {
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    creatorBody: {
+      padding: 10,
+    },
+    creatorNameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    creatorName: {
+      ...iosFlexChild(),
+      fontSize: 13,
+      fontWeight: '800',
+      color: C.text.primary,
+    },
+    creatorTitle: {
+      fontSize: 10,
+      color: C.text.muted,
+      marginTop: 2,
+      marginBottom: 6,
+    },
+    creatorMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      marginBottom: 4,
+    },
+    creatorRating: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: C.text.secondary,
+    },
+    creatorPrice: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: C.text.primary,
+      marginBottom: 8,
+    },
+    bookNowBtn: {
+      backgroundColor: PURPLE_LINK,
+      borderRadius: 8,
+      paddingVertical: 7,
+      alignItems: 'center',
+    },
+    bookNowText: {
+      color: B.nebulaText,
+      fontSize: 11,
+      fontWeight: '800',
+    },
     statsContainer: {
       flexDirection: 'row',
-      justifyContent: 'space-around',
       alignItems: 'stretch',
       width: '100%',
-      paddingHorizontal: 4,
-      paddingVertical: 11,
-      backgroundColor: softFill(theme),
+      paddingVertical: 14,
+      paddingHorizontal: 6,
+      backgroundColor: S.accentViolet,
       borderRadius: 14,
       borderWidth: 1,
       borderColor: softBorder(theme),
+      marginBottom: T.spacing.md,
     },
     statItem: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
+      gap: 2,
     },
-    statIcon: {
-      marginBottom: 4,
+    statValue: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: C.text.primary,
+      marginTop: 2,
     },
-    statText: {
-      fontSize: 10,
-      color: C.text.secondary,
+    statLabel: {
+      fontSize: 9,
+      fontWeight: '600',
+      color: C.text.muted,
       textAlign: 'center',
-      fontWeight: '700',
     },
-    divider: {
+    statDivider: {
       width: 1,
-      backgroundColor: softFillStrong(theme),
-      marginVertical: 6,
-      alignSelf: 'stretch',
+      backgroundColor: softBorder(theme),
+      marginVertical: 4,
     },
   });
 }

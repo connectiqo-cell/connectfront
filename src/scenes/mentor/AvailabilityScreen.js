@@ -257,7 +257,7 @@ function PublishScheduleButton({ saving, loading, hasUnsavedChanges, justPublish
         />
         <CosmicButton
           label={label}
-          variant="success"
+          variant="premium"
           onPress={onPress}
           disabled={saving || loading || (!hasUnsavedChanges && !justPublished)}
           loading={saving}
@@ -1321,8 +1321,8 @@ function createAvailabilityStyles(theme) {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 14,
     borderWidth: 2,
-    borderColor: B.successBorder,
-    backgroundColor: S.accentSuccess,
+    borderColor: B.premiumBorder,
+    backgroundColor: S.accentViolet,
   },
   publishSuccessRing: {
     position: 'absolute',
@@ -1332,7 +1332,7 @@ function createAvailabilityStyles(theme) {
     bottom: -6,
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: B.successText,
+    borderColor: B.premiumGradient[0],
   },
   saveBtn: { marginVertical: 0, minHeight: 50 },
   });

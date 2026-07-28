@@ -26,13 +26,14 @@ export const SafeScreen = ({
 }) => {
   const insets = useSafeAreaInsets();
 
+  // getFloatingTabBarContentInset already includes the home-indicator inset.
   const bottomTabHeight = hasBottomTabs ? getFloatingTabBarContentInset(insets) : 0;
   const topPad = padding + (includeTopInset ? insets.top : 0);
 
   const paddingStyle = {
     backgroundColor,
     paddingTop: topPad,
-    paddingBottom: insets.bottom + bottomTabHeight,
+    paddingBottom: hasBottomTabs ? bottomTabHeight : insets.bottom,
     paddingLeft: padding + insets.left,
     paddingRight: padding + insets.right,
   };

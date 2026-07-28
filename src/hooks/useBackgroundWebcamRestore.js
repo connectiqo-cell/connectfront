@@ -64,8 +64,11 @@ export function useBackgroundWebcamRestore({
           toggleWebcam();
         }
 
-        if (Platform.OS !== 'ios' && changeWebcam && frontCameraIdRef?.current) {
-          setTimeout(() => changeWebcam(frontCameraIdRef.current), 400);
+        if (changeWebcam && frontCameraIdRef?.current) {
+          setTimeout(
+            () => changeWebcam(frontCameraIdRef.current),
+            Platform.OS === 'ios' ? 1000 : 400,
+          );
         }
       }, delay);
     };

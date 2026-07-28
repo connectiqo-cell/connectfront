@@ -19,12 +19,14 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-simple-toast';
 import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import Button from '../../components/Button';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
+import { getFloatingTabBarContentInset } from '../../components/CosmicBottomTabBar';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
 import { profileApi } from '../../api/profileApi';
@@ -586,6 +588,8 @@ function FloatingEmptyIcon() {
 export default function UnifiedSettingsScreen({ navigation }) {
   const styles = useThemedStyles(createSettingsStyles);
   const { T, B, C, S, GOLD, TEAL, PURPLE_LINK, PANEL_BG } = useSettingsPalette();
+  const insets = useSafeAreaInsets();
+  const tabBarInset = getFloatingTabBarContentInset(insets);
   const { showAvatarPreview } = useAvatarPreview();
   const { profile, signOut, refreshProfile } = useAuth();
   const { unreadCount } = useNotification();
@@ -801,11 +805,18 @@ export default function UnifiedSettingsScreen({ navigation }) {
   const subsCountLabel = subsLoading ? '…' : String(subscriptions.length);
 
   return (
-    <SafeScreen scrollable={false} padding={T.spacing.lg} hasBottomTabs>
+    // Match Home: do not pad SafeScreen for the absolute tab bar — that leaves a
+    // blank non-scrolling dead zone on iOS. Clear the bar via ScrollView content inset.
+    <SafeScreen scrollable={false} padding={T.spacing.lg} hasBottomTabs={false}>
       <ScrollView
         style={styles.scrollFlex}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: T.spacing.xxxl + tabBarInset },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={TEAL} />
         }
@@ -828,6 +839,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.profileCardGlow}
+              pointerEvents="none"
             />
             <View style={styles.avatarRow}>
               <View style={styles.avatarWrapper}>

@@ -54,6 +54,8 @@ export default function MeetingContainer({
   const leaveSdkTimerRef = useRef(null);
   const joinTimerRef = useRef(null);
   const toggleWebcamRef = useRef(null);
+  const enableWebcamRef = useRef(null);
+  const localWebcamOnRef = useRef(false);
   const onLeaveSessionRef = useRef(onLeaveSession);
   onLeaveSessionRef.current = onLeaveSession;
   const leaveFallbackTimerRef = useRef(null);
@@ -143,17 +145,34 @@ export default function MeetingContainer({
     setJoinStalled(false);
     setJoined(true);
 
+    // iOS: ensure front camera is actually producing after join. Joining with
+    // webcamEnabled can still leave the track off until enableWebcam runs.
+    // Never use toggleWebcam here — if the camera is already on, toggle would
+    // turn it off.
     if (Platform.OS === 'ios' && !iosWebcamBootstrappedRef.current) {
       iosWebcamBootstrappedRef.current = true;
-      iosWebcamTimerRef.current = setTimeout(() => {
-        iosWebcamTimerRef.current = null;
-        if (hasLeftRef.current || isLeavingRef.current) {
-          return;
-        }
-        try {
-          toggleWebcamRef.current?.();
-        } catch (_) {}
-      }, 900);
+      const tryEnableFrontCamera = (attempt = 0) => {
+        iosWebcamTimerRef.current = setTimeout(() => {
+          iosWebcamTimerRef.current = null;
+          if (hasLeftRef.current || isLeavingRef.current) {
+            return;
+          }
+          if (localWebcamOnRef.current) {
+            return;
+          }
+          try {
+            if (typeof enableWebcamRef.current === 'function') {
+              enableWebcamRef.current();
+            } else {
+              toggleWebcamRef.current?.();
+            }
+          } catch (_) {}
+          if (attempt < 2) {
+            tryEnableFrontCamera(attempt + 1);
+          }
+        }, attempt === 0 ? 700 : 1100);
+      };
+      tryEnableFrontCamera();
     }
   }, []);
 
@@ -176,6 +195,8 @@ export default function MeetingContainer({
     localParticipant,
     leave,
     toggleWebcam,
+    enableWebcam,
+    localWebcamOn,
     isMeetingJoined,
   } = useMeeting({
     onMeetingJoined: markJoined,
@@ -186,6 +207,8 @@ export default function MeetingContainer({
   joinRef.current = join;
   leaveRef.current = leave;
   toggleWebcamRef.current = toggleWebcam;
+  enableWebcamRef.current = enableWebcam;
+  localWebcamOnRef.current = !!localWebcamOn;
 
   const localParticipantId = localParticipant?.id;
   const { remoteParticipantCount, participantCount } = getMeetingParticipantSnapshot(

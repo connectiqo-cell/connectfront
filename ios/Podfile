@@ -33,6 +33,8 @@ target 'MyApp' do
   pod 'RNVectorIcons', :path => '../node_modules/react-native-vector-icons'
   # Explicit: ensure Razorpay native checkout is linked (was missing from Podfile.lock)
   pod 'react-native-razorpay', :path => '../node_modules/react-native-razorpay'
+  # Explicit: welcome/looping video + in-app players (was missing from Podfile.lock)
+  pod 'react-native-video', :path => '../node_modules/react-native-video'
 
   post_install do |installer|
     # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202

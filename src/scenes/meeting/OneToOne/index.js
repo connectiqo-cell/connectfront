@@ -95,10 +95,11 @@ function resolveCameras(cams) {
   return { front, back };
 }
 
-// MeetingProvider already joins with defaultCamera: 'front'. On iOS, calling
-// changeWebcam() right after join restarts capture and often shows a black preview.
-function shouldSelectFrontCameraOnInit() {
-  return Platform.OS !== "ios";
+// MeetingProvider joins with defaultCamera: 'front'. On iOS, changeWebcam()
+// immediately after join restarts capture and can briefly go black — use a
+// longer delay instead of skipping front selection entirely.
+function getFrontCameraInitDelayMs() {
+  return Platform.OS === 'ios' ? 1000 : 300;
 }
 
 // Alerts are dropped while a Modal (More menu / BottomSheet) is still visible.
@@ -378,10 +379,10 @@ export default function OneToOneMeetingViewer({
 
           if (localWebcamOnRef.current && !cameraInitializedRef.current) {
             cameraInitializedRef.current = true;
-            if (shouldSelectFrontCameraOnInit() && front?.deviceId) {
+            if (front?.deviceId) {
               setTimeout(() => {
                 if (!cancelled) changeWebcam(front.deviceId);
-              }, 300);
+              }, getFrontCameraInitDelayMs());
             }
           }
         } else if (attempt < 4) {
@@ -413,11 +414,11 @@ export default function OneToOneMeetingViewer({
   useEffect(() => {
     if (!localWebcamOn || cameraInitializedRef.current) return;
 
+    const delayMs = getFrontCameraInitDelayMs();
+
     if (frontCameraIdRef.current) {
       cameraInitializedRef.current = true;
-      if (shouldSelectFrontCameraOnInit()) {
-        setTimeout(() => changeWebcam(frontCameraIdRef.current), 400);
-      }
+      setTimeout(() => changeWebcam(frontCameraIdRef.current), delayMs);
       return;
     }
 
@@ -431,9 +432,7 @@ export default function OneToOneMeetingViewer({
         backCameraIdRef.current = back?.deviceId ?? null;
         if (front?.deviceId) {
           cameraInitializedRef.current = true;
-          if (shouldSelectFrontCameraOnInit()) {
-            setTimeout(() => changeWebcam(front.deviceId), 400);
-          }
+          setTimeout(() => changeWebcam(front.deviceId), delayMs);
         }
       })
       ?.catch(() => {});
@@ -1064,13 +1063,11 @@ export default function OneToOneMeetingViewer({
           onPress={() => {
             if (!localWebcamOn) {
               toggleWebcam();
-              if (shouldSelectFrontCameraOnInit()) {
-                setTimeout(() => {
-                  const id = frontCameraIdRef.current;
-                  if (id) changeWebcam(id);
-                  else changeWebcam();
-                }, 400);
-              }
+              setTimeout(() => {
+                const id = frontCameraIdRef.current;
+                if (id) changeWebcam(id);
+                else changeWebcam();
+              }, getFrontCameraInitDelayMs());
             } else {
               toggleWebcam();
             }

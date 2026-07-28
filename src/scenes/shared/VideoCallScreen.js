@@ -562,7 +562,9 @@ export default function VideoCallScreen({ navigation, route }) {
     () => ({
       meetingId: callParams?.meetingId ?? '',
       micEnabled: false,
-      webcamEnabled: Platform.OS !== 'ios',
+      // Camera permission is requested before MeetingProvider mounts (iOS + Android).
+      // Keep webcam on so the front camera opens as soon as join succeeds.
+      webcamEnabled: true,
       name: profile?.name || 'Guest',
       notification: {
         title: 'Session in Progress',

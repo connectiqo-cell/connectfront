@@ -1,5 +1,5 @@
 /**
- * Generates iOS AppIcon PNGs from src/assets/images/logo.png
+ * Generates iOS AppIcon PNGs from src/assets/images/dark_logo.png
  * Run: node scripts/generate-ios-icons.js
  */
 const fs = require('fs');
@@ -7,7 +7,7 @@ const path = require('path');
 
 const sharp = require('sharp');
 
-const SOURCE = path.join(__dirname, '../src/assets/images/logo.png');
+const SOURCE = path.join(__dirname, '../src/assets/images/dark_logo.png');
 const OUT_DIR = path.join(__dirname, '../ios/MyApp/Images.xcassets/AppIcon.appiconset');
 
 const ICONS = [
@@ -33,7 +33,10 @@ async function main() {
   for (const icon of ICONS) {
     const outPath = path.join(OUT_DIR, icon.name);
     await sharp(SOURCE)
-      .resize(icon.size, icon.size, { fit: 'cover' })
+      .resize(icon.size, icon.size, {
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
+      })
       .png()
       .toFile(outPath);
     console.log('Wrote', icon.name);

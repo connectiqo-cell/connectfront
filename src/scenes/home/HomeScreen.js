@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -34,6 +34,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { iosFlexChild, HOME_TAB_LAYOUT } from '../../utils/platformLayout';
 import { scaleUi } from '../../utils/iosUiScale';
 import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
+import { getBrandLogo } from '../../utils/brandLogo';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -457,26 +458,28 @@ const SLIDE_GAP = T.spacing.md;
 const SLIDE_SIDE = T.spacing.lg;
 const AUTO_PLAY_MS = 5000;
 
-const FALLBACK_SLIDES = [
+const FALLBACK_SLIDE_META = [
   {
     id: 'fallback-1',
     title: 'Expert mentors',
     subtitle: 'Live 1-on-1 video sessions',
-    image: require('../../assets/images/logo.png'),
   },
   {
     id: 'fallback-2',
     title: 'Learn & grow',
     subtitle: 'Verified mentors · Secure payments',
-    image: require('../../assets/images/logo.png'),
   },
   {
     id: 'fallback-3',
     title: 'Connectiqo',
     subtitle: 'Connect · Learn · Grow',
-    image: require('../../assets/images/logo.png'),
   },
 ];
+
+function getFallbackSlides(isDark) {
+  const image = getBrandLogo(isDark);
+  return FALLBACK_SLIDE_META.map(slide => ({ ...slide, image }));
+}
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function useShimmer() {
@@ -658,6 +661,7 @@ function HeroPagination({ count, activeIndex, onSelect }) {
 
 function HeroSlider({ screenWidth, slides }) {
   const styles = useThemedStyles(createThemedStyles);
+  const { isDark } = useTheme();
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef(null);
   const userDragging = useRef(false);
@@ -719,7 +723,7 @@ function HeroSlider({ screenWidth, slides }) {
         <View style={[styles.heroSlideOuter, styles.heroSlideEmpty, { width: slideWidth }]}>
           <View style={styles.heroSlide}>
             <View style={styles.heroSlideFallbackBg}>
-              <Image source={FALLBACK_SLIDES[0].image} style={styles.heroSlideLogo} resizeMode="contain" />
+              <Image source={getBrandLogo(isDark)} style={styles.heroSlideLogo} resizeMode="contain" />
             </View>
             <View style={styles.heroSlideCaption} pointerEvents="none">
               <Text style={styles.heroSlideTitle}>Discover mentors</Text>
@@ -889,7 +893,9 @@ function RotatingBorderIconButton({ onPress, accessibilityLabel, children }) {
 
 export default function HomeScreen() {
   const styles = useThemedStyles(createThemedStyles);
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
+  const brandLogo = getBrandLogo(isDark);
+  const fallbackSlides = useMemo(() => getFallbackSlides(isDark), [isDark]);
   const C = theme.colors;
   const GOLD = C.accent.primary;
   const TEAL = C.accent.secondary;
@@ -905,7 +911,7 @@ export default function HomeScreen() {
 
   const [dataLoaded, setDataLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [heroSlides, setHeroSlides] = useState(FALLBACK_SLIDES);
+  const [heroSlides, setHeroSlides] = useState(() => getFallbackSlides(true));
   const [introVideo, setIntroVideo] = useState(null);
   const [sessionVideos, setSessionVideos] = useState([]);
   const [thunderVisible, setThunderVisible] = useState(false);
@@ -961,7 +967,9 @@ export default function HomeScreen() {
         setSessionVideos(merged.slice(0, 10));
       }
       if (slidesResult.status === 'fulfilled') {
-        const slides = slidesResult.value?.length ? slidesResult.value : FALLBACK_SLIDES;
+        const slides = slidesResult.value?.length
+          ? slidesResult.value
+          : getFallbackSlides(isDark);
         setHeroSlides(slides);
       }
       lastHomeFetchAt.current = Date.now();
@@ -971,7 +979,15 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isDark]);
+
+  // Keep local fallback hero slides in sync with theme when API has no slides.
+  useEffect(() => {
+    setHeroSlides(prev => {
+      const usingFallback = prev?.every?.(s => String(s?.id || '').startsWith('fallback-'));
+      return usingFallback ? fallbackSlides : prev;
+    });
+  }, [fallbackSlides]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1065,7 +1081,7 @@ export default function HomeScreen() {
         <Animated.View style={[styles.appBar, s0.style]}>
           <View style={styles.logoWrap}>
             <Image
-              source={require('../../assets/images/logo.png')}
+              source={brandLogo}
               style={styles.logoMark}
               resizeMode="cover"
             />

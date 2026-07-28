@@ -54,7 +54,6 @@ export const mentorApi = {
           profiles:id (
             id,
             name,
-            email,
             avatar_url
           )
         `)

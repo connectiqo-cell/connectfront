@@ -4,7 +4,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { SOURCE, renderAppIcon } = require('./appIconSource');
+const { SOURCE, IOS_ICON_BACKGROUND, renderAppIcon } = require('./appIconSource');
 
 const OUT_DIR = path.join(__dirname, '../ios/MyApp/Images.xcassets/AppIcon.appiconset');
 
@@ -30,7 +30,10 @@ async function main() {
 
   for (const icon of ICONS) {
     const outPath = path.join(OUT_DIR, icon.name);
-    await (await renderAppIcon(icon.size)).toFile(outPath);
+    // App Store rejects ios-marketing icons with transparency / alpha.
+    await (
+      await renderAppIcon(icon.size, { flattenBackground: IOS_ICON_BACKGROUND })
+    ).toFile(outPath);
     console.log('Wrote', icon.name);
   }
 }

@@ -177,8 +177,15 @@ export default function WelcomeScreen({ navigation }) {
   const trendO = useRef(new Animated.Value(0)).current;
   const trendY = useRef(new Animated.Value(12)).current;
   const playPulse = useRef(new Animated.Value(1)).current;
+  const videoRef = useRef(null);
 
   const videoPaused = !isPlaying || !isFocused || !appActive;
+
+  /** A paused iOS player shows a blank surface until it renders a frame. */
+  const onVideoLoad = useCallback(() => {
+    setPreviewReady(true);
+    videoRef.current?.seek?.(0);
+  }, []);
 
   const goSignup = useCallback(() => {
     navigation.navigate(SCREEN_NAMES.Signup);
@@ -407,6 +414,7 @@ export default function WelcomeScreen({ navigation }) {
                 {isFocused ? (
                   <Video
                     key="welcome-hero"
+                    ref={videoRef}
                     source={WELCOME_VIDEO}
                     style={styles.video}
                     resizeMode="contain"
@@ -421,7 +429,7 @@ export default function WelcomeScreen({ navigation }) {
                     // Android needs audio focus for sound, so disableFocus stays off.
                     muted={!isPlaying}
                     volume={isPlaying ? 1 : 0}
-                    onLoad={() => setPreviewReady(true)}
+                    onLoad={onVideoLoad}
                     onError={() => setPreviewReady(false)}
                   />
                 ) : null}

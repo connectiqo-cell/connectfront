@@ -30,6 +30,8 @@ import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { isAppForegroundForMedia } from '../../utils/videoPlayback';
 
 const WELCOME_VIDEO = require('../../assets/videos/welcome.mp4');
+/** welcome.mp4 is 400x368 — size the frame to it so it neither crops nor letterboxes. */
+const WELCOME_VIDEO_ASPECT = 400 / 368;
 const VIDEO_RADIUS = 26;
 const MAX_FONT = 1.12;
 
@@ -105,8 +107,8 @@ function useWelcomeMetrics() {
     const hPad = width < 375 ? 14 : 18;
     const scale = isCompact ? 0.94 : isXTall ? 1.1 : isTall ? 1.05 : 1;
 
-    const videoW = Math.round(width * (isCompact ? 0.37 : 0.4));
-    const videoH = Math.round(videoW * (isCompact ? 1.22 : 1.3));
+    const videoW = Math.round(width * (isCompact ? 0.42 : 0.44));
+    const videoH = Math.round(videoW / WELCOME_VIDEO_ASPECT);
 
     const creatorGap = 8;
     const visibleCards = 4;
@@ -167,6 +169,8 @@ export default function WelcomeScreen({ navigation }) {
     isAppForegroundForMedia(AppState.currentState),
   );
   const [previewReady, setPreviewReady] = useState(false);
+  const [videoError, setVideoError] = useState(null);
+  const [videoAttempt, setVideoAttempt] = useState(0);
   /** User-controlled in-place playback (no fullscreen). Starts paused. */
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -184,7 +188,26 @@ export default function WelcomeScreen({ navigation }) {
   /** A paused iOS player shows a blank surface until it renders a frame. */
   const onVideoLoad = useCallback(() => {
     setPreviewReady(true);
+    setVideoError(null);
     videoRef.current?.seek?.(0);
+  }, []);
+
+  const onVideoError = useCallback(err => {
+    const detail =
+      err?.error?.errorString ||
+      err?.error?.localizedDescription ||
+      err?.error?.errorCode ||
+      'Playback failed';
+    console.warn('Welcome video error:', JSON.stringify(err));
+    setPreviewReady(false);
+    setVideoError(String(detail));
+  }, []);
+
+  const retryVideo = useCallback(() => {
+    setVideoError(null);
+    setPreviewReady(false);
+    setIsPlaying(false);
+    setVideoAttempt(n => n + 1);
   }, []);
 
   const goSignup = useCallback(() => {
@@ -407,13 +430,13 @@ export default function WelcomeScreen({ navigation }) {
             <View style={styles.videoCol}>
               <Pressable
                 style={styles.videoFrame}
-                onPress={togglePlay}
+                onPress={videoError ? retryVideo : togglePlay}
                 accessibilityRole="button"
                 accessibilityLabel={isPlaying ? 'Pause welcome video' : 'Play welcome video'}
               >
                 {isFocused ? (
                   <Video
-                    key="welcome-hero"
+                    key={`welcome-hero-${videoAttempt}`}
                     ref={videoRef}
                     source={WELCOME_VIDEO}
                     style={styles.video}
@@ -430,12 +453,12 @@ export default function WelcomeScreen({ navigation }) {
                     muted={!isPlaying}
                     volume={isPlaying ? 1 : 0}
                     onLoad={onVideoLoad}
-                    onError={() => setPreviewReady(false)}
+                    onError={onVideoError}
                   />
                 ) : null}
                 {!previewReady && <View style={styles.videoPlaceholder} />}
 
-                {!isPlaying ? (
+                {!isPlaying && !videoError ? (
                   <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.35)']}
                     style={styles.videoScrim}
@@ -443,7 +466,15 @@ export default function WelcomeScreen({ navigation }) {
                   />
                 ) : null}
 
-                {!isPlaying ? (
+                {videoError ? (
+                  <View style={styles.videoErrorBox} pointerEvents="none">
+                    <MaterialIcons name="error-outline" size={22} color={PURPLE_LINK} />
+                    <Text style={styles.videoErrorText} numberOfLines={3}>
+                      {videoError}
+                    </Text>
+                    <Text style={styles.videoErrorHint}>Tap to retry</Text>
+                  </View>
+                ) : !isPlaying ? (
                   <View style={styles.playOverlay} pointerEvents="none">
                     <Animated.View style={{ transform: [{ scale: playPulse }] }}>
                       <View style={styles.playBtn}>
@@ -773,6 +804,24 @@ function createThemedStyles(theme, metrics) {
       justifyContent: 'center',
       alignItems: 'center',
       paddingBottom: 8,
+    },
+    videoErrorBox: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      backgroundColor: softFillStrong(theme),
+    },
+    videoErrorText: {
+      fontSize: fs(9),
+      color: C.text.secondary,
+      textAlign: 'center',
+    },
+    videoErrorHint: {
+      fontSize: fs(9),
+      fontWeight: '700',
+      color: PURPLE_LINK,
     },
     playBtn: {
       width: 56,

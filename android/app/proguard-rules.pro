@@ -25,6 +25,11 @@
 -dontwarn com.jiangdg.uvc.IFrameCallback
 -dontwarn com.jiangdg.uvc.UVCCamera
 
+# react-native-video / Media3 — ExoPlayer resolves renderers and extractors reflectively
+-keep class com.brentvatne.** { *; }
+-keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+
 # Google Play Services / Firebase (R8 stack-map warnings on auth libs)
 -keep class com.google.android.gms.** { *; }
 -dontwarn com.google.android.gms.**

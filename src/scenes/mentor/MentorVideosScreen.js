@@ -26,6 +26,7 @@ import Video from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
+import { CONTENT_VIDEO_AUDIO_PROPS } from '../../utils/videoPlayback';
 import CosmicButton from '../../components/CosmicButton';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -489,6 +490,7 @@ function VideoPlayerModal({ video, onClose }) {
             onError={() => { setLoading(false); setError(true); }}
             repeat={false}
             controls={false}
+            {...CONTENT_VIDEO_AUDIO_PROPS}
           />
         )}
 
@@ -990,6 +992,7 @@ function UploadModal({ visible, onClose, onUploaded }) {
                     onError={() => setPreviewLoading(false)}
                     repeat={false}
                     controls={false}
+                    {...CONTENT_VIDEO_AUDIO_PROPS}
                   />
                   {previewLoading && (
                     <View style={styles.videoPreviewLoader}>

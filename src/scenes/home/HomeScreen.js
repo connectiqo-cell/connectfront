@@ -35,6 +35,7 @@ import { iosFlexChild, HOME_TAB_LAYOUT } from '../../utils/platformLayout';
 import { scaleUi } from '../../utils/iosUiScale';
 import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
 import { getBrandLogo } from '../../utils/brandLogo';
+import { CONTENT_VIDEO_AUDIO_PROPS } from '../../utils/videoPlayback';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -1207,9 +1208,8 @@ export default function HomeScreen() {
               style={styles.playerVideo}
               controls
               resizeMode="contain"
-              playInBackground={false}
-              playWhenInactive={false}
               onError={() => setPlayerError(true)}
+              {...CONTENT_VIDEO_AUDIO_PROPS}
             />
           ) : null}
           {/* Close button overlay */}

@@ -13,6 +13,7 @@ import Video from 'react-native-video';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { normalizeRecordingUrl } from '../../api/api';
+import { CONTENT_VIDEO_AUDIO_PROPS } from '../../utils/videoPlayback';
 
 const TEAL = UNIFIED_THEME.colors.accent.secondary;
 
@@ -70,8 +71,6 @@ export default function RecordingPlayerScreen({ navigation, route }) {
             controls
             resizeMode="cover"
             paused={true}
-            playInBackground={false}
-            playWhenInactive={false}
             onLoadStart={() => {
               setLoading(true);
               setError(false);
@@ -82,6 +81,7 @@ export default function RecordingPlayerScreen({ navigation, route }) {
               setLoading(false);
               setError(true);
             }}
+            {...CONTENT_VIDEO_AUDIO_PROPS}
           />
         </>
       )}

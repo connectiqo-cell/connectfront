@@ -38,6 +38,10 @@ import { purchaseIosProduct, finishIosPurchase, getAppleProductIdForPrice } from
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { consumePendingLearnerVideo } from '../../navigators/pendingVideoNavigation';
+import {
+  CONTENT_VIDEO_AUDIO_PROPS,
+  isAppForegroundForMedia,
+} from '../../utils/videoPlayback';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -629,9 +633,6 @@ function ShortCard({
             paused={effectivePaused}
             repeat
             controls={false}
-            ignoreSilentSwitch="obey"
-            playInBackground={false}
-            playWhenInactive={false}
             onLoad={data => {
               setDuration(data.duration || 0);
               setBuffering(false);
@@ -639,6 +640,7 @@ function ShortCard({
             onProgress={data => setProgress(data.currentTime || 0)}
             onBuffer={({ isBuffering }) => setBuffering(isBuffering)}
             onLoadStart={() => setBuffering(true)}
+            {...CONTENT_VIDEO_AUDIO_PROPS}
           />
         ) : null}
       </View>
@@ -791,7 +793,9 @@ export default function VideosScreen({ navigation, route }) {
 
   const isFocused = useIsFocused();
   const [tabFocused, setTabFocused] = useState(false);
-  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  const [appActive, setAppActive] = useState(
+    isAppForegroundForMedia(AppState.currentState),
+  );
   const allowPlayback = (isFocused || tabFocused) && appActive && lockSheetVideo === null;
 
   useEffect(() => {
@@ -825,7 +829,7 @@ export default function VideosScreen({ navigation, route }) {
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
-      setAppActive(state === 'active');
+      setAppActive(isAppForegroundForMedia(state));
     });
     return () => sub.remove();
   }, []);

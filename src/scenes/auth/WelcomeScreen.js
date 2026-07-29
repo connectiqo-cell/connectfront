@@ -334,7 +334,14 @@ export default function WelcomeScreen({ navigation }) {
   return (
     <CosmicBackground style={styles.background}>
       <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
-        <View style={styles.screen}>
+        <ScrollView
+          style={styles.verticalScroll}
+          contentContainerStyle={styles.verticalContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          contentInsetAdjustmentBehavior="never"
+        >
+          <View style={styles.screen}>
           <View style={styles.header}>
             <View style={styles.brandRow}>
               <Image source={brandLogo} style={styles.headerLogo} resizeMode="contain" />
@@ -580,7 +587,8 @@ export default function WelcomeScreen({ navigation }) {
               </Text>
             </View>
           </View>
-        </View>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     </CosmicBackground>
   );
@@ -629,8 +637,15 @@ function createThemedStyles(theme, metrics) {
   return StyleSheet.create({
     background: { flex: 1 },
     overlay: { flex: 1 },
-    screen: {
+    verticalScroll: {
       flex: 1,
+    },
+    verticalContent: {
+      flexGrow: 1,
+    },
+    screen: {
+      flexGrow: 1,
+      minHeight: metrics.usableH,
       paddingHorizontal: hPad,
       paddingTop: 2,
       paddingBottom: Platform.OS === 'ios' ? 6 : 10,

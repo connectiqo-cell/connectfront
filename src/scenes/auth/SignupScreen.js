@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -17,6 +18,7 @@ import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { createAuthFormStyles } from '../../utils/authFormStyles';
 import { authApi } from '../../api/authApi';
 import { profileApi } from '../../api/profileApi';
+import { getBrandLogo } from '../../utils/brandLogo';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -45,10 +47,11 @@ function validateFields({ name, email, password, confirmPassword }) {
 
 export default function SignupScreen({ navigation }) {
   const styles = useThemedStyles(createThemedStyles);
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const C = theme.colors;
   const PURPLE_LINK = C.buttons.nebulaGradient[0];
   const cursorColor = theme.mode === 'light' ? C.text.primary : '#ffffff';
+  const brandLogo = getBrandLogo(isDark);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -103,6 +106,7 @@ export default function SignupScreen({ navigation }) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
+            <Image source={brandLogo} style={styles.logoIcon} resizeMode="contain" />
             <Text style={styles.title}>Create Account</Text>
           </View>
 
@@ -273,6 +277,11 @@ function createThemedStyles(theme) {
     header: {
       alignItems: 'center',
       marginBottom: T.spacing.xxxl,
+    },
+    logoIcon: {
+      width: 72,
+      height: 72,
+      marginBottom: T.spacing.lg,
     },
     title: {
       ...T.typography.headingLg,

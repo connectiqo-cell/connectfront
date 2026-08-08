@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text } from 'react-native';
-import colors from '../../../styles/colors';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { ROBOTO_FONTS } from '../../../styles/fonts';
+import { useThemedStyles } from '../../../hooks/useTheme';
 import { computeSessionTiming, formatCountdown } from '../../../utils/sessionSlotTimer';
 
 function formatDuration(seconds) {
@@ -15,10 +15,15 @@ function formatDuration(seconds) {
 /**
  * Isolated call timer — owns 1 Hz updates so the parent call screen
  * (video views, menus) does not re-render every second.
+ * Fires `onSlotEnded` once when the booked slot reaches end time.
  */
-export default function CallSessionTimer({ slot }) {
+export default function CallSessionTimer({ slot, onSlotEnded }) {
+  const styles = useThemedStyles(createTimerStyles);
   const hasSlotTimer = Boolean(slot?.date);
   const meetingStartedAtRef = useRef(Date.now());
+  const endedNotifiedRef = useRef(false);
+  const onSlotEndedRef = useRef(onSlotEnded);
+  onSlotEndedRef.current = onSlotEnded;
   const [meetingElapsedSeconds, setMeetingElapsedSeconds] = useState(0);
   const [sessionTiming, setSessionTiming] = useState(() =>
     computeSessionTiming(slot || {}),
@@ -27,15 +32,26 @@ export default function CallSessionTimer({ slot }) {
   useEffect(() => {
     meetingStartedAtRef.current = Date.now();
     setMeetingElapsedSeconds(0);
+    endedNotifiedRef.current = false;
   }, []);
 
   useEffect(() => {
+    const notifyIfEnded = timing => {
+      if (timing?.status !== 'ended' || endedNotifiedRef.current) {
+        return;
+      }
+      endedNotifiedRef.current = true;
+      onSlotEndedRef.current?.();
+    };
+
     const tick = () => {
       setMeetingElapsedSeconds(
         Math.floor((Date.now() - meetingStartedAtRef.current) / 1000),
       );
       if (slot?.date) {
-        setSessionTiming(computeSessionTiming(slot));
+        const next = computeSessionTiming(slot);
+        setSessionTiming(next);
+        notifyIfEnded(next);
       }
     };
 
@@ -58,54 +74,55 @@ export default function CallSessionTimer({ slot }) {
       : sessionTiming.status === 'live'
         ? 'Time left'
         : 'Ended'
-    : null;
+    : 'Elapsed';
 
   return (
-    <View
-      style={{
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        marginRight: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        minWidth: hasSlotTimer ? 108 : undefined,
-      }}
-    >
+    <View style={styles.pill}>
       {hasSlotTimer && sessionTiming.status === 'live' ? (
-        <View
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: colors.statusActive,
-          }}
-        />
+        <View style={styles.liveDot} />
       ) : null}
       <View>
-        {reverseTimerLabel ? (
-          <Text
-            style={{
-              fontSize: 10,
-              fontFamily: ROBOTO_FONTS.RobotoMedium,
-              color: colors.primary[200],
-              marginBottom: 1,
-            }}
-          >
-            {reverseTimerLabel}
-          </Text>
-        ) : null}
-        <Text
-          style={{
-            fontSize: 15,
-            fontFamily: ROBOTO_FONTS.RobotoBold,
-            color: colors.primary[100],
-            fontVariant: ['tabular-nums'],
-          }}
-        >
-          {reverseTimerValue}
-        </Text>
+        <Text style={styles.label}>{reverseTimerLabel}</Text>
+        <Text style={styles.value}>{reverseTimerValue}</Text>
       </View>
     </View>
   );
+}
+
+function createTimerStyles(theme) {
+  const M = theme.colors.meeting;
+  const active = theme.colors.status.active;
+
+  return StyleSheet.create({
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: Platform.OS === 'ios' ? 7 : 6,
+      borderRadius: 20,
+      backgroundColor: M.sheet,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: M.controlBorder,
+      minWidth: 96,
+    },
+    liveDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: active,
+    },
+    label: {
+      fontSize: 10,
+      fontFamily: ROBOTO_FONTS.RobotoMedium,
+      color: M[400],
+      marginBottom: 1,
+    },
+    value: {
+      fontSize: 15,
+      fontFamily: ROBOTO_FONTS.RobotoBold,
+      color: M[100],
+      fontVariant: ['tabular-nums'],
+    },
+  });
 }

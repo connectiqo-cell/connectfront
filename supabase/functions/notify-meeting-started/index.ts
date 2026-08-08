@@ -1,9 +1,7 @@
-// Supabase Edge Function: notify-reschedule
-// Deploy: supabase functions deploy notify-reschedule
+// Supabase Edge Function: notify-meeting-started
+// Deploy: supabase functions deploy notify-meeting-started
 //
-// Events:
-//  reschedule_requested — learner marked session for reschedule → notify MENTOR
-//  reschedule_proposed  — mentor proposed a new slot           → notify LEARNER
+// Notifies the LEARNER when the mentor starts / creates the video session room.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -69,39 +67,55 @@ async function sendFcmNotification({
   if (typeof sa.private_key === 'string') {
     sa.private_key = sa.private_key.replace(/\\n/g, '\n');
   }
+  if (!sa.project_id || !sa.client_email || !sa.private_key) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT JSON missing project_id/client_email/private_key');
+  }
   const accessToken = await getFcmAccessToken(sa);
   const stringData: Record<string, string> = {};
   for (const [k, v] of Object.entries({ title, body, ...data })) {
     stringData[k] = v == null ? '' : String(v);
   }
-  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      message: {
-        token,
-        notification: { title, body },
-        data: stringData,
-        android: {
-          priority: 'HIGH',
-          notification: {
-            channel_id: 'session_heads_up',
-            sound: 'default',
-            default_vibrate_timings: true,
+
+  const res = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          token,
+          notification: { title, body },
+          data: stringData,
+          android: {
+            priority: 'HIGH',
+            notification: {
+              channel_id: 'session_heads_up',
+              sound: 'default',
+              default_vibrate_timings: true,
+              notification_count: 1,
+            },
+          },
+          apns: {
+            headers: { 'apns-priority': '10' },
+            payload: {
+              aps: {
+                alert: { title, body },
+                sound: 'default',
+              },
+            },
           },
         },
-        apns: {
-          headers: { 'apns-priority': '10' },
-          payload: { aps: { alert: { title, body }, sound: 'default' } },
-        },
-      },
-    }),
-  });
+      }),
+    },
+  );
+
   if (!res.ok) {
-    throw new Error(`FCM send failed: ${res.status} ${await res.text()}`);
+    const errText = await res.text();
+    console.error('FCM send failed:', res.status, errText);
+    throw new Error(`FCM send failed: ${res.status} ${errText}`);
   }
 }
 async function getFcmToken(
@@ -124,11 +138,8 @@ serve(async (req) => {
   }
 
   try {
-    const { type, bookingId, requestId } = await req.json();
-
-    if (!type || !bookingId) {
-      throw new Error('type and bookingId are required');
-    }
+    const { bookingId } = await req.json();
+    if (!bookingId) throw new Error('bookingId is required');
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -138,79 +149,50 @@ serve(async (req) => {
     const { data: booking, error } = await supabase
       .from('bookings')
       .select(`
-        id, mentor_id, learner_id,
-        mentor:profiles!mentor_id ( name ),
-        learner:profiles!learner_id ( name )
+        id, mentor_id, learner_id, meeting_id,
+        mentor:profiles!mentor_id ( name )
       `)
       .eq('id', bookingId)
       .maybeSingle();
 
     if (error) throw new Error(error.message);
     if (!booking) throw new Error('Booking not found');
-
-    const mentorName = (booking.mentor as { name?: string } | null)?.name ?? 'Your mentor';
-    const learnerName = (booking.learner as { name?: string } | null)?.name ?? 'Your learner';
-
-    if (type === 'reschedule_requested') {
-      const token = await getFcmToken(supabase, booking.mentor_id);
-      if (!token) {
-        return new Response(
-          JSON.stringify({ success: true, skipped: true, reason: 'no_fcm_token' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-      await sendFcmNotification({
-        token,
-        title: 'Reschedule requested',
-        body: `${learnerName} has requested a reschedule for their session. Please propose a new time.`,
-        data: {
-          bookingId: String(bookingId),
-          type: 'reschedule_requested',
-          senderName: learnerName,
-        },
-      });
+    if (!booking.meeting_id) {
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: 'no_meeting_id' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
 
-    if (type === 'reschedule_proposed') {
-      let proposedTime = '';
-      if (requestId) {
-        const { data: proposal } = await supabase
-          .from('reschedule_requests')
-          .select('proposed_date, proposed_start_time, proposed_end_time')
-          .eq('id', requestId)
-          .maybeSingle();
+    const mentorName =
+      (booking.mentor as { name?: string } | null)?.name || 'Your mentor';
 
-        if (proposal?.proposed_date && proposal?.proposed_start_time) {
-          proposedTime = ` on ${proposal.proposed_date} at ${String(proposal.proposed_start_time).slice(0, 5)}`;
-        }
-      }
-
-      const token = await getFcmToken(supabase, booking.learner_id);
-      if (!token) {
-        return new Response(
-          JSON.stringify({ success: true, skipped: true, reason: 'no_fcm_token' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-      await sendFcmNotification({
-        token,
-        title: 'New time proposed',
-        body: `${mentorName} has proposed a new time${proposedTime} for your session. Tap to review.`,
-        data: {
-          bookingId: String(bookingId),
-          type: 'reschedule_proposed',
-          requestId: requestId ?? '',
-          senderName: mentorName,
-        },
-      });
+    const learnerToken = await getFcmToken(supabase, booking.learner_id);
+    if (!learnerToken) {
+      console.warn('notify-meeting-started: learner has no fcm_token', booking.learner_id);
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: 'no_fcm_token' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
+
+    await sendFcmNotification({
+      token: learnerToken,
+      title: 'Session started',
+      body: `${mentorName} has started the session. Tap to join now.`,
+      data: {
+        bookingId: String(bookingId),
+        type: 'meeting_started',
+        senderName: mentorName,
+      },
+    });
 
     return new Response(
       JSON.stringify({ success: true }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (err) {
-    console.error('notify-reschedule error:', err);
+    console.error('notify-meeting-started error:', err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

@@ -9,6 +9,7 @@ import {
   BackHandler,
   NativeModules,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,6 +35,7 @@ import {
 } from '../../utils/iosCallAudioSession';
 import { scheduleMeetingLeaveNavigation } from '../../utils/meetingLeave';
 import { resolveSessionEndOutcome } from '../../utils/sessionEndOutcome';
+import { getSlotEndMs } from '../../utils/sessionSlotTimer';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import MeetingContainer from '../meeting/MeetingContainer';
 import SessionLobbyView from '../meeting/Components/SessionLobbyView';
@@ -686,12 +688,26 @@ export default function VideoCallScreen({ navigation, route }) {
     return screenShell(<LoadingOverlay visible message="Connecting..." />, meetingBg);
   }
 
-  return screenShell(
-    <MeetingProvider
-      config={meetingProviderConfig}
-      token={callParams.token}
-    >
-      <View style={{ flex: 1, backgroundColor: meetingBg }}>
+  const slot = booking?.availability_slots;
+  const slotEndMs = slot?.date ? getSlotEndMs(slot.date, slot.end_time) : null;
+  // Absolute slot end when available; otherwise 20 min after this screen mounts.
+  const sessionEndsAtMs =
+    slotEndMs != null ? slotEndMs : Date.now() + 20 * 60 * 1000;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: meetingBg }}>
+      <StatusBar
+        animated
+        barStyle={
+          theme.mode === 'dark' ? 'light-content' : 'dark-content'
+        }
+        translucent={Platform.OS === 'android'}
+        backgroundColor="transparent"
+      />
+      <MeetingProvider
+        config={meetingProviderConfig}
+        token={callParams.token}
+      >
         <CallErrorBoundary onLeave={() => handleMeetingLeft({ force: true })} theme={theme}>
           <MeetingConsumer
             onMeetingJoined={handleProviderMeetingJoined}
@@ -709,13 +725,12 @@ export default function VideoCallScreen({ navigation, route }) {
                 otherUser={resolvedOtherUser}
                 autoStartRecording={isMentorHost && mentorRecordingConsented}
                 onLeaveSession={handleMeetingLeft}
-                maxDurationMs={20 * 60 * 1000}
+                sessionEndsAtMs={sessionEndsAtMs}
               />
             )}
           </MeetingConsumer>
         </CallErrorBoundary>
-      </View>
-    </MeetingProvider>,
-    meetingBg,
+      </MeetingProvider>
+    </View>
   );
 }

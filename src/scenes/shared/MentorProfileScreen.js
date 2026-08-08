@@ -434,7 +434,13 @@ function GoldStarsRow({ rating, size = 11 }) {
   );
 }
 
-function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, onRatingPress }) {
+function MetricsStatRow({
+  experienceYears,
+  pricePerSession,
+  rating,
+  totalSessions,
+  onRatingPress,
+}) {
   const { theme: liveTheme } = useTheme();
   const statsBar = useThemedStyles(createMentorStatsBarStyles);
   const LC = liveTheme.colors;
@@ -447,6 +453,12 @@ function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, on
   const accentPurple = LC.accent.primary;
   const accentTeal = LC.accent.secondary;
   const accentGold = isLight ? LC.accent.primary : GOLD;
+  const expValue =
+    experienceYears != null && Number(experienceYears) > 0
+      ? String(Math.floor(Number(experienceYears)))
+      : '—';
+  const priceNum = Number(pricePerSession) || 0;
+  const priceValue = priceNum > 0 ? `₹${priceNum}` : 'Free';
 
   const CountSeg = ({ icon, iconColor, valueText, label }) => (
     <View style={statsBar.segment}>
@@ -480,17 +492,17 @@ function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, on
   return (
     <View style={statsBar.wrap}>
       <CountSeg
-        icon="groups"
+        icon="workspace-premium"
         iconColor={isLight ? accentPurple : '#e879f9'}
-        valueText={formatStatCount(subscriberCount)}
-        label="Subscribers"
+        valueText={expValue}
+        label="Experience"
       />
       <View style={[statsBar.divider, { backgroundColor: dividerColor }]} />
       <CountSeg
-        icon="video-library"
+        icon="payments"
         iconColor={accentPurple}
-        valueText={formatStatCount(videoCount)}
-        label="Videos"
+        valueText={priceValue}
+        label="Price/Session"
       />
       <View style={[statsBar.divider, { backgroundColor: dividerColor }]} />
       <CountSeg
@@ -527,7 +539,7 @@ function MetricsStatRow({ subscriberCount, rating, videoCount, totalSessions, on
         <View style={statsBar.labelRow}>
           <MaterialIcons name="star" size={12} color={accentGold} />
           <Text style={[statsBar.labelMuted, { color: labelColor }]} numberOfLines={1}>
-            Reviews
+            Rating
           </Text>
         </View>
       </Pressable>
@@ -735,7 +747,7 @@ function PortraitVideoCard({
 
   const handlePress = () => {
     if (canPlay) onPlay(video);
-    else Toast.show('Subscribe to unlock this video', Toast.SHORT);
+    else Toast.show('Unlock videos to watch this', Toast.SHORT);
   };
 
   return (
@@ -885,6 +897,62 @@ function createMentorRailCardStyles(theme) {
 });
 }
 
+function formatReviewDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function ProfileReviewPreview({ review }) {
+  const { theme } = useTheme();
+  const styles = useThemedStyles(createMentorProfileStyles);
+  const C = theme.colors;
+  const GOLD = C.accent.primary;
+  const PURPLE_LINK = C.buttons.nebulaGradient[0];
+  const learner = firstRow(review?.profiles);
+  const name = learner?.name || 'Learner';
+  const avatar = learner?.avatar_url || null;
+  const ratingNum = Number(review?.rating) || 0;
+  const comment = (review?.comment && String(review.comment).trim()) || null;
+  const dateLabel = formatReviewDate(review?.created_at);
+
+  return (
+    <View style={styles.reviewPreviewCard}>
+      <View style={styles.reviewPreviewTop}>
+        {avatar ? (
+          <Image source={{ uri: avatar }} style={styles.reviewPreviewAvatar} />
+        ) : (
+          <View style={[styles.reviewPreviewAvatar, styles.reviewPreviewAvatarPh]}>
+            <MaterialIcons name="person" size={18} color={PURPLE_LINK} />
+          </View>
+        )}
+        <View style={styles.reviewPreviewMeta}>
+          <Text style={styles.reviewPreviewName} numberOfLines={1}>{name}</Text>
+          {dateLabel ? (
+            <Text style={styles.reviewPreviewDate} numberOfLines={1}>{dateLabel}</Text>
+          ) : null}
+        </View>
+        <View style={styles.reviewPreviewRating}>
+          <MaterialIcons name="star" size={13} color={GOLD} />
+          <Text style={styles.reviewPreviewRatingTxt}>
+            {ratingNum > 0 ? ratingNum.toFixed(1) : '—'}
+          </Text>
+        </View>
+      </View>
+      {comment ? (
+        <Text style={styles.reviewPreviewComment} numberOfLines={2}>{comment}</Text>
+      ) : (
+        <Text style={styles.reviewPreviewNoComment}>No written feedback</Text>
+      )}
+    </View>
+  );
+}
+
 function PastSessionRow({ session, onWatchRecap }) {
   const { theme } = useTheme();
   const past = useThemedStyles(createMentorPastStyles);
@@ -1014,12 +1082,12 @@ export default function MentorProfileScreen({ navigation, route }) {
   const [mentor, setMentor] = useState(null);
   const [videos, setVideos] = useState([]);
   const [pastSessions, setPastSessions] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [unlocking, setUnlocking] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [subscriberCount, setSubscriberCount] = useState(0);
   const [showSubSheet, setShowSubSheet] = useState(false);
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -1086,12 +1154,12 @@ export default function MentorProfileScreen({ navigation, route }) {
         }
       };
 
-      const [mpRow, profRow, vids, bookingRows, subCount] = await Promise.all([
+      const [mpRow, profRow, vids, bookingRows, reviewRows] = await Promise.all([
         fetchMentorRow(),
         profileApi.getProfile(mentorId).catch(() => null),
         videoApi.getMentorVideos(mentorId).catch(() => []),
         bookingApi.getCompletedSessionsForMentorProfile(mentorId).catch(() => []),
-        videoApi.getMentorActiveSubscriberCount(mentorId).catch(() => 0),
+        profileApi.getReviewsForMentor(mentorId, { limit: 3 }).catch(() => []),
       ]);
 
       const merged = {
@@ -1101,7 +1169,7 @@ export default function MentorProfileScreen({ navigation, route }) {
       setMentor(merged);
       setVideos(Array.isArray(vids) ? vids : []);
       setPastSessions((Array.isArray(bookingRows) ? bookingRows : []).map(mapBookingToPastSession));
-      setSubscriberCount(Number.isFinite(Number(subCount)) ? Math.max(0, Math.floor(Number(subCount))) : 0);
+      setReviews(Array.isArray(reviewRows) ? reviewRows : []);
 
       let unlocked = false;
       if (isSelf) {
@@ -1118,7 +1186,7 @@ export default function MentorProfileScreen({ navigation, route }) {
       setMentor(null);
       setVideos([]);
       setPastSessions([]);
-      setSubscriberCount(0);
+      setReviews([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -1211,7 +1279,7 @@ export default function MentorProfileScreen({ navigation, route }) {
           amount: order.amount,
           currency: order.currency || 'INR',
           name: 'Connectiqo',
-          description: `Subscribe to ${displayName}'s video library`,
+          description: `Unlock ${displayName}'s video library`,
           order_id: order.orderId,
           prefill: { email: user.email || '' },
           theme: { color: '#5eead4' },
@@ -1228,7 +1296,7 @@ export default function MentorProfileScreen({ navigation, route }) {
       }
 
       setIsUnlocked(true);
-      Toast.show('Subscribed! You can watch all videos.', Toast.SHORT);
+      Toast.show('Videos unlocked! You can watch all videos.', Toast.SHORT);
     } catch (e) {
       if (e?.code !== 'PAYMENT_CANCELLED') {
         Toast.show(e?.message || 'Payment failed', Toast.LONG);
@@ -1325,7 +1393,6 @@ export default function MentorProfileScreen({ navigation, route }) {
   const bio = mentor?.bio || 'No bio provided yet.';
   const rating = mentor?.rating ?? 0;
   const totalSessions = mentor?.total_sessions ?? 0;
-  const videoStat = videos.length;
   const unlockPrice = mentor?.unlock_price || 299;
   const showSubscribeCta = hasLockedVideos && !libraryUnlocked && !isOwnProfile;
   const heroCoverUri = (coverFromParams || mentor?.cover_image_url || '').trim() || null;
@@ -1560,9 +1627,9 @@ export default function MentorProfileScreen({ navigation, route }) {
             <View style={styles.singleScreenBody}>
               <ProfileFadeIn delayIndex={2}>
                 <MetricsStatRow
-                  subscriberCount={subscriberCount}
+                  experienceYears={mentor?.experience_years}
+                  pricePerSession={mentor?.price_per_hour}
                   rating={Number(rating) || 0}
-                  videoCount={videoStat}
                   totalSessions={totalSessions}
                   onRatingPress={openReviews}
                 />
@@ -1571,10 +1638,10 @@ export default function MentorProfileScreen({ navigation, route }) {
               <ProfileFadeIn delayIndex={3} style={styles.dualCtas}>
                 {showSubscribeCta ? (
                   <CosmicButton
-                    label={`Subscribe · ₹${unlockPrice}`}
+                    label={`Unlock Videos · ₹${unlockPrice}`}
                     variant="nebula"
                     size="compact"
-                    icon="star"
+                    icon="lock-open"
                     onPress={() => setShowSubSheet(true)}
                     loading={unlocking}
                     pill
@@ -1583,24 +1650,24 @@ export default function MentorProfileScreen({ navigation, route }) {
                   />
                 ) : libraryUnlocked && hasLockedVideos && !isOwnProfile ? (
                   <CosmicButton
-                    label="Subscribed"
+                    label="Unlocked"
                     variant="success"
                     size="compact"
                     icon="check-circle"
-                    onPress={() => Toast.show('You are subscribed.', Toast.SHORT)}
+                    onPress={() => Toast.show('Videos already unlocked.', Toast.SHORT)}
                     pill
                     numberOfLines={1}
                     style={styles.ctaHalf}
                   />
                 ) : (
                   <CosmicButton
-                    label={isOwnProfile ? 'Your channel' : 'Subscribe'}
+                    label={isOwnProfile ? 'Your channel' : 'Unlock Videos'}
                     variant="secondary"
                     size="compact"
-                    icon="star"
+                    icon="lock-open"
                     onPress={() =>
                       Toast.show(
-                        isOwnProfile ? 'This is your channel.' : 'Nothing to subscribe here.',
+                        isOwnProfile ? 'This is your channel.' : 'Nothing to unlock here.',
                         Toast.SHORT,
                       )
                     }
@@ -1696,9 +1763,27 @@ export default function MentorProfileScreen({ navigation, route }) {
               {libraryUnlocked && hasLockedVideos && !isOwnProfile && (
                 <View style={styles.subNote}>
                   <MaterialIcons name="check-circle" size={14} color={C.accent.success} />
-                  <Text style={styles.subNoteTxt}>Subscribed — watch all locked videos.</Text>
+                  <Text style={styles.subNoteTxt}>Unlocked — watch all locked videos.</Text>
                 </View>
               )}
+
+              <View style={styles.reviewsSection}>
+                <SectionHeaderRow title="Reviews" onSeeAll={openReviews} delayIndex={6} />
+                {reviews.length > 0 ? (
+                  <View style={styles.reviewsList}>
+                    {reviews.slice(0, 3).map(r => (
+                      <Pressable key={r.id} onPress={openReviews}>
+                        <ProfileReviewPreview review={r} />
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.reviewsEmpty}>
+                    <MaterialIcons name="rate-review" size={22} color={C.text.muted} />
+                    <Text style={styles.reviewsEmptyTxt}>No reviews yet.</Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -1740,8 +1825,8 @@ export default function MentorProfileScreen({ navigation, route }) {
 
           <View style={sheet.divider} />
 
-          <Text style={sheet.title}>Subscribe to video library</Text>
-          <Text style={sheet.sub}>Monthly subscription · Access all of {name}'s videos</Text>
+          <Text style={sheet.title}>Unlock video library</Text>
+          <Text style={sheet.sub}>Monthly access · Unlock all of {name}'s videos</Text>
 
           <View style={sheet.perks}>
             {['All current videos', 'All future uploads', 'Cancel anytime'].map(p => (
@@ -1753,7 +1838,7 @@ export default function MentorProfileScreen({ navigation, route }) {
           </View>
 
           <CosmicButton
-            label={`Subscribe · ₹${unlockPrice}/mo`}
+            label={`Unlock Videos · ₹${unlockPrice}/mo`}
             variant="nebula"
             onPress={() => {
               setShowSubSheet(false);
@@ -2079,6 +2164,87 @@ function createMentorProfileStyles(theme) {
   pastSessionList: {
     paddingHorizontal: 0,
     gap: T.spacing.xs,
+  },
+  reviewsSection: {
+    marginTop: T.spacing.sm,
+    marginBottom: T.spacing.md,
+  },
+  reviewsList: {
+    paddingHorizontal: T.spacing.lg,
+    gap: T.spacing.sm,
+  },
+  reviewPreviewCard: {
+    backgroundColor: softFill(theme),
+    borderWidth: 1,
+    borderColor: C.border.light,
+    borderRadius: 14,
+    padding: T.spacing.md,
+    gap: 8,
+  },
+  reviewPreviewTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  reviewPreviewAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  reviewPreviewAvatarPh: {
+    backgroundColor: C.surface.accentViolet,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewPreviewMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  reviewPreviewName: {
+    color: C.text.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  reviewPreviewDate: {
+    color: C.text.muted,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  reviewPreviewRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: softFill(theme),
+    borderWidth: 1,
+    borderColor: C.border.light,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  reviewPreviewRatingTxt: {
+    color: C.text.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  reviewPreviewComment: {
+    color: C.text.secondary,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  reviewPreviewNoComment: {
+    color: C.text.muted,
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  reviewsEmpty: {
+    marginHorizontal: T.spacing.lg,
+    alignItems: 'center',
+    paddingVertical: T.spacing.md,
+    gap: T.spacing.xs,
+  },
+  reviewsEmptyTxt: {
+    color: C.text.muted,
+    fontSize: 12,
   },
   emptyVideos: {
     alignItems: 'center',

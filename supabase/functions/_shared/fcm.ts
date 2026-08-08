@@ -74,7 +74,15 @@ export async function sendFcmNotification({
   if (!saRaw) { console.warn('FIREBASE_SERVICE_ACCOUNT not set'); return; }
 
   const sa: ServiceAccount = JSON.parse(saRaw);
+  if (typeof sa.private_key === 'string') {
+    sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+  }
   const accessToken = await getAccessToken(sa);
+
+  const payloadData: Record<string, string> = {};
+  for (const [k, v] of Object.entries({ title, body, ...data })) {
+    payloadData[k] = v == null ? '' : String(v);
+  }
 
   const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`,
@@ -88,13 +96,23 @@ export async function sendFcmNotification({
         message: {
           token,
           notification: { title, body },
-          data,
+          data: payloadData,
           android: {
             priority: 'HIGH',
-            notification: { channel_id: 'session_reminders', sound: 'default' },
+            notification: {
+              channel_id: 'session_heads_up',
+              sound: 'default',
+              default_vibrate_timings: true,
+            },
           },
           apns: {
-            payload: { aps: { sound: 'default' } },
+            headers: { 'apns-priority': '10' },
+            payload: {
+              aps: {
+                alert: { title, body },
+                sound: 'default',
+              },
+            },
           },
         },
       }),

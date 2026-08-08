@@ -7,13 +7,19 @@ const slotIdentityKey = (date, startTime, endTime) =>
   `${date}|${normalizeTime(startTime)}|${normalizeTime(endTime)}`;
 
 export const availabilityApi = {
-  getAvailabilityForMentor: async (mentorId) => {
+  getAvailabilityForMentor: async (mentorId, { bookableOnly = false } = {}) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('availability_slots')
         .select('id, date, start_time, end_time, is_booked')
         .eq('mentor_id', mentorId)
         .order('date', { ascending: true });
+
+      if (bookableOnly) {
+        query = query.eq('is_booked', false);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data || [];

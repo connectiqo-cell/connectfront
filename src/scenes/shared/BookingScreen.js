@@ -29,8 +29,6 @@ import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
 import {
   useScheduleStyles,
   ScheduleSectionBlock,
-  SchedulePreviewBar,
-  SchedulePreviewChip,
   ScheduleDayCell,
   ScheduleHeroBanner,
   ScheduleCalendarLegend,
@@ -117,14 +115,36 @@ const isDateAllowed = dateStr => {
   return date >= today && date <= maxDate;
 };
 
-const isTimeInPast = (dateStr, timeStr) => {
+/** True when the slot start time has already passed (due / expired). */
+const isSlotDue = (dateStr, startTime) => {
+  if (!dateStr || !startTime) return true;
   const now = new Date();
-  if (dateStr !== formatDate(now)) return false;
-  const [hours, mins] = timeStr.substring(0, 5).split(':').map(Number);
-  const slotTime = new Date();
-  slotTime.setHours(hours, mins, 0, 0);
-  return slotTime.getTime() <= now.getTime();
+  const todayStr = formatDate(now);
+  if (dateStr < todayStr) return true;
+  if (dateStr > todayStr) return false;
+  const [hours, mins] = String(startTime).substring(0, 5).split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(mins)) return true;
+  const slotStart = new Date(now);
+  slotStart.setHours(hours, mins, 0, 0);
+  return slotStart.getTime() <= now.getTime();
 };
+
+const isSlotBooked = slot => {
+  const flag = slot?.is_booked;
+  return flag === true || flag === 1 || flag === 'true' || flag === 't';
+};
+
+/** Learner-selectable: not booked and not past/due. */
+const isSlotAvailable = (slot, dateStr = slot?.date) =>
+  Boolean(slot) && !isSlotBooked(slot) && !isSlotDue(dateStr, slot.start_time);
+
+/** @deprecated use isSlotDue — kept as alias for existing call sites during cleanup */
+const isTimeInPast = (dateStr, timeStr) => isSlotDue(dateStr, timeStr);
+
+const filterAvailableSlots = (slots, dateStr) =>
+  (Array.isArray(slots) ? slots : [])
+    .filter(s => isSlotAvailable(s, dateStr))
+    .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)));
 
 const formatSlotTime = time24 => {
   const [h, m] = time24.substring(0, 5).split(':').map(Number);
@@ -316,7 +336,6 @@ function BookingSkeleton() {
   return (
     <View style={sk.wrap}>
       <SkeletonBone style={sk.hero} />
-      <SkeletonBone style={sk.preview} />
       <SkeletonBone style={sk.progress} />
       <SkeletonBone style={sk.sectionTitle} />
       <SkeletonBone style={sk.calendar} />
@@ -334,8 +353,7 @@ function createSkeletonStyles(theme) {
       borderRadius: T.borderRadius.md,
     },
     wrap: { gap: T.spacing.md },
-    hero: { height: 96, borderRadius: 16 },
-    preview: { height: 44, borderRadius: 14 },
+    hero: { height: 88, borderRadius: 16 },
     progress: { height: 52, borderRadius: 14 },
     sectionTitle: { height: 36, width: '55%', borderRadius: 8 },
     calendar: { height: 280, borderRadius: 16 },
@@ -439,58 +457,6 @@ function getBookingCtaLabel({
   return count > 1
     ? `Book Continuous Session · ₹${fees.totalAmount}`
     : `Book My Session · ₹${fees.totalAmount}`;
-}
-
-function SessionPreviewBar({ selectedDate, selectedTimes, mentorName, readyToPay }) {
-  const { theme } = useTheme();
-  const T = theme;
-  const B = theme.colors.buttons;
-  if (!selectedDate && !selectedTimes?.length) return null;
-
-  const count = selectedTimes?.length || 0;
-  const totalMins = (selectedTimes || []).reduce(
-    (sum, slot) => sum + slotDurationMinutes(slot.start_time, slot.end_time),
-    0,
-  );
-  const spanLabel =
-    count === 1
-      ? formatSlotRange(selectedTimes[0].start_time, selectedTimes[0].end_time)
-      : count > 1
-        ? `${formatSlotRange(
-            selectedTimes[0].start_time,
-            selectedTimes[count - 1].end_time,
-          )} · ${totalMins} min`
-        : null;
-
-  return (
-    <SchedulePreviewBar>
-      <SchedulePreviewChip
-        icon={<MaterialIcons name="person" size={13} color={T.colors.accent.secondary} />}
-        label={mentorName}
-      />
-      {selectedDate ? (
-        <SchedulePreviewChip
-          icon={<MaterialIcons name="event" size={13} color={T.colors.accent.primary} />}
-          label={formatDisplayDate(selectedDate)}
-        />
-      ) : null}
-      {spanLabel ? (
-        <SchedulePreviewChip
-          icon={<MaterialIcons name="schedule" size={13} color={T.colors.accent.success} />}
-          label={spanLabel}
-          textStyle={{ maxWidth: 200 }}
-        />
-      ) : null}
-      {readyToPay ? (
-        <SchedulePreviewChip
-          variant="ready"
-          icon={<MaterialIcons name="check-circle" size={13} color={B.successText} />}
-          label="Ready"
-          textStyle={{ color: B.successText }}
-        />
-      ) : null}
-    </SchedulePreviewBar>
-  );
 }
 
 function GoalPromptChips({ onSelect, selected }) {
@@ -839,7 +805,7 @@ export default function BookingScreen({ navigation, route }) {
       try {
         setLoading(true);
         const [availability, mentorProfile] = await Promise.all([
-          availabilityApi.getAvailabilityForMentor(mentorId),
+          availabilityApi.getAvailabilityForMentor(mentorId, { bookableOnly: true }),
           mentorApi.getMentorWithProfile(mentorId),
         ]);
 
@@ -867,12 +833,15 @@ export default function BookingScreen({ navigation, route }) {
 
         const byDate = {};
         availability.forEach(slot => {
+          // Booking UI only keeps open slots — drop booked / already-due ones.
+          if (!isSlotAvailable(slot, slot.date)) return;
           if (!byDate[slot.date]) byDate[slot.date] = [];
           byDate[slot.date].push({
             id: slot.id,
+            date: slot.date,
             start_time: slot.start_time,
             end_time: slot.end_time,
-            is_booked: slot.is_booked,
+            is_booked: false,
           });
         });
         setMentorAvailability(byDate);
@@ -895,36 +864,39 @@ export default function BookingScreen({ navigation, route }) {
   useEffect(() => {
     layoutSpring();
     const slots = mentorAvailability[selectedDate] || [];
-    const available = slots
-      .filter(s => !s.is_booked && !isTimeInPast(selectedDate, s.start_time))
-      .sort((a, b) => a.start_time.localeCompare(b.start_time));
-    setTimeSlotsForDate(available);
+    setTimeSlotsForDate(filterAvailableSlots(slots, selectedDate));
     setSelectedTimes([]);
   }, [selectedDate, mentorAvailability]);
 
-  // Drop selected slots that have already started while the user is on screen.
+  // Hide slots that become due while the user stays on this screen.
   useEffect(() => {
-    if (!selectedDate || !selectedTimes.length) return undefined;
+    if (!selectedDate) return undefined;
     const prune = () => {
+      setTimeSlotsForDate(prev => {
+        const next = filterAvailableSlots(prev, selectedDate);
+        return next.length === prev.length ? prev : next;
+      });
       setSelectedTimes(prev => {
-        const next = prev.filter(s => !isTimeInPast(selectedDate, s.start_time));
+        if (!prev.length) return prev;
+        const next = prev.filter(s => isSlotAvailable(s, selectedDate));
         if (next.length < prev.length) {
-          Toast.show('A selected slot has already started and was removed');
+          Toast.show('A selected slot is no longer available and was removed');
         }
         return next;
       });
     };
-    const id = setInterval(prune, 60_000);
+    const id = setInterval(prune, 30_000);
     return () => clearInterval(id);
-  }, [selectedDate, selectedTimes.length]);
+  }, [selectedDate]);
 
   const handleSelectDate = dateStr => {
     if (!isDateAllowed(dateStr)) {
       Toast.show('Bookings are only available within the next 30 days');
       return;
     }
-    if (!(mentorAvailability[dateStr]?.length)) {
-      Toast.show('No availability on this date');
+    const openSlots = filterAvailableSlots(mentorAvailability[dateStr] || [], dateStr);
+    if (!openSlots.length) {
+      Toast.show('No available slots on this date');
       return;
     }
     layoutSpring();
@@ -932,6 +904,10 @@ export default function BookingScreen({ navigation, route }) {
   };
 
   const handleSelectTime = slot => {
+    if (!isSlotAvailable(slot, selectedDate)) {
+      Toast.show('That slot is no longer available');
+      return;
+    }
     layoutSpring();
     setSelectedTimes(prev => {
       const sameSlot = s =>
@@ -1033,11 +1009,11 @@ export default function BookingScreen({ navigation, route }) {
       Toast.show('Please select a date and at least one time slot');
       return;
     }
-    // Final client-side prune for slots that already started
-    const stillValid = selectedTimes.filter(s => !isTimeInPast(selectedDate, s.start_time));
+    // Final client-side prune for booked / due slots
+    const stillValid = selectedTimes.filter(s => isSlotAvailable(s, selectedDate));
     if (stillValid.length !== selectedTimes.length) {
       setSelectedTimes(stillValid);
-      Toast.show('A selected slot has already started and was removed');
+      Toast.show('A selected slot is no longer available and was removed');
       return;
     }
     if (!areSlotsContiguous(stillValid)) {
@@ -1269,62 +1245,36 @@ export default function BookingScreen({ navigation, route }) {
         </View>
         </StackScreenHeader>
 
-        <Animated.View style={{ opacity: headerFade, transform: [{ translateY: headerSlide }] }}>
-          <ScheduleHeroBanner
-            initial={mentorInitial}
-            name={displayName}
-            label="Your mentor"
-            avatarUrl={avatarUrl}
-          >
-            <View style={scheduleStyles.metaRow}>
-              <View style={scheduleStyles.metaItem}>
-                <MaterialIcons name="videocam" size={12} color={T.colors.accent.secondary} />
-                <Text style={scheduleStyles.metaPillText}>
-                  {selectedTimes.length > 1
-                    ? `Live · ${totalSessionMins} min continuous session`
+        <Animated.View
+          style={[
+            styles.bookingHeaderStack,
+            { opacity: headerFade, transform: [{ translateY: headerSlide }] },
+          ]}
+        >
+          <View style={styles.mentorHeaderCard}>
+            <ScheduleHeroBanner
+              initial={mentorInitial}
+              name={displayName}
+              label="Your mentor"
+              avatarUrl={avatarUrl}
+              style={styles.mentorHeroInCard}
+            >
+              <Text style={styles.mentorHeaderMeta} numberOfLines={2}>
+                {[
+                  selectedTimes.length > 1
+                    ? `Live · ${totalSessionMins} min continuous`
                     : sessionDurationMin
                       ? `Live · ${sessionDurationMin} min`
-                      : 'Live · 1-on-1'}
-                </Text>
-              </View>
-              {specialization ? (
-                <>
-                  <Text style={scheduleStyles.metaSep}>·</Text>
-                  <View style={scheduleStyles.metaItem}>
-                    <MaterialIcons name="work-outline" size={12} color={PURPLE_LINK} />
-                    <Text style={scheduleStyles.metaPillText} numberOfLines={1}>
-                      {specialization}
-                    </Text>
-                  </View>
-                </>
-              ) : null}
-              {mentorRating > 0 ? (
-                <>
-                  <Text style={scheduleStyles.metaSep}>·</Text>
-                  <View style={scheduleStyles.metaItem}>
-                    <MaterialIcons name="star" size={12} color={GOLD} />
-                    <Text style={scheduleStyles.metaPillText}>{Number(mentorRating).toFixed(1)}</Text>
-                  </View>
-                </>
-              ) : null}
-              {pricePerHour > 0 ? (
-                <>
-                  <Text style={scheduleStyles.metaSep}>·</Text>
-                  <View style={scheduleStyles.metaItem}>
-                    <MaterialIcons name="payments" size={12} color={T.colors.accent.primary} />
-                    <Text style={scheduleStyles.metaPillText}>₹{pricePerHour}/session</Text>
-                  </View>
-                </>
-              ) : null}
-            </View>
-          </ScheduleHeroBanner>
-
-          <SessionPreviewBar
-            selectedDate={selectedDate}
-            selectedTimes={selectedTimes}
-            mentorName={displayName}
-            readyToPay={readyToPay}
-          />
+                      : 'Live · 1-on-1',
+                  specialization || null,
+                  mentorRating > 0 ? `★ ${Number(mentorRating).toFixed(1)}` : null,
+                  pricePerHour > 0 ? `₹${pricePerHour}/session` : null,
+                ]
+                  .filter(Boolean)
+                  .join('  ·  ')}
+              </Text>
+            </ScheduleHeroBanner>
+          </View>
 
           <BookingProgressSteps
             selectedDate={selectedDate}
@@ -1395,11 +1345,9 @@ export default function BookingScreen({ navigation, route }) {
                     }
                     const dayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
                     const dateStr = formatDate(dayDate);
+                    const daySlots = mentorAvailability[dateStr] || [];
                     const isSelected = selectedDate === dateStr;
-                    const hasSlots = (mentorAvailability[dateStr] || []).length > 0;
-                    const availableCount = (mentorAvailability[dateStr] || []).filter(
-                      s => !s.is_booked && !isTimeInPast(dateStr, s.start_time),
-                    ).length;
+                    const availableCount = filterAvailableSlots(daySlots, dateStr).length;
                     const canBook = isDateAllowed(dateStr) && availableCount > 0;
 
                     return (
@@ -1409,8 +1357,8 @@ export default function BookingScreen({ navigation, route }) {
                         isSelected={isSelected}
                         isToday={dateStr === todayStr}
                         enabled={canBook}
-                        muteLabel={!isDateAllowed(dateStr) || !hasSlots}
-                        hasSlots={hasSlots && availableCount > 0}
+                        muteLabel={!isDateAllowed(dateStr) || availableCount === 0}
+                        hasSlots={availableCount > 0}
                         slotCount={availableCount}
                         slotTone="open"
                         onPress={() => canBook && handleSelectDate(dateStr)}
@@ -1807,6 +1755,31 @@ function createBookingStyles(theme) {
     justifyContent: 'center',
   },
 
+  bookingHeaderStack: {
+    gap: T.spacing.md,
+    marginBottom: T.spacing.sm,
+  },
+  mentorHeaderCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    backgroundColor: softFill(theme),
+    paddingHorizontal: T.spacing.md,
+    paddingVertical: T.spacing.sm,
+  },
+  mentorHeroInCard: {
+    marginBottom: 0,
+    paddingVertical: 0,
+  },
+  mentorHeaderMeta: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+    color: C.text.secondary,
+    letterSpacing: 0.1,
+  },
+
   pressHit: {
     position: 'relative',
     overflow: 'hidden',
@@ -1823,7 +1796,7 @@ function createBookingStyles(theme) {
   progressWrap: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: T.spacing.lg,
+    marginBottom: 0,
     paddingHorizontal: 4,
     paddingVertical: T.spacing.sm,
     borderRadius: 14,

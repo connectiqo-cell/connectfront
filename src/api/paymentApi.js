@@ -15,6 +15,25 @@ async function invokeFunction(name, body) {
   return data;
 }
 
+/** Fire-and-forget: push the mentor as soon as a session is booked. */
+function notifyMentorNewBooking(bookingId) {
+  if (!bookingId) return;
+  supabase.functions
+    .invoke('notify-new-booking', { body: { bookingId } })
+    .then(({ data, error }) => {
+      if (error) {
+        console.warn('📣 notify-new-booking failed:', error.message);
+        return;
+      }
+      if (data?.skipped) {
+        console.warn('📣 notify-new-booking skipped:', data.reason);
+        return;
+      }
+      console.log('📣 notify-new-booking ok');
+    })
+    .catch((err) => console.warn('📣 notify-new-booking error:', err));
+}
+
 export const paymentApi = {
   /**
    * Step 1: Create a Razorpay order via Supabase Edge Function.
@@ -74,6 +93,13 @@ export const paymentApi = {
         slotIds: ids,
         message,
         recordingRequested,
+      }).then((result) => {
+        const bookingId =
+          result?.bookingId ||
+          (Array.isArray(result?.bookingIds) ? result.bookingIds[0] : null);
+        // Immediately ping mentor — do not wait for verify-edge FCM alone.
+        notifyMentorNewBooking(bookingId);
+        return result;
       });
     } catch (error) {
       console.error('💳 verifyAndBook error:', error?.message);

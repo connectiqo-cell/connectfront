@@ -25,10 +25,45 @@ async function getFcmAccessToken(sa: { project_id: string; client_email: string;
 }
 async function sendFcmNotification({ token, title, body, data = {} }: { token: string; title: string; body: string; data?: Record<string, string> }) {
   const saRaw = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
-  if (!saRaw) return;
+  if (!saRaw) {
+    console.warn('FIREBASE_SERVICE_ACCOUNT not set');
+    return;
+  }
   const sa = JSON.parse(saRaw);
+  if (typeof sa.private_key === 'string') {
+    sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+  }
   const accessToken = await getFcmAccessToken(sa);
-  await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, { method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: { token, notification: { title, body }, data, android: { priority: 'HIGH', notification: { channel_id: 'session_reminders', sound: 'default' } } } }) });
+  const stringData: Record<string, string> = {};
+  for (const [k, v] of Object.entries({ title, body, ...data })) {
+    stringData[k] = v == null ? '' : String(v);
+  }
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: {
+        token,
+        notification: { title, body },
+        data: stringData,
+        android: {
+          priority: 'HIGH',
+          notification: {
+            channel_id: 'session_heads_up',
+            sound: 'default',
+            default_vibrate_timings: true,
+          },
+        },
+        apns: {
+          headers: { 'apns-priority': '10' },
+          payload: { aps: { alert: { title, body }, sound: 'default' } },
+        },
+      },
+    }),
+  });
+  if (!res.ok) {
+    console.error('FCM send failed:', res.status, await res.text());
+  }
 }
 async function getFcmToken(supabase: ReturnType<typeof createClient>, userId: string): Promise<string | null> {
   const { data } = await supabase.from('profiles').select('fcm_token').eq('id', userId).single();
@@ -43,19 +78,19 @@ const corsHeaders = {
 
 const STATUS_MESSAGES: Record<string, { title: string; body: (mentorName: string) => string }> = {
   confirmed: {
-    title: '✅ Session confirmed',
+    title: 'Session confirmed',
     body:  (name) => `${name} has confirmed your session. Get ready!`,
   },
   rejected: {
-    title: '❌ Session rejected',
+    title: 'Session declined',
     body:  (name) => `${name} could not accept your session. Please book another slot.`,
   },
   completed: {
-    title: '🎓 Session completed',
+    title: 'Session completed',
     body:  (name) => `Your session with ${name} is marked complete. Leave a review!`,
   },
   cancelled: {
-    title: '🚫 Session cancelled',
+    title: 'Session cancelled',
     body:  (name) => `Your session with ${name} has been cancelled.`,
   },
 };
@@ -105,7 +140,11 @@ serve(async (req) => {
         token: learnerToken,
         title: msg.title,
         body:  msg.body(mentorName),
-        data:  { bookingId, type: `booking_${status}` },
+        data:  {
+          bookingId,
+          type: `booking_${status}`,
+          senderName: mentorName,
+        },
       });
     }
 

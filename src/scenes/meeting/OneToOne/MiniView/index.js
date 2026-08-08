@@ -8,6 +8,7 @@ export default function MiniViewContainer({
   openStatsBottomSheet,
   onSwapPress,
   height,
+  bottomInset = 0,
 }) {
   if (!participantId) {
     return <ParticipantVideoPlaceholder style={{ height: height || 160 }} />;
@@ -19,6 +20,7 @@ export default function MiniViewContainer({
       openStatsBottomSheet={openStatsBottomSheet}
       onSwapPress={onSwapPress}
       height={height}
+      bottomInset={bottomInset}
     />
   );
 }
@@ -28,6 +30,7 @@ function MiniViewContainerInner({
   openStatsBottomSheet,
   onSwapPress,
   height,
+  bottomInset = 0,
 }) {
   const { score, webcamOn, webcamStream, displayName, setQuality, isLocal, micOn } =
     useParticipantStat({ participantId });
@@ -48,6 +51,7 @@ function MiniViewContainerInner({
       openStatsBottomSheet={openStatsBottomSheet}
       onSwapPress={onSwapPress}
       height={height}
+      bottomInset={bottomInset}
     />
   );
 }

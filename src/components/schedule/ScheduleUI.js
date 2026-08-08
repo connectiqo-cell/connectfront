@@ -612,11 +612,11 @@ export function ScheduleDayCell({
   );
 }
 
-export function ScheduleHeroBanner({ initial, name, label, avatarUrl, children }) {
+export function ScheduleHeroBanner({ initial, name, label, avatarUrl, children, style }) {
   const scheduleStyles = useScheduleStyles();
   const { theme: liveTheme } = useTheme();
   return (
-    <View style={scheduleStyles.heroBanner}>
+    <View style={[scheduleStyles.heroBanner, style]}>
       <View style={scheduleStyles.heroRow}>
         <LinearGradient colors={B.premiumGradient} style={scheduleStyles.avatarRing}>
           <View style={scheduleStyles.avatarInner}>

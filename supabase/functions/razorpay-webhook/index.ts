@@ -166,9 +166,29 @@ async function reconcileSessionBooking(
     }]);
   }
 
-  // Note: no FCM push here (unlike verify-razorpay-payment) — this path only
-  // runs when the client-driven flow never completed, so it's rare enough
-  // that the mentor simply sees the new booking next time they open the app.
+  // Push mentor immediately via notify-new-booking (no shared import — dashboard-safe).
+  if (primaryBookingId) {
+    try {
+      const base = Deno.env.get('SUPABASE_URL');
+      const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      if (base && key) {
+        const res = await fetch(`${base}/functions/v1/notify-new-booking`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${key}`,
+            apikey: key,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ bookingId: primaryBookingId }),
+        });
+        if (!res.ok) {
+          console.warn('razorpay-webhook notify-new-booking failed:', res.status, await res.text());
+        }
+      }
+    } catch (notifErr) {
+      console.warn('razorpay-webhook mentor FCM failed (non-fatal):', notifErr);
+    }
+  }
 
   return { outcome: 'reconciled', bookingId: primaryBookingId, bookingIds: primaryBookingId ? [primaryBookingId] : [] };
 }

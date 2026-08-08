@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrepmeAI — Full Professional Audit Report</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a222c;
+      --surface2: #243040;
+      --border: #2f3d4d;
+      --text: #e8eef4;
+      --muted: #8b9aab;
+      --accent: #3b82f6;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #22c55e;
+      --info: #38bdf8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 32px 20px 80px;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 1.9rem; margin: 0 0 8px; letter-spacing: -0.02em; }
+    h2 {
+      font-size: 1.25rem;
+      margin: 40px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    h3 { font-size: 1.05rem; margin: 24px 0 10px; }
+    p, li { color: var(--muted); }
+    .meta { color: var(--muted); font-size: 0.95rem; margin-bottom: 20px; }
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #422006;
+      color: #fbbf24;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+    .verdict {
+      background: #3f1212;
+      border: 1px solid #7f1d1d;
+      border-radius: 12px;
+      padding: 16px 18px;
+      color: #fecaca;
+      margin: 20px 0 28px;
+    }
+    .verdict strong { color: #fff; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+    .stat .v { font-size: 1.5rem; font-weight: 700; color: #fff; }
+    .stat .l { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+    .stat.danger .v { color: var(--danger); }
+    .stat.success .v { color: var(--success); }
+    .stat.warning .v { color: var(--warning); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      font-size: 0.9rem;
+      margin: 12px 0 20px;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      background: var(--surface2);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    tr:last-child td { border-bottom: none; }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .pass { background: #14532d; color: #86efac; }
+    .fail { background: #7f1d1d; color: #fca5a5; }
+    .partial { background: #78350f; color: #fcd34d; }
+    .na { background: #334155; color: #cbd5e1; }
+    .sev-critical { background: #7f1d1d; color: #fca5a5; }
+    .sev-high { background: #78350f; color: #fcd34d; }
+    .sev-medium { background: #0c4a6e; color: #7dd3fc; }
+    .sev-low { background: #334155; color: #cbd5e1; }
+
+    /* Score bars */
+    .score-row {
+      display: grid;
+      grid-template-columns: 180px 1fr 48px;
+      gap: 12px;
+      align-items: center;
+      margin: 8px 0;
+    }
+    .score-label { font-size: 0.9rem; color: var(--text); }
+    .bar-track {
+      height: 12px;
+      background: var(--surface2);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), #60a5fa);
+    }
+    .bar-fill.low { background: linear-gradient(90deg, #b91c1c, var(--danger)); }
+    .bar-fill.mid { background: linear-gradient(90deg, #b45309, var(--warning)); }
+    .bar-fill.high { background: linear-gradient(90deg, #15803d, var(--success)); }
+    .score-num { text-align: right; font-weight: 700; color: #fff; }
+
+    /* Chart */
+    .chart-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0 28px;
+    }
+    .chart-title {
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 16px;
+      font-size: 0.95rem;
+    }
+    .bars-v {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      height: 180px;
+      padding-top: 10px;
+    }
+    .bars-v .col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+    .bars-v .stem {
+      width: 100%;
+      max-width: 42px;
+      border-radius: 6px 6px 2px 2px;
+      background: var(--accent);
+      min-height: 4px;
+    }
+    .bars-v .col.low .stem { background: var(--danger); }
+    .bars-v .col.mid .stem { background: var(--warning); }
+    .bars-v .col.high .stem { background: var(--success); }
+    .bars-v .name {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.2;
+      min-height: 2.4em;
+    }
+    .bars-v .val {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .bug {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin: 12px 0;
+    }
+    .bug h3 { margin: 0 0 10px; color: #fff; font-size: 1rem; }
+    .bug .row { margin: 6px 0; font-size: 0.9rem; }
+    .bug .k { color: #fff; font-weight: 600; }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .card h3 { margin-top: 0; color: #fff; }
+    ol, ul { padding-left: 1.25rem; }
+    ol li, ul li { margin: 6px 0; }
+    .footer {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .share-tip {
+      background: #172554;
+      border: 1px solid #1e40af;
+      color: #bfdbfe;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      font-size: 0.9rem;
+    }
+    @media (max-width: 800px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .two { grid-template-columns: 1fr; }
+      .score-row { grid-template-columns: 1fr; gap: 4px; }
+      .bars-v .name { font-size: 0.55rem; }
+    }
+    @media print {
+      body { background: #fff; color: #111; padding: 12px; }
+      .share-tip { display: none; }
+      .verdict { color: #7f1d1d; background: #fef2f2; }
+      p, li, .meta, .score-label, .bars-v .name { color: #333; }
+      table, .stat, .chart-box, .bug, .card { background: #fff; border-color: #ddd; }
+      th { background: #f3f4f6; color: #111; }
+      .stat .v, .score-num, .bars-v .val, h1, h2, h3, .bug h3, .card h3 { color: #111; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="share-tip">
+      <strong>How to share:</strong> Open this file in Chrome/Edge → press <strong>Ctrl+P</strong> → choose
+      <strong>Save as PDF</strong>. Or email/zip this HTML file directly.
+    </div>
+
+    <h1>PrepmeAI — Full Professional Audit <span class="badge">Private Alpha</span></h1>
+    <p class="meta">
+      Target: <a href="https://prepme-ai-web.vercel.app/" style="color:#93c5fd">https://prepme-ai-web.vercel.app/</a>
+      · Audited 2026-08-05<br />
+      Method: HTTP/API probing, SSR/HTML review, JS bundle analysis, authenticated session flows
+    </p>
+
+    <div class="verdict">
+      <strong>Launch verdict:</strong> Not production-ready. Do not launch publicly until verification
+      token leak (BUG-001/002), stored XSS handling, Redis durability, and billing honesty are fixed.
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="v">5.5</div><div class="l">Overall /10</div></div>
+      <div class="stat danger"><div class="v">4.5</div><div class="l">Security</div></div>
+      <div class="stat success"><div class="v">7.5</div><div class="l">Features</div></div>
+      <div class="stat warning"><div class="v">5.0</div><div class="l">Performance</div></div>
+      <div class="stat"><div class="v">20</div><div class="l">Tracked bugs</div></div>
+    </div>
+
+    <h2>Scorecard</h2>
+    <div class="chart-box">
+      <div class="chart-title">Scores by area (out of 10)</div>
+      <div class="bars-v" id="chart"></div>
+    </div>
+
+    <div id="scorebars"></div>
+
+    <table>
+      <thead>
+        <tr><th>Area</th><th>Score</th><th>Rationale</th></tr>
+      </thead>
+      <tbody id="scoretable"></tbody>
+    </table>
+
+    <h2>Account Testing Matrix</h2>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Test</th><th>Result</th><th>Evidence</th></tr>
+      </thead>
+      <tbody id="accounttable"></tbody>
+    </table>
+
+    <h2>What Was Exercised</h2>
+    <div class="two">
+      <div class="card">
+        <h3>Flows completed</h3>
+        <ul>
+          <li>Register → verify via leaked URL → login → onboarding → complete</li>
+          <li>Dashboard coach tips, roadmap, progress + career report</li>
+          <li>Applications board; interview create/start; JD create; feedback</li>
+          <li>Settings (theme, contrast, motion, font); memory entries</li>
+          <li>Admin denied; logout clears session</li>
+          <li>Search, notifications, GitHub status, portfolio limits</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Could not fully validate</h3>
+        <ul>
+          <li>Pixel-perfect responsive / hover / animation</li>
+          <li>Real inbox email delivery & absolute link TTL</li>
+          <li>Successful resume PDF parse (malformed → 500)</li>
+          <li>Full interview scoring turn / cover letter generate</li>
+          <li>Voice / coding / Stripe Premium paths</li>
+          <li>Stored XSS DOM execution (payloads stored)</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Bug Tracker (20)</h2>
+    <div id="bugs"></div>
+
+    <h2>Performance</h2>
+    <table>
+      <thead><tr><th>Surface</th><th>Observed</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>Marketing HTML TTFB</td><td>~70–500ms</td><td>Cold homepage slower</td></tr>
+        <tr><td>JS chunks</td><td>~173KB each</td><td>Reasonable for Next app</td></tr>
+        <tr><td>CSS</td><td>~41KB</td><td>Tailwind v4</td></tr>
+        <tr><td>GET /auth/session</td><td>~0.3–3s</td><td>High variance / cold start</td></tr>
+        <tr><td>GET /settings</td><td>~4.5s</td><td>Too slow</td></tr>
+        <tr><td>POST /roadmaps/generate</td><td>~9.7s</td><td>Should be async job</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Security Summary</h2>
+    <div class="two">
+      <div class="card">
+        <h3>Strengths</h3>
+        <ul>
+          <li>HttpOnly + Secure + SameSite=Lax cookies</li>
+          <li>15m access / 7d refresh JWT cookies</li>
+          <li>Email verify gate; admin role check</li>
+          <li>Open-redirect guard on next=</li>
+          <li>PDF/DOCX allowlist; rate limiting</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Weaknesses</h3>
+        <ul>
+          <li>verificationUrl leak (P0)</li>
+          <li>Stored HTML/JS in apps & feedback</li>
+          <li>CSP allows unsafe-eval on FE</li>
+          <li>In-memory Redis advertised on landing</li>
+          <li>HS256 JWT secret strength unknown</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Top 25 Must-Fix Before Launch</h2>
+    <ol id="fixes"></ol>
+
+    <h2>Top 25 World-Class Improvements</h2>
+    <ol id="improves"></ol>
+
+    <h2>Final Answers</h2>
+    <table>
+      <thead><tr><th>#</th><th>Question</th><th>Answer</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Production-ready?</td><td><strong>No</strong></td></tr>
+        <tr><td>2</td><td>Launch publicly?</td><td><strong>No</strong> — keep closed alpha</td></tr>
+        <tr><td>3</td><td>Recruiters impressed?</td><td>Moderately–highly for scope; docked for security leak</td></tr>
+        <tr><td>4</td><td>Investors impressed?</td><td>Vision yes; GA fundability not yet</td></tr>
+      </tbody>
+    </table>
+
+    <div class="footer">
+      Test account created: qa.fullaudit.1757191779@mailinator.com (delete if shared env).<br />
+      Source: live probing of prepme-ai-web.vercel.app · 2026-08-05 · Overall 5.5/10
+    </div>
+  </div>
+
+  <script>
+    const scores = [
+      { area: "UI", score: 6.5, why: "Cohesive dark SaaS tokens; encoding bugs & generic Inter/indigo" },
+      { area: "UX", score: 6.0, why: "Clear IA; empty Learning & pre-onboarding inconsistencies" },
+      { area: "Performance", score: 5.0, why: "Marketing fast; authenticated API reads often 1–4s" },
+      { area: "Accessibility", score: 6.0, why: "Labels, cookie banner, high-contrast; muted contrast risk" },
+      { area: "Security", score: 4.5, why: "Strong cookie auth; undermined by verificationUrl leak + XSS storage" },
+      { area: "Features", score: 7.5, why: "Wide surface: resume, ATS, interviews, roadmap, apps board" },
+      { area: "Code quality", score: 7.0, why: "Structured API client, error codes, validation from traffic" },
+      { area: "Professionalism", score: 5.5, why: "Honest alpha banner; infra leak & broken © hurt trust" },
+      { area: "Scalability", score: 4.0, why: "In-memory Redis; sync heavy AI routes" },
+      { area: "Overall", score: 5.5, why: "Strong alpha foundation; not GA" },
+    ];
+
+    function level(s) {
+      if (s < 5) return "low";
+      if (s < 7) return "mid";
+      return "high";
+    }
+
+    // Vertical chart
+    const chart = document.getElementById("chart");
+    scores.forEach(s => {
+      const col = document.createElement("div");
+      col.className = "col " + level(s.score);
+      const pct = (s.score / 10) * 100;
+      col.innerHTML = `<div class="val">${s.score}</div><div class="stem" style="height:${pct}%"></div><div class="name">${s.area}</div>`;
+      chart.appendChild(col);
+    });
+
+    // Horizontal bars
+    const bars = document.getElementById("scorebars");
+    scores.forEach(s => {
+      const row = document.createElement("div");
+      row.className = "score-row";
+      row.innerHTML = `
+        <div class="score-label">${s.area}</div>
+        <div class="bar-track"><div class="bar-fill ${level(s.score)}" style="width:${s.score * 10}%"></div></div>
+        <div class="score-num">${s.score}</div>`;
+      bars.appendChild(row);
+    });
+
+    // Score table
+    const st = document.getElementById("scoretable");
+    scores.forEach(s => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${s.area}</td><td><strong>${s.score}</strong></td><td>${s.why}</td>`;
+      st.appendChild(tr);
+    });
+
+    const accounts = [
+      ["A01","Create brand-new account","PASS","POST /auth/register returned 201 with userId"],
+      ["A02","Email verification required","PASS","Login before verify → AUTH_EMAIL_NOT_VERIFIED"],
+      ["A03","Blocked until verification","PASS","Protected APIs 401; /dashboard → login"],
+      ["A04","Tokens before verification","PASS","No prepme_access / prepme_refresh on register"],
+      ["A05","Verification link expiry / reuse","PARTIAL","Reuse after success → AUTH_INVALID_TOKEN"],
+      ["A06","Verification URL secrecy","FAIL","CRITICAL: register returns live verificationUrl"],
+      ["A07","Password reset","PASS","Generic success message; bad token rejected"],
+      ["A08","Wrong credentials","PASS","AUTH_INVALID_CREDENTIALS (no enumeration)"],
+      ["A09","Duplicate account","BLOCKED","Rate-limited; AUTH_EMAIL_ALREADY_EXISTS exists in code"],
+      ["A10","Weak passwords","PASS","BE rejects weak passwords; FE strength meter"],
+      ["A11","Invalid email formats","PASS","VALIDATION_FAILED: email must be an email"],
+      ["A12","Long inputs / SQLi / XSS auth","PASS*","Auth validated; stored XSS later in apps/feedback"],
+      ["A13","Logout","PASS","Cookies cleared; session 401 after logout"],
+      ["A14","Session expiration","PASS*","Access 900s; refresh 7d"],
+      ["A15","Remember Me","N/A","No control; refresh cookie ≈ stay signed in"],
+    ];
+
+    function resultClass(r) {
+      if (r.startsWith("PASS")) return "pass";
+      if (r === "FAIL") return "fail";
+      if (r === "PARTIAL" || r === "BLOCKED") return "partial";
+      return "na";
+    }
+
+    const at = document.getElementById("accounttable");
+    accounts.forEach(a => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${a[0]}</td><td>${a[1]}</td><td><span class="pill ${resultClass(a[2])}">${a[2]}</span></td><td>${a[3]}</td>`;
+      at.appendChild(tr);
+    });
+
+    const bugs = [
+      {id:"BUG-001",title:"Register API returns live email verification URL",sev:"Critical",pri:"P0",page:"POST /api/v1/auth/register",steps:"1. POST register\n2. Inspect data.verificationUrl\n3. POST /auth/verify-email with token",expected:"Token only via email",actual:"Live verificationUrl returned; verify without inbox",rec:"Strip in non-dev; gate by LAUNCH_STAGE"},
+      {id:"BUG-002",title:"Verify-email UI includes Dev verification link",sev:"Critical",pri:"P0",page:"/verify-email",steps:"Inspect verify-email JS for Dev verification link",expected:"No client path to raw tokens in public builds",actual:"Dev verification link UI branch present",rec:"Compile-out with feature flag"},
+      {id:"BUG-003",title:"Copyright / middot mojibake (“Ac 2026”)",sev:"Medium",pri:"P1",page:"Marketing footer",steps:"Open / footer",expected:"© 2026 PrepmeAI",actual:"Shows Ac 2026 / broken separators",rec:"Fix UTF-8 or use &copy;"},
+      {id:"BUG-004",title:"Landing advertises Redis (in-memory)",sev:"High",pri:"P0",page:"/",steps:"View hero status pill",expected:"No infra details on marketing",actual:"API connected · PostgreSQL · Redis (in-memory)",rec:"Remove pill; use managed Redis"},
+      {id:"BUG-005",title:"Malformed PDF upload returns 500",sev:"High",pri:"P1",page:"POST /resumes/upload",steps:"Upload invalid PDF stub",expected:"4xx RES_* error",actual:"500 INTERNAL_ERROR",rec:"Map parser failures to typed errors"},
+      {id:"BUG-006",title:"Stored XSS payloads accepted",sev:"High",pri:"P0",page:"/applications, feedback",steps:"POST apps with <script>/onerror payloads",expected:"Sanitize or reject HTML",actual:"201 stores raw HTML/JS",rec:"Server sanitize + text-only render"},
+      {id:"BUG-007",title:"CSP allows unsafe-inline and unsafe-eval",sev:"High",pri:"P1",page:"All pages",steps:"curl -I /",expected:"Nonce CSP without unsafe-eval",actual:"script-src includes unsafe-eval",rec:"Nonces; remove eval"},
+      {id:"BUG-008",title:"Register rate limit ~30 minutes",sev:"High",pri:"P1",page:"/register",steps:"Burst register from same IP",expected:"Tuned limit + UX countdown",actual:"429 retry_after ~1800–3500s",rec:"Tune limits; show wait UI"},
+      {id:"BUG-009",title:"Onboarding can skip career goal until complete",sev:"Medium",pri:"P2",page:"PATCH /onboarding/step",steps:"Advance steps without careerGoal",expected:"Per-step required fields",actual:"Null goal until complete fails late",rec:"Server step schema validation"},
+      {id:"BUG-010",title:"Empty enum list in careerGoal error",sev:"Low",pri:"P3",page:"PATCH /onboarding/step",steps:"Send invalid careerGoal",expected:"List allowed values",actual:"Empty allowed values message",rec:"Include enum in error"},
+      {id:"BUG-011",title:"Pre-onboarding shell on app routes",sev:"Medium",pri:"P2",page:"/settings, /resume…",steps:"Open /settings before onboarding done",expected:"Hard redirect to /onboarding",actual:"App shell SSR; APIs 403",rec:"Unify middleware gate"},
+      {id:"BUG-012",title:"hasEnoughData=true with empty activity",sev:"Medium",pri:"P2",page:"/progress, /reports",steps:"GET /progress after onboarding only",expected:"hasEnoughData false",actual:"Score 13, heatmap zeros, hasEnoughData true",rec:"Require real signal thresholds"},
+      {id:"BUG-013",title:"Learning topics empty after onboarding",sev:"High",pri:"P1",page:"/learning",steps:"GET /learning/topics",expected:"Seeded curriculum",actual:"data: []",rec:"Seed topics or hide nav"},
+      {id:"BUG-014",title:"Missing favicon / OG; robots Disallow all",sev:"Medium",pri:"P2",page:"Global SEO",steps:"GET /favicon.ico; robots.txt",expected:"Brand icon; intentional noindex only while alpha",actual:"404 favicon; Disallow: /",rec:"Ship icons; checklist for GA"},
+      {id:"BUG-015",title:"Premium checkout missing",sev:"High",pri:"P1",page:"/pricing",steps:"Read pricing; probe billing APIs",expected:"Stripe or waitlist-only",actual:"Coming soon; no checkout",rec:"Ship Stripe or waitlist"},
+      {id:"BUG-016",title:"GitHub OAuth unavailable",sev:"Medium",pri:"P2",page:"/github",steps:"GET /github/status",expected:"Connect flow or hide nav",actual:"oauthAvailable:false",rec:"Feature-flag until OAuth ready"},
+      {id:"BUG-017",title:"API latency 1–4s; roadmap ~10s",sev:"High",pri:"P1",page:"Authenticated APIs",steps:"Time settings/reports/generate",expected:"p95 <500ms reads; async gen",actual:"settings ~4.5s; generate ~9.7s",rec:"Warm pools + background jobs"},
+      {id:"BUG-018",title:"settings/export 404 vs privacy promise",sev:"Medium",pri:"P2",page:"/settings + Privacy",steps:"GET /settings/export",expected:"JSON export works",actual:"404",rec:"Implement export or fix legal copy"},
+      {id:"BUG-019",title:"X-Frame-Options inconsistency",sev:"Low",pri:"P3",page:"Headers",steps:"Compare / vs API headers",expected:"Consistent policy",actual:"FE DENY; API SAMEORIGIN",rec:"Standardize DENY / frame-ancestors none"},
+      {id:"BUG-020",title:"Search echoes script query string",sev:"Medium",pri:"P2",page:"GET /search?q=",steps:"Search XSS payload",expected:"Encoded echo only",actual:"Raw script in query field",rec:"Audit search UI encoding"},
+    ];
+
+    function sevClass(s) {
+      return ({Critical:"sev-critical",High:"sev-high",Medium:"sev-medium",Low:"sev-low"})[s] || "na";
+    }
+
+    const bugsEl = document.getElementById("bugs");
+    bugs.forEach(b => {
+      const el = document.createElement("div");
+      el.className = "bug";
+      el.innerHTML = `
+        <h3>${b.id}: ${b.title}
+          <span class="pill ${sevClass(b.sev)}">${b.sev}</span>
+          <span class="pill na">${b.pri}</span>
+        </h3>
+        <div class="row"><span class="k">Page:</span> ${b.page}</div>
+        <div class="row"><span class="k">Steps:</span> ${b.steps.replace(/\n/g," · ")}</div>
+        <div class="row"><span class="k">Expected:</span> ${b.expected}</div>
+        <div class="row"><span class="k">Actual:</span> ${b.actual}</div>
+        <div class="row"><span class="k">Recommendation:</span> ${b.rec}</div>
+        <div class="row"><span class="k">Screenshot:</span> [PLACEHOLDER — ${b.id}]</div>`;
+      bugsEl.appendChild(el);
+    });
+
+    const fixes = [
+      "Remove verificationUrl from register responses outside local/dev",
+      "Remove Dev verification link UI from production builds",
+      "Sanitize/encode all user-generated HTML fields",
+      "Replace in-memory Redis; remove infra status from marketing hero",
+      "Fix resume upload 500s into typed validation errors",
+      "Tighten CSP (drop unsafe-eval); align FE/API headers",
+      "Ship or hide Premium/Stripe / waitlist",
+      "Seed learning topics (or hide Learning until ready)",
+      "Unify onboarding middleware for every app route",
+      "Cut p95 API latency below 500ms for core reads",
+      "Add favicon + basic OG image",
+      "Fix © / UTF-8 footer encoding",
+      "Feature-flag GitHub until OAuth works",
+      "Implement settings export promised in Privacy Policy",
+      "Tune register rate limits + UX countdown",
+      "Validate onboarding steps server-side per step",
+      "Fix hasEnoughData / readiness scoring honesty",
+      "Add Confirm password on reset-password",
+      "Map AUTH_EMAIL_ALREADY_EXISTS clearly when not rate-limited",
+      "Add Playwright smoke suite for auth + onboarding + resume",
+      "Add axe CI checks on marketing + app shell",
+      "Instrument Sentry/OpenTelemetry with request_id correlation",
+      "Document alpha data retention for resumes/transcripts",
+      "Hide Cmd+K tip on 404 until search indexes real content",
+      "Load-test interview /turn and ATS analyze under concurrency",
+    ];
+    const improves = [
+      "Guided first-run checklist unlocking ATS/interview",
+      "Sample resume + sample JD demo mode",
+      "Explainable ATS score with keyword diffs",
+      "Interview playback timeline with score dimensions",
+      "Optimistic skeletons instead of full-page Loading…",
+      "Empty states with one primary CTA",
+      "Mobile bottom nav for Prepare / Practice / Track",
+      "Command palette (Cmd+K) with recent items",
+      "Onboarding skip/advanced mode",
+      "Role-based interview packs",
+      "Weekly email digest tied to roadmap tasks",
+      "Streaks that feel earned",
+      "Portfolio analyze with public URL preview cards",
+      "Cover letter side-by-side JD comparison",
+      "Application kanban polish: drag + undo",
+      "Billing portal with usage meters",
+      "SSO path stub for Enterprise",
+      "Trust center: SOC2 roadmap, subprocessors, DPA",
+      "Public changelog alpha → beta → GA",
+      "Brand illustration system beyond Lucide cap",
+      "Motion: page transitions used sparingly",
+      "Dark/light marketing parity review",
+      "Accessible focus rings everywhere",
+      "Form error linking (aria-describedby)",
+      "Toast system with undo for destructive actions",
+    ];
+
+    const fixesEl = document.getElementById("fixes");
+    fixes.forEach(f => { const li = document.createElement("li"); li.textContent = f; fixesEl.appendChild(li); });
+    const impEl = document.getElementById("improves");
+    improves.forEach(f => { const li = document.createElement("li"); li.textContent = f; impEl.appendChild(li); });
+  </script>
+</body>
+</html>

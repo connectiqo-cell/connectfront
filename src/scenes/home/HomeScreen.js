@@ -1084,7 +1084,7 @@ export default function HomeScreen() {
             <Image
               source={brandLogo}
               style={styles.logoMark}
-              resizeMode="cover"
+              resizeMode="contain"
             />
           </View>
           <View style={styles.appBarTitles}>
@@ -1257,7 +1257,7 @@ function createThemedStyles(theme) {
     flexGrow: 0,
   },
 
-  // App bar — logo height matches title block (headingSm + tagline ≈ 44px) and action button
+  // App bar — compact mark beside title block
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1267,16 +1267,14 @@ function createThemedStyles(theme) {
     gap: T.spacing.sm + 2,
   },
   logoWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    overflow: 'hidden',
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   logoMark: {
-    width: '112%',
-    height: '112%',
-    marginLeft: '-6%',
-    marginTop: '-6%',
+    width: 36,
+    height: 36,
   },
   appBarTitles: {
     flex: 1,

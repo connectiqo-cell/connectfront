@@ -523,9 +523,14 @@ function SlotPeriodSection({ period, items, selectedDate, selectedSlots, bookedS
   const styles = useThemedStyles(createAvailabilityStyles);
   const { theme } = useTheme();
   const slotAccent = theme.colors.accent.success;
-  if (!items.length) return null;
 
-  const selectedInPeriod = items.filter(({ startTime }) => {
+  // Hide slots that are already due — mentors should only manage upcoming times.
+  const visibleItems = (items || []).filter(
+    ({ startTime }) => !isTimeInPast(selectedDate, startTime),
+  );
+  if (!visibleItems.length) return null;
+
+  const selectedInPeriod = visibleItems.filter(({ startTime }) => {
     const endTime = addMinutesToTimeStatic(startTime, SLOT_DURATION);
     return selectedSlots.includes(`${startTime}-${endTime}`);
   }).length;
@@ -549,15 +554,13 @@ function SlotPeriodSection({ period, items, selectedDate, selectedSlots, bookedS
         ) : null}
       </View>
       <View style={styles.slotsGrid}>
-        {items.map(({ startTime, index }) => {
+        {visibleItems.map(({ startTime, index }) => {
           const endTime = addMinutesToTimeStatic(startTime, SLOT_DURATION);
           const slotKey = `${startTime}-${endTime}`;
           const isBooked = bookedSlots[selectedDate]?.includes(slotKey) ?? false;
-          const isPast = isTimeInPast(selectedDate, startTime);
           const isSelected = selectedSlots.includes(slotKey);
           let state = 'available';
           if (isBooked) state = 'booked';
-          else if (isPast) state = 'past';
           else if (isSelected) state = 'selected';
 
           return (
@@ -618,13 +621,23 @@ const isDateAllowed = dateStr => {
 };
 
 const isTimeInPast = (dateStr, timeStr) => {
+  if (!dateStr || !timeStr) return true;
   const now = new Date();
-  if (dateStr !== formatDate(now)) return false;
-  const [hours, mins] = timeStr.split(':').map(Number);
-  const slotTime = new Date();
+  const todayStr = formatDate(now);
+  if (dateStr < todayStr) return true;
+  if (dateStr > todayStr) return false;
+  const [hours, mins] = String(timeStr).substring(0, 5).split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(mins)) return true;
+  const slotTime = new Date(now);
   slotTime.setHours(hours, mins, 0, 0);
   return slotTime.getTime() <= now.getTime();
 };
+
+const filterDueSlotKeys = (dateStr, slotKeys = []) =>
+  (Array.isArray(slotKeys) ? slotKeys : []).filter(key => {
+    const parsed = parseSlotKey(key);
+    return parsed && !isTimeInPast(dateStr, parsed.startTime);
+  });
 
 const parseLocalDate = dateStr => {
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -721,7 +734,7 @@ export default function MentorAvailabilityScreen() {
     setAllSlots(unbookedMap);
     setBookedSlots(bookedMap);
     const dateKey = selectedDateRef.current;
-    setSelectedSlots(Array.isArray(unbookedMap[dateKey]) ? unbookedMap[dateKey] : []);
+    setSelectedSlots(filterDueSlotKeys(dateKey, unbookedMap[dateKey] || []));
   }, []);
 
   const loadAvailability = useCallback(async (force = false) => {
@@ -747,6 +760,8 @@ export default function MentorAvailabilityScreen() {
         const date = slot.date;
         const startTime = slot.start_time.substring(0, 5);
         const endTime = slot.end_time.substring(0, 5);
+        // Skip due slots entirely — they should not appear in schedule UI.
+        if (isTimeInPast(date, startTime)) return;
         const slotKey = `${startTime}-${endTime}`;
 
         if (slot.is_booked) {
@@ -786,7 +801,7 @@ export default function MentorAvailabilityScreen() {
 
   const handleSelectDate = date => {
     setSelectedDate(date);
-    setSelectedSlots(Array.isArray(allSlots[date]) ? allSlots[date] : []);
+    setSelectedSlots(filterDueSlotKeys(date, allSlots[date] || []));
   };
 
   const handleToggleSlot = slot => {
@@ -805,6 +820,33 @@ export default function MentorAvailabilityScreen() {
     setAllSlots({ ...allSlots, [selectedDate]: updatedSlots });
     markUnsaved();
   };
+
+  // Drop slots that become due while the mentor stays on this screen.
+  useEffect(() => {
+    if (!selectedDate) return undefined;
+    const prune = () => {
+      setSelectedSlots(prev => {
+        const next = filterDueSlotKeys(selectedDate, prev);
+        return next.length === prev.length ? prev : next;
+      });
+      setAllSlots(prev => {
+        const day = prev[selectedDate];
+        if (!day?.length) return prev;
+        const nextDay = filterDueSlotKeys(selectedDate, day);
+        if (nextDay.length === day.length) return prev;
+        return { ...prev, [selectedDate]: nextDay };
+      });
+      setBookedSlots(prev => {
+        const day = prev[selectedDate];
+        if (!day?.length) return prev;
+        const nextDay = filterDueSlotKeys(selectedDate, day);
+        if (nextDay.length === day.length) return prev;
+        return { ...prev, [selectedDate]: nextDay };
+      });
+    };
+    const id = setInterval(prune, 30_000);
+    return () => clearInterval(id);
+  }, [selectedDate]);
 
   const handleSaveAvailability = async () => {
     let saveMentorId = mentorId;
@@ -856,8 +898,11 @@ export default function MentorAvailabilityScreen() {
   const todayStr = formatDate(today);
 
   const monthYear = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const openSlotCount = selectedSlots.length;
-  const bookedCount = bookedSlots[selectedDate]?.length || 0;
+  const openSlotCount = filterDueSlotKeys(selectedDate, selectedSlots).length;
+  const bookedCount = filterDueSlotKeys(
+    selectedDate,
+    bookedSlots[selectedDate] || [],
+  ).length;
   const totalOpenSlots = buildSlotEntriesFromMap(allSlots).length;
 
   let animStep = 0;
@@ -984,8 +1029,11 @@ export default function MentorAvailabilityScreen() {
                       }
                       const dayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
                       const dateStr = formatDate(dayDate);
-                      const openCount = allSlots[dateStr]?.length || 0;
-                      const bookedCountForDay = bookedSlots[dateStr]?.length || 0;
+                      const openCount = filterDueSlotKeys(dateStr, allSlots[dateStr] || []).length;
+                      const bookedCountForDay = filterDueSlotKeys(
+                        dateStr,
+                        bookedSlots[dateStr] || [],
+                      ).length;
                       const totalSlots = openCount + bookedCountForDay;
                       const allowed = isDateAllowed(dateStr);
                       const slotTone =

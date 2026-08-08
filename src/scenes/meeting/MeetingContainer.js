@@ -6,23 +6,29 @@ import Toast from 'react-native-simple-toast';
 import { ensureIosCallAudioSession } from '../../utils/iosCallAudioSession';
 import { MEETING_LEAVE_NAV_FALLBACK_MS } from '../../utils/meetingLeave';
 import { getMeetingParticipantSnapshot } from '../../utils/meetingParticipants';
+import { useTheme } from '../../hooks/useTheme';
 import OneToOneMeetingViewer from './OneToOne';
 import ConferenceMeetingViewer from './Conference/ConferenceMeetingViewer';
 import WaitingToJoinView from './Components/WaitingToJoinView';
 
 function LeavingCallView() {
+  const { theme } = useTheme();
+  const bg = theme.colors.meeting[900];
+  const ink = theme.colors.meeting[100];
+  const accent = theme.colors.accent?.secondary || '#6366f1';
+
   return (
     <View
       style={{
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#0a0a1a',
+        backgroundColor: bg,
         paddingHorizontal: 24,
       }}
     >
-      <ActivityIndicator size="large" color="#6366f1" />
-      <Text style={{ color: '#fff', marginTop: 16, fontSize: 15, fontWeight: '600' }}>
+      <ActivityIndicator size="large" color={accent} />
+      <Text style={{ color: ink, marginTop: 16, fontSize: 15, fontWeight: '600' }}>
         Leaving session…
       </Text>
     </View>
@@ -40,6 +46,7 @@ export default function MeetingContainer({
   recordingRequested = false,
   onLeaveSession,
   maxDurationMs,
+  sessionEndsAtMs,
 }) {
   const [isJoined, setJoined] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -189,11 +196,13 @@ export default function MeetingContainer({
   }, []);
 
   const leaveRef = useRef(null);
+  const endRef = useRef(null);
   const {
     join,
     participants,
     localParticipant,
     leave,
+    end,
     toggleWebcam,
     enableWebcam,
     localWebcamOn,
@@ -206,6 +215,7 @@ export default function MeetingContainer({
 
   joinRef.current = join;
   leaveRef.current = leave;
+  endRef.current = end;
   toggleWebcamRef.current = toggleWebcam;
   enableWebcamRef.current = enableWebcam;
   localWebcamOnRef.current = !!localWebcamOn;
@@ -299,13 +309,25 @@ export default function MeetingContainer({
   }, [clearLeaveFallback]);
 
   useEffect(() => {
-    if (!maxDurationMs || remoteParticipantCount < 1) return undefined;
+    const endsAt =
+      typeof sessionEndsAtMs === 'number' && sessionEndsAtMs > 0
+        ? sessionEndsAtMs
+        : typeof maxDurationMs === 'number' && maxDurationMs > 0
+          ? Date.now() + maxDurationMs
+          : null;
+    if (!endsAt || remoteParticipantCount < 1) return undefined;
+
+    const delay = Math.max(0, endsAt - Date.now());
     const timer = setTimeout(() => {
-      Toast.show(`Session time limit reached (${Math.round(maxDurationMs / 60000)} min)`);
+      Toast.show('Session time is over');
+      // End the room for both participants, then ensure local navigation.
+      try {
+        endRef.current?.();
+      } catch (_) {}
       requestLeave();
-    }, maxDurationMs);
+    }, delay);
     return () => clearTimeout(timer);
-  }, [remoteParticipantCount, maxDurationMs, requestLeave]);
+  }, [remoteParticipantCount, maxDurationMs, sessionEndsAtMs, requestLeave]);
 
   if (isLeaving) {
     return <LeavingCallView />;

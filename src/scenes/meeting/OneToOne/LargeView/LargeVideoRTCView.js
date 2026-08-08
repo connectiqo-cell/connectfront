@@ -17,7 +17,10 @@ export default LargeVideoRTCView = ({
     <RTCView
       objectFit={objectFit}
       mirror={isLocal}
-      style={{ flex: 1, backgroundColor: "#424242" }}
+      // Native video layer swallows taps on iOS unless disabled —
+      // parent Pressable / Touchable must receive the gesture.
+      pointerEvents="none"
+      style={{ flex: 1, backgroundColor: colors.primary[700] }}
       streamURL={streamURL}
     />
   ) : (

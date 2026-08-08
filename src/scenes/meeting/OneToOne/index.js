@@ -8,7 +8,13 @@ import {
   Alert,
   BackHandler,
   InteractionManager,
+  StyleSheet,
+  Animated,
+  Pressable,
+  StatusBar,
+  Easing,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CosmicLoader } from "../../../components/LoadingSpinner";
 import {
   useMeeting,
@@ -56,6 +62,7 @@ import {
 import { getToken } from "../../../api/api";
 import { useBackgroundWebcamRestore } from "../../../hooks/useBackgroundWebcamRestore";
 import { useInCallChatPopup } from "../../../hooks/useInCallChatPopup";
+import { useTheme, useThemedStyles } from "../../../hooks/useTheme";
 import { useOrientation } from "../../../utils/useOrientation";
 import { pressScreenShare } from "../../../utils/screenShareActions";
 import { getMeetingParticipantSnapshot } from "../../../utils/meetingParticipants";
@@ -114,6 +121,9 @@ function showDeferredAlert(title, message, buttons, options) {
   runAfterMenuDismiss(() => Alert.alert(title, message, buttons, options));
 }
 
+const CHROME_AUTO_HIDE_MS = 4500;
+const CHROME_ANIM_MS = 260;
+
 export default function OneToOneMeetingViewer({
   isHost,
   booking,
@@ -122,6 +132,14 @@ export default function OneToOneMeetingViewer({
   onRequestLeave,
   onSessionEnding,
 }) {
+  const styles = useThemedStyles(createOneToOneStyles);
+  const { isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [chromeVisible, setChromeVisible] = useState(true);
+  const chromeAnim = useRef(new Animated.Value(1)).current;
+  const chromeHideTimerRef = useRef(null);
+  const chromeVisibleRef = useRef(true);
+
   const onMeetingError = useCallback((data) => {
     const { code, message } = data;
     Toast.show(`Error: ${code}: ${message}`);
@@ -291,6 +309,65 @@ export default function OneToOneMeetingViewer({
   const [chatViewer, setchatViewer] = useState(false);
   const [participantListViewer, setparticipantListViewer] = useState(false);
   const [participantStatsViewer, setparticipantStatsViewer] = useState(false);
+  const sheetOpen = chatViewer || participantListViewer || participantStatsViewer;
+
+  const clearChromeHideTimer = useCallback(() => {
+    if (chromeHideTimerRef.current) {
+      clearTimeout(chromeHideTimerRef.current);
+      chromeHideTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleChromeHide = useCallback(() => {
+    clearChromeHideTimer();
+    if (sheetOpen) return;
+    chromeHideTimerRef.current = setTimeout(() => {
+      chromeHideTimerRef.current = null;
+      chromeVisibleRef.current = false;
+      setChromeVisible(false);
+    }, CHROME_AUTO_HIDE_MS);
+  }, [clearChromeHideTimer, sheetOpen]);
+
+  const revealChrome = useCallback(() => {
+    chromeVisibleRef.current = true;
+    setChromeVisible(true);
+    scheduleChromeHide();
+  }, [scheduleChromeHide]);
+
+  const toggleChrome = useCallback(() => {
+    if (chromeVisibleRef.current) {
+      clearChromeHideTimer();
+      chromeVisibleRef.current = false;
+      setChromeVisible(false);
+      return;
+    }
+    revealChrome();
+  }, [clearChromeHideTimer, revealChrome]);
+
+  useEffect(() => {
+    chromeVisibleRef.current = chromeVisible;
+    Animated.timing(chromeAnim, {
+      toValue: chromeVisible ? 1 : 0,
+      duration: CHROME_ANIM_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [chromeVisible, chromeAnim]);
+
+  useEffect(() => {
+    if (sheetOpen) {
+      clearChromeHideTimer();
+      chromeVisibleRef.current = true;
+      setChromeVisible(true);
+      return undefined;
+    }
+    if (chromeVisibleRef.current) {
+      scheduleChromeHide();
+    }
+    return clearChromeHideTimer;
+  }, [sheetOpen, clearChromeHideTimer, scheduleChromeHide]);
+
+  useEffect(() => () => clearChromeHideTimer(), [clearChromeHideTimer]);
 
   const [audioDevice, setAudioDevice] = useState([]);
   const [statParticipantId, setstatParticipantId] = useState("");
@@ -712,16 +789,34 @@ export default function OneToOneMeetingViewer({
   };
 
   const MIN_SESSION_SECONDS = 300; // 5 minutes minimum session
-
+  const slotEndedHandledRef = useRef(false);
 
   const tryLeave = (endForAll = false) => {
     if (endForAll) {
       onSessionEnding?.();
-      end();
+      try {
+        end();
+      } catch (_) {}
+      // Always exit locally — end() may be host-only on some SDK builds.
+      exitMeeting();
       return;
     }
     exitMeeting();
   };
+
+  /** Slot countdown hit 00:00 — tear down the room for everyone. */
+  const handleSlotTimerEnded = useCallback(() => {
+    if (slotEndedHandledRef.current) {
+      return;
+    }
+    slotEndedHandledRef.current = true;
+    Toast.show('Session time is over');
+    onSessionEnding?.();
+    try {
+      end();
+    } catch (_) {}
+    exitMeeting();
+  }, [end, exitMeeting, onSessionEnding]);
 
   const confirmLeaveMeeting = () => {
     showDeferredAlert(
@@ -775,90 +870,46 @@ export default function OneToOneMeetingViewer({
     );
   }
 
+  const peerLabel = isHost ? 'learner' : 'mentor';
+  const waitingForPeer = participantCount < 2 && !presenterId;
+  const miniViewHeight = isLandscape ? 120 : Platform.OS === 'ios' ? 148 : 160;
+  const pipReserve =
+    (Platform.OS === 'ios' ? 28 : 20) + Math.max(insets.bottom, 0);
+  const showPipHole = viewLayout === 'pip' && participantCount > 1 && !presenterId;
+
+  const headerAnimatedStyle = {
+    opacity: chromeAnim,
+    transform: [
+      {
+        translateY: chromeAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-18, 0],
+        }),
+      },
+    ],
+  };
+  const dockAnimatedStyle = {
+    opacity: chromeAnim,
+    transform: [
+      {
+        translateY: chromeAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [28, 0],
+        }),
+      },
+    ],
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.primary[900] }}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          width: "100%",
-          paddingHorizontal: 8,
-        }}
-      >
-        {isRecordingVisible ? (
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: colors.dangerBg,
-              paddingHorizontal: 8,
-              paddingVertical: 4,
-              borderRadius: 8,
-            }}
-          >
-            <Blink ref={recordingRef} duration={500}>
-              <View
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: colors.dangerSolid,
-                }}
-              />
-            </Blink>
-            <Text
-              style={{
-                marginLeft: 6,
-                color: colors.dangerText,
-                fontFamily: ROBOTO_FONTS.RobotoBold,
-                fontSize: 12,
-                letterSpacing: 0.5,
-              }}
-            >
-              REC
-            </Text>
-          </View>
-        ) : null}
-        <View
-          style={{
-            flex: 1,
-            justifyContent: "space-between",
-            marginLeft: isRecordingVisible ? 8 : 0,
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <CallSessionTimer slot={slot} />
-          </View>
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <TouchableOpacity
-            onPress={() => setViewLayout(layout => (layout === 'split' ? 'pip' : 'split'))}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <View style={{ width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}>
-              {viewLayout === 'split' ? (
-                <View style={{ width: 24, height: 24, position: 'relative' }}>
-                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderWidth: 1.5, borderColor: colors.primary[100], borderRadius: 3 }} />
-                  <View style={{ position: 'absolute', bottom: 2, right: 2, width: 10, height: 8, backgroundColor: colors.primary[100], borderRadius: 2 }} />
-                </View>
-              ) : (
-                <View style={{ width: 24, height: 24, flexDirection: 'column', gap: 2 }}>
-                  <View style={{ flex: 1, borderWidth: 1.5, borderColor: colors.primary[100], borderRadius: 3 }} />
-                  <View style={{ flex: 1, borderWidth: 1.5, borderColor: colors.primary[100], borderRadius: 3 }} />
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleFlipCamera}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <CameraSwitch height={26} width={26} fill={colors.primary[100]} />
-          </TouchableOpacity>
-        </View>
-      </View>
-      {/* Center */}
-      <View style={{ flex: 1, marginTop: 2, marginBottom: 2, overflow: 'hidden' }}>
+    <View style={styles.root}>
+      <StatusBar
+        animated
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        translucent={Platform.OS === 'android'}
+        backgroundColor="transparent"
+      />
+
+      <View style={styles.videoStage} pointerEvents="box-none">
         <OneToOneCallLayout
           participantCount={participantCount}
           viewLayout={viewLayout}
@@ -874,9 +925,103 @@ export default function OneToOneMeetingViewer({
           presenterId={presenterId}
           onSwapPrimary={handleSwapPrimary}
           openStatsBottomSheet={openStatsBottomSheet}
-          miniViewHeight={isLandscape ? 110 : 160}
+          miniViewHeight={miniViewHeight}
+          miniViewBottomInset={Math.max(insets.bottom, Platform.OS === 'ios' ? 8 : 0)}
+          waitingForPeer={waitingForPeer}
+          waitingPeerLabel={peerLabel}
         />
       </View>
+
+      {/*
+        Tap layer sits above native RTC views. On iOS, RTCView otherwise
+        swallows touches so Pressable wrappers never fire.
+        Near-opaque fill is required for iOS hit-testing.
+        PiP corner is left open so swap / stats still work.
+      */}
+      <View style={styles.tapLayer} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={chromeVisible ? 'Hide call controls' : 'Show call controls'}
+          onPress={toggleChrome}
+          style={[
+            styles.tapCatcher,
+            showPipHole ? { bottom: miniViewHeight + pipReserve } : null,
+          ]}
+        />
+        {showPipHole ? (
+          <View
+            style={[styles.tapBottomRow, { height: miniViewHeight + pipReserve }]}
+            pointerEvents="box-none"
+          >
+            <Pressable style={styles.tapCatcherFlex} onPress={toggleChrome} />
+            <View
+              pointerEvents="none"
+              style={{ width: miniViewHeight * 0.72 + pipReserve }}
+            />
+          </View>
+        ) : null}
+      </View>
+
+      <Animated.View
+        pointerEvents={chromeVisible ? 'box-none' : 'none'}
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(
+              insets.top,
+              Platform.OS === 'ios' ? 12 : 4,
+            ),
+          },
+          headerAnimatedStyle,
+        ]}
+      >
+        <View style={styles.headerLeft}>
+          {isRecordingVisible ? (
+            <View style={styles.recBadge}>
+              <Blink ref={recordingRef} duration={500}>
+                <View style={styles.recDot} />
+              </Blink>
+              <Text style={styles.recLabel}>REC</Text>
+            </View>
+          ) : null}
+          <CallSessionTimer slot={slot} onSlotEnded={handleSlotTimerEnded} />
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => {
+              revealChrome();
+              setViewLayout(layout => (layout === 'split' ? 'pip' : 'split'));
+            }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={styles.headerIconBtn}
+            accessibilityLabel={viewLayout === 'split' ? 'Switch to picture-in-picture' : 'Switch to split view'}
+          >
+            {viewLayout === 'split' ? (
+              <View style={styles.layoutIconPip}>
+                <View style={styles.layoutIconPipFrame} />
+                <View style={styles.layoutIconPipInset} />
+              </View>
+            ) : (
+              <View style={styles.layoutIconSplit}>
+                <View style={styles.layoutIconSplitPane} />
+                <View style={styles.layoutIconSplitPane} />
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              revealChrome();
+              handleFlipCamera();
+            }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={styles.headerIconBtn}
+            accessibilityLabel="Flip camera"
+          >
+            <CameraSwitch height={22} width={22} fill={colors.chromeInk} />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
       <Menu
         ref={leaveMenu}
         menuBackgroundColor={colors.primary[700]}
@@ -1014,112 +1159,112 @@ export default function OneToOneMeetingViewer({
           }}
         />
       </Menu>
-      {/* Bottom */}
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-evenly",
-          paddingBottom: Platform.OS === 'android' ? 8 : 4,
-        }}
+
+      <Animated.View
+        pointerEvents={chromeVisible ? 'box-none' : 'none'}
+        style={[
+          styles.controlDock,
+          { paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 10 : 12) },
+          dockAnimatedStyle,
+        ]}
       >
-        <IconContainer
-          backgroundColor={"red"}
-          onPress={confirmLeaveMeeting}
-        >
-          <CallEnd height={26} width={26} fill={colors.dangerSolidText} />
-        </IconContainer>
-        <View
-          style={{
-            flexDirection: "row",
-            borderRadius: 14,
-            borderWidth: 1.5,
-            borderColor: colors.controlBorder,
-            backgroundColor: !localMicOn ? colors.primary[100] : "transparent",
-            height: 50,
-            alignItems: "center",
-          }}
-        >
-          <TouchableOpacity
-            onPress={() => toggleMic()}
-            style={{ width: 50, height: 50, justifyContent: "center", alignItems: "center" }}
-          >
-            {localMicOn
-              ? <MicOn height={24} width={24} fill={colors.chromeInk} />
-              : <MicOff height={28} width={28} fill={colors.ink} />}
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={async () => {
-              await updateAudioDeviceList();
-              audioDeviceMenuRef.current.show();
-            }}
-            style={{ width: 30, height: 50, justifyContent: "center", alignItems: "center", paddingRight: 4 }}
-          >
-            <DownArrow fill={localMicOn ? colors.chromeInk : colors.ink} />
-          </TouchableOpacity>
-        </View>
-        <IconContainer
-          style={{ borderWidth: 1.5, borderColor: colors.controlBorder }}
-          backgroundColor={!localWebcamOn ? colors.primary[100] : "transparent"}
-          onPress={() => {
-            if (!localWebcamOn) {
-              toggleWebcam();
-              setTimeout(() => {
-                const id = frontCameraIdRef.current;
-                if (id) changeWebcam(id);
-                else changeWebcam();
-              }, getFrontCameraInitDelayMs());
-            } else {
-              toggleWebcam();
-            }
-          }}
-        >
-          {localWebcamOn
-            ? <VideoOn height={24} width={24} fill={colors.chromeInk} />
-            : <VideoOff height={36} width={36} fill={colors.ink} />}
-        </IconContainer>
-        <View style={{ position: 'relative' }}>
+        <View style={styles.controlDockEdge} />
+        <View style={styles.controlRow}>
           <IconContainer
-            onPress={openChatPanel}
-            style={{ borderWidth: 1.5, borderColor: colors.controlBorder }}
+            backgroundColor={colors.dangerSolid}
+            onPress={() => {
+              revealChrome();
+              confirmLeaveMeeting();
+            }}
+            style={styles.endCallBtn}
           >
-            <Chat height={22} width={22} fill={colors.chromeInk} />
+            <CallEnd height={24} width={24} fill={colors.dangerSolidText} />
           </IconContainer>
-          {unreadCount > 0 ? (
-            <View
-              style={{
-                position: 'absolute',
-                top: -2,
-                right: -2,
-                minWidth: 18,
-                height: 18,
-                borderRadius: 9,
-                backgroundColor: colors.brand,
-                alignItems: 'center',
-                justifyContent: 'center',
-                paddingHorizontal: 4,
+          <View
+            style={[
+              styles.micCluster,
+              !localMicOn && styles.controlActiveFill,
+            ]}
+          >
+            <TouchableOpacity
+              onPress={() => {
+                revealChrome();
+                toggleMic();
               }}
+              style={styles.micMain}
+              accessibilityLabel={localMicOn ? 'Mute microphone' : 'Unmute microphone'}
             >
-              <Text style={{ color: colors.onBrand, fontSize: 10, fontWeight: '700' }}>
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </Text>
-            </View>
-          ) : null}
+              {localMicOn
+                ? <MicOn height={22} width={22} fill={colors.chromeInk} />
+                : <MicOff height={22} width={22} fill={colors.ink} />}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={async () => {
+                revealChrome();
+                await updateAudioDeviceList();
+                audioDeviceMenuRef.current.show();
+              }}
+              style={styles.micChevron}
+              accessibilityLabel="Choose audio output"
+            >
+              <DownArrow fill={localMicOn ? colors.chromeInk : colors.ink} />
+            </TouchableOpacity>
+          </View>
+          <IconContainer
+            style={[styles.controlOutline, !localWebcamOn && styles.controlActiveFill]}
+            backgroundColor={!localWebcamOn ? colors.primary[100] : 'transparent'}
+            onPress={() => {
+              revealChrome();
+              if (!localWebcamOn) {
+                toggleWebcam();
+                setTimeout(() => {
+                  const id = frontCameraIdRef.current;
+                  if (id) changeWebcam(id);
+                  else changeWebcam();
+                }, getFrontCameraInitDelayMs());
+              } else {
+                toggleWebcam();
+              }
+            }}
+          >
+            {localWebcamOn
+              ? <VideoOn height={22} width={22} fill={colors.chromeInk} />
+              : <VideoOff height={22} width={22} fill={colors.ink} />}
+          </IconContainer>
+          <View style={styles.chatWrap}>
+            <IconContainer
+              onPress={() => {
+                revealChrome();
+                openChatPanel();
+              }}
+              style={styles.controlOutline}
+            >
+              <Chat height={22} width={22} fill={colors.chromeInk} />
+            </IconContainer>
+            {unreadCount > 0 ? (
+              <View style={styles.chatBadge}>
+                <Text style={styles.chatBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <IconContainer
+            style={[styles.controlOutline, styles.moreBtn]}
+            onPress={() => {
+              revealChrome();
+              moreOptionsMenu.current.show();
+            }}
+          >
+            <More height={18} width={18} fill={colors.chromeInk} />
+          </IconContainer>
         </View>
-        <IconContainer
-          style={{
-            borderWidth: 1.5,
-            borderColor: colors.controlBorder,
-            transform: [{ rotate: "90deg" }],
-          }}
-          onPress={() => moreOptionsMenu.current.show()}
-        >
-          <More height={18} width={18} fill={colors.chromeInk} />
-        </IconContainer>
-      </View>
+      </Animated.View>
+
       <BottomSheet
         sheetBackgroundColor={colors.sheet}
         draggable={true}
-        radius={12}
+        radius={16}
         hasDraggableIcon
         closeFunction={() => {
           setparticipantListViewer(false);
@@ -1147,4 +1292,224 @@ export default function OneToOneMeetingViewer({
       />
     </View>
   );
+}
+
+function createOneToOneStyles(theme) {
+  const M = theme.colors.meeting;
+  const B = theme.colors.buttons;
+  const brand = theme.colors.component.button;
+  const onBrand = theme.colors.text.onAccent;
+  const isLight = theme.mode === 'light';
+  /** Elevated chrome controls (header buttons) — not video-tile black. */
+  const chromeControl = M.sheet;
+  const chromeOverlay = isLight
+    ? 'rgba(248, 249, 255, 0.92)'
+    : 'rgba(0, 0, 8, 0.78)';
+
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: M[800],
+    },
+    header: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 30,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      paddingBottom: 10,
+      minHeight: 48,
+      backgroundColor: chromeOverlay,
+    },
+    headerLeft: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginRight: 8,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    headerIconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: chromeControl,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: M.controlBorder,
+    },
+    layoutIconPip: {
+      width: 20,
+      height: 20,
+      position: 'relative',
+    },
+    layoutIconPipFrame: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderWidth: 1.5,
+      borderColor: M[100],
+      borderRadius: 3,
+    },
+    layoutIconPipInset: {
+      position: 'absolute',
+      bottom: 2,
+      right: 2,
+      width: 8,
+      height: 6,
+      backgroundColor: M[100],
+      borderRadius: 1.5,
+    },
+    layoutIconSplit: {
+      width: 20,
+      height: 20,
+      flexDirection: 'column',
+      gap: 2,
+    },
+    layoutIconSplitPane: {
+      flex: 1,
+      borderWidth: 1.5,
+      borderColor: M[100],
+      borderRadius: 3,
+    },
+    recBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: B.dangerBg,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 20,
+    },
+    recDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: B.dangerSolid,
+    },
+    recLabel: {
+      marginLeft: 6,
+      color: B.dangerText,
+      fontFamily: ROBOTO_FONTS.RobotoBold,
+      fontSize: 11,
+      letterSpacing: 0.8,
+    },
+    videoStage: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: M[800],
+    },
+    tapLayer: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 10,
+    },
+    tapCatcher: {
+      ...StyleSheet.absoluteFillObject,
+      // iOS ignores hit-testing on fully transparent views.
+      backgroundColor: 'rgba(0,0,0,0.001)',
+    },
+    tapBottomRow: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      flexDirection: 'row',
+      alignItems: 'stretch',
+    },
+    tapCatcherFlex: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.001)',
+    },
+    controlDock: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 30,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: M.controlBorder,
+      backgroundColor: chromeOverlay,
+      paddingTop: 12,
+      paddingHorizontal: 10,
+    },
+    controlDockEdge: {
+      position: 'absolute',
+      top: 0,
+      left: 16,
+      right: 16,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: brand,
+      opacity: 0.35,
+    },
+    controlRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-evenly',
+      alignItems: 'center',
+    },
+    endCallBtn: {
+      borderRadius: 16,
+    },
+    micCluster: {
+      flexDirection: 'row',
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: M.controlBorder,
+      backgroundColor: 'transparent',
+      height: 50,
+      alignItems: 'center',
+    },
+    controlActiveFill: {
+      backgroundColor: M[100],
+    },
+    micMain: {
+      width: 48,
+      height: 50,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    micChevron: {
+      width: 28,
+      height: 50,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingRight: 4,
+    },
+    controlOutline: {
+      borderWidth: 1.5,
+      borderColor: M.controlBorder,
+      borderRadius: 16,
+    },
+    chatWrap: {
+      position: 'relative',
+    },
+    chatBadge: {
+      position: 'absolute',
+      top: -2,
+      right: -2,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: brand,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
+    },
+    chatBadgeText: {
+      color: onBrand,
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    moreBtn: {
+      transform: [{ rotate: '90deg' }],
+    },
+  });
 }

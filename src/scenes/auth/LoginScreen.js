@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -16,14 +17,15 @@ import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { createAuthFormStyles } from '../../utils/authFormStyles';
 import { authApi } from '../../api/authApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
+import { getBrandLogo } from '../../utils/brandLogo';
 
 export default function LoginScreen({ navigation }) {
   const styles = useThemedStyles(createThemedStyles);
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const C = theme.colors;
   const PURPLE_LINK = C.buttons.nebulaGradient[0];
-  const GOLD = C.accent.primary;
   const cursorColor = theme.mode === 'light' ? C.text.primary : '#ffffff';
+  const brandLogo = getBrandLogo(isDark);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -78,7 +80,7 @@ export default function LoginScreen({ navigation }) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <MaterialIcons name="videocam" size={40} color={GOLD} style={styles.logoIcon} />
+            <Image source={brandLogo} style={styles.logoIcon} resizeMode="contain" />
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>Sign in to continue</Text>
           </View>
@@ -206,6 +208,8 @@ function createThemedStyles(theme) {
       marginBottom: T.spacing.xxxl,
     },
     logoIcon: {
+      width: 72,
+      height: 72,
       marginBottom: T.spacing.lg,
     },
     title: {

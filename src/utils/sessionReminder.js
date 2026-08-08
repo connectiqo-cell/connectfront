@@ -1,21 +1,18 @@
-﻿import notifee, {
+import notifee, {
   TriggerType,
   AndroidImportance,
+  AndroidCategory,
+  AndroidStyle,
+  AndroidVisibility,
   AuthorizationStatus,
 } from '@notifee/react-native';
 import { Platform } from 'react-native';
+import { ensureNotificationChannel } from './displayPushNotification';
 
 const CHANNEL_ID = 'session_reminders';
 const REMINDER_MINUTES = 15;
-
-async function ensureChannel() {
-  await notifee.createChannel({
-    id: CHANNEL_ID,
-    name: 'Session Reminders',
-    importance: AndroidImportance.HIGH,
-    sound: 'default',
-  });
-}
+const BRAND_COLOR = '#6D4AFF';
+const LARGE_ICON = require('../assets/images/connectiqo_logo.png');
 
 export async function requestNotificationPermission() {
   const settings = await notifee.requestPermission();
@@ -59,7 +56,7 @@ export async function scheduleSessionReminder({
   isMentor,
 }) {
   try {
-    await ensureChannel();
+    await ensureNotificationChannel();
     await requestBatteryOptimizationExemption();
 
     const [year, month, day] = sessionDate.split('-').map(Number);
@@ -70,7 +67,7 @@ export async function scheduleSessionReminder({
 
     if (reminderMs <= Date.now()) return; // session is too soon or past
 
-    const title = isMentor ? 'Session starting soon' : 'Your session is starting soon';
+    const sender = isMentor ? 'Session reminder' : (mentorName || 'Connectiqo');
     const body = isMentor
       ? `You have a mentoring session in ${REMINDER_MINUTES} minutes.`
       : `Your session with ${mentorName} starts in ${REMINDER_MINUTES} minutes.`;
@@ -78,13 +75,47 @@ export async function scheduleSessionReminder({
     await notifee.createTriggerNotification(
       {
         id: bookingId,
-        title,
+        title: sender,
         body,
+        data: {
+          bookingId: String(bookingId),
+          type: 'session_reminder',
+          title: sender,
+          body,
+        },
         android: {
           channelId: CHANNEL_ID,
-          importance: AndroidImportance.HIGH,
-          pressAction: { id: 'default' },
           smallIcon: 'ic_notification',
+          largeIcon: LARGE_ICON,
+          circularLargeIcon: true,
+          color: BRAND_COLOR,
+          colorized: true,
+          importance: AndroidImportance.HIGH,
+          category: AndroidCategory.EVENT,
+          visibility: AndroidVisibility.PRIVATE,
+          showTimestamp: true,
+          pressAction: { id: 'default', launchActivity: 'default' },
+          actions: [
+            {
+              title: 'Open',
+              pressAction: { id: 'view', launchActivity: 'default' },
+            },
+            {
+              title: 'Dismiss',
+              pressAction: { id: 'dismiss' },
+            },
+          ],
+          style: {
+            type: AndroidStyle.MESSAGING,
+            person: { name: 'Connectiqo', icon: LARGE_ICON },
+            messages: [
+              {
+                text: body,
+                timestamp: reminderMs,
+                person: { name: sender, icon: LARGE_ICON },
+              },
+            ],
+          },
         },
         ios: {
           sound: 'default',

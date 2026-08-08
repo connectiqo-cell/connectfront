@@ -5,6 +5,26 @@ import { resolveRecordingRequestedFromRows } from '../utils/recordingConsent';
 import { recordingsApi } from './recordingsApi';
 import { normalizeSlotTime } from '../utils/contiguousSlots';
 
+/** Fire-and-forget: tell the learner the mentor started the video room. */
+function notifyMeetingStarted(bookingId) {
+  if (!bookingId) return;
+  fetch(`${SUPABASE_URL}/functions/v1/notify-meeting-started`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ bookingId }),
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.warn('📣 notify-meeting-started failed:', res.status, text);
+      }
+    })
+    .catch((err) => console.warn('📣 notify-meeting-started fetch error:', err));
+}
 /** Fetch recordings for a list of bookings and merge them in (no FK → can't use PostgREST join). */
 async function attachRecordings(bookings) {
   if (!bookings?.length) return bookings;
@@ -475,6 +495,8 @@ export const bookingApi = {
         .update({ meeting_id: meetingId })
         .eq('id', bookingId);
       if (error) throw error;
+      // Mentor just created the room — ping the learner to join.
+      notifyMeetingStarted(bookingId);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }

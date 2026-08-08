@@ -1,10 +1,10 @@
 /**
- * Generates Android launcher icons from dark_logo (zoomed for a fuller mark).
+ * Generates Android launcher icons from connectiqo_logo.
  * Run: node scripts/generate-android-icons.js
  */
 const fs = require('fs');
 const path = require('path');
-const { SOURCE, renderAppIcon } = require('./appIconSource');
+const { SOURCE, IOS_ICON_BACKGROUND, renderAppIcon } = require('./appIconSource');
 
 const RES_DIR = path.join(__dirname, '../android/app/src/main/res');
 
@@ -27,8 +27,9 @@ async function main() {
     fs.mkdirSync(dir, { recursive: true });
     const square = path.join(dir, 'ic_launcher.png');
     const round = path.join(dir, 'ic_launcher_round.png');
-    await (await renderAppIcon(size)).toFile(square);
-    await (await renderAppIcon(size)).toFile(round);
+    // Flatten onto black so transparent areas don't show the wallpaper.
+    await (await renderAppIcon(size, { flattenBackground: IOS_ICON_BACKGROUND })).toFile(square);
+    await (await renderAppIcon(size, { flattenBackground: IOS_ICON_BACKGROUND })).toFile(round);
     console.log('Wrote', folder, `(${size}x${size})`);
   }
 }

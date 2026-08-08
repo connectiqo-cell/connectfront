@@ -1,6 +1,11 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(() => Promise.resolve('light')),
+  setItem: jest.fn(() => Promise.resolve()),
+}));
+
 jest.mock('../LargeView', () => 'LargeView');
 jest.mock('../MiniView', () => 'MiniView');
 jest.mock('../LocalViewContainer', () => {

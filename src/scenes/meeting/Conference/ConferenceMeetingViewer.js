@@ -50,6 +50,7 @@ import ParticipantView from "./ParticipantView";
 import RemoteParticipantPresenter from "./RemoteParticipantPresenter";
 import VideosdkRPK from "../../../../VideosdkRPK";
 import { convertRFValue } from "../../../styles/spacing";
+import { useTheme } from "../../../hooks/useTheme";
 
 const MemoizedParticipant = React.memo(
   ParticipantView,
@@ -63,6 +64,11 @@ import { useInCallChatPopup } from "../../../hooks/useInCallChatPopup";
 import { pressScreenShare } from "../../../utils/screenShareActions";
 
 export default function ConferenceMeetingViewer({ onRequestLeave }) {
+  const { theme } = useTheme();
+  const meetingCanvas = theme.colors.meeting[900];
+  const chromeInk = theme.colors.meeting[100];
+  const brand = theme.colors.component.button;
+
   const {
     localParticipant,
     participants,
@@ -213,7 +219,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
   }, [enableScreenShare, disableScreenShare]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.primary[900] }}>
+    <View style={{ flex: 1, backgroundColor: meetingCanvas }}>
       <View
         style={{
           flexDirection: "row",
@@ -255,7 +261,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
               style={{
                 fontSize: 16,
                 fontFamily: ROBOTO_FONTS.RobotoBold,
-                color: colors.primary[100],
+                color: chromeInk,
               }}
             >
               {meetingId ? meetingId : "xxx - xxx - xxx"}
@@ -271,7 +277,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
                 Toast.show("Meeting Id copied Successfully");
               }}
             >
-              <Copy fill={colors.primary[100]} width={18} height={18} />
+              <Copy fill={chromeInk} width={18} height={18} />
             </TouchableOpacity>
           </View>
         </View>
@@ -282,7 +288,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
               changeWebcam();
             }}
           >
-            <CameraSwitch height={26} width={26} fill={colors.primary[100]} />
+            <CameraSwitch height={26} width={26} fill={chromeInk} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => {
@@ -296,11 +302,11 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
               marginHorizontal: 8,
             }}
           >
-            <Participants height={24} width={24} fill={colors.primary[100]} />
+            <Participants height={24} width={24} fill={chromeInk} />
             <Text
               style={{
                 fontSize: convertRFValue(14),
-                color: colors.primary[100],
+                color: chromeInk,
                 marginLeft: 4,
                 fontFamily: ROBOTO_FONTS.RobotoMedium,
               }}
@@ -412,7 +418,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
               ? "Stopping"
               : "Stop"
           } Recording`}
-          icon={<Recording width={22} height={22} fill={colors.primary[100]} />}
+          icon={<Recording width={22} height={22} fill={chromeInk} />}
           onPress={() => {
             moreOptionsMenu.current.close();
             const action = () => {
@@ -446,7 +452,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
         {(presenterId == null || localScreenShareOn) && (
           <MenuItem
             title={`${localScreenShareOn ? "Stop" : "Start"} Screen Share`}
-            icon={<ScreenShare width={22} height={22} fill={colors.primary[100]} />}
+            icon={<ScreenShare width={22} height={22} fill={chromeInk} />}
             onPress={() => {
               moreOptionsMenu.current.close();
               pressScreenShare({
@@ -491,7 +497,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
           }}
           Icon={() => {
             return localMicOn ? (
-              <MicOn height={24} width={24} fill={colors.primary[100]} />
+              <MicOn height={24} width={24} fill={chromeInk} />
             ) : (
               <MicOff height={28} width={28} fill={colors.ink} />
             );
@@ -508,7 +514,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
           }}
           Icon={() => {
             return localWebcamOn ? (
-              <VideoOn height={24} width={24} fill={colors.primary[100]} />
+              <VideoOn height={24} width={24} fill={chromeInk} />
             ) : (
               <VideoOff height={36} width={36} fill={colors.ink} />
             );
@@ -522,7 +528,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
               borderColor: colors.controlBorder,
             }}
             Icon={() => {
-              return <Chat height={22} width={22} fill={colors.primary[100]} />;
+              return <Chat height={22} width={22} fill={chromeInk} />;
             }}
           />
           {unreadCount > 0 ? (
@@ -534,7 +540,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
                 minWidth: 18,
                 height: 18,
                 borderRadius: 9,
-                backgroundColor: '#7c3aed',
+                backgroundColor: brand,
                 alignItems: 'center',
                 justifyContent: 'center',
                 paddingHorizontal: 4,
@@ -556,7 +562,7 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
             moreOptionsMenu.current.show();
           }}
           Icon={() => {
-            return <More height={18} width={18} fill={colors.primary[100]} />;
+            return <More height={18} width={18} fill={chromeInk} />;
           }}
         />
       </View>

@@ -24,7 +24,7 @@ const IconContainer = ({
     <View
       style={{
         flexDirection: "row",
-        borderRadius: 14,
+        borderRadius: 16,
         borderWidth: 1.5,
         borderColor: colors.controlBorder,
         backgroundColor: backgroundColor,
@@ -58,7 +58,7 @@ const IconContainer = ({
       style={{
         backgroundColor: backgroundColor ? backgroundColor : "transparent",
         ...buttonStyle,
-        borderRadius: 14,
+        borderRadius: 16,
         ...style,
       }}
     >

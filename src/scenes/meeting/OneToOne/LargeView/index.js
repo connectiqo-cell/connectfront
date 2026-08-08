@@ -56,7 +56,6 @@ function LargeViewContainerInner({ participantId, openStatsBottomSheet }) {
       style={{
         flex: 1,
         backgroundColor: colors.primary[800],
-        borderRadius: 12,
         overflow: 'hidden',
       }}
     >

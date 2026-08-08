@@ -11,7 +11,6 @@ export default function ParticipantVideoPlaceholder({ style }) {
         {
           flex: 1,
           backgroundColor: colors.primary[800],
-          borderRadius: 12,
           overflow: 'hidden',
           justifyContent: 'center',
           alignItems: 'center',

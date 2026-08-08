@@ -21,3 +21,4 @@ CREATE POLICY "profiles_select_public"
   FOR SELECT
   TO anon, authenticated
   USING (true);
+

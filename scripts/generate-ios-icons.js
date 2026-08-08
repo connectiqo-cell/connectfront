@@ -1,5 +1,5 @@
 /**
- * Generates iOS AppIcon PNGs from dark_logo (zoomed for a fuller mark).
+ * Generates iOS AppIcon PNGs from connectiqo_logo.
  * Run: node scripts/generate-ios-icons.js
  */
 const fs = require('fs');

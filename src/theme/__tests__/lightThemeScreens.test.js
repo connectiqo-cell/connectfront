@@ -196,10 +196,16 @@ describe('light theme — style factories produce readable text', () => {
       path.join(SRC_ROOT, 'scenes/meeting/OneToOne/index.js'),
       'utf8',
     );
-    expect(oneToOneSrc).toContain('fill={colors.primary[100]}');
-    expect(oneToOneSrc).toContain('colors.controlBorder');
+    expect(oneToOneSrc).toContain('useThemedStyles');
+    expect(oneToOneSrc).toContain('createOneToOneStyles');
+    expect(oneToOneSrc).toContain('fill={colors.chromeInk}');
+    expect(oneToOneSrc).toContain('M.controlBorder');
+    expect(oneToOneSrc).toContain('M[800]');
+    expect(oneToOneSrc).toContain('chromeControl');
+    expect(oneToOneSrc).toContain('toggleChrome');
+    expect(oneToOneSrc).toContain('Animated.timing');
+    expect(oneToOneSrc).toContain('tapCatcher');
     expect(oneToOneSrc).toContain('Recording width={22} height={22} fill={colors.primary[100]}');
-    expect(oneToOneSrc).not.toMatch(/borderColor:\s*colors\.sheet/);
   });
 
   it('SessionLobbyView light styles use light dock + readable modal card', () => {

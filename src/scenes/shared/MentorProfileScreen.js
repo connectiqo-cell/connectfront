@@ -157,13 +157,18 @@ function ProfileFadeIn({ delayIndex = 0, children, style }) {
 
 async function openSocialUrl(url, label) {
   try {
-    const can = await Linking.canOpenURL(url);
-    if (!can) {
-      Toast.show(`Could not open ${label}`, Toast.SHORT);
-      return;
-    }
+    // On iOS, canOpenURL can be overly strict for https; prefer openURL first.
     await Linking.openURL(url);
   } catch {
+    try {
+      const can = await Linking.canOpenURL(url);
+      if (can) {
+        await Linking.openURL(url);
+        return;
+      }
+    } catch {
+      // fall through
+    }
     Toast.show(`Could not open ${label}`, Toast.SHORT);
   }
 }

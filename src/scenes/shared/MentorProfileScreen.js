@@ -16,10 +16,12 @@ import {
   Dimensions,
   useWindowDimensions,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-simple-toast';
 import { SafeScreen } from '../../components/SafeScreen';
@@ -43,6 +45,7 @@ import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
 import { purchaseAndroidProduct, finishAndroidPurchase, getPlayProductIdForPrice } from '../../utils/playBilling';
 import { purchaseIosProduct, finishIosPurchase, getAppleProductIdForPrice } from '../../utils/appleBilling';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
+import { getMentorSocialLinks } from '../../utils/socialLinks';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -149,6 +152,50 @@ function ProfileFadeIn({ delayIndex = 0, children, style }) {
     <Animated.View style={[style, { opacity, transform: [{ translateY }, { scale }] }]}>
       {children}
     </Animated.View>
+  );
+}
+
+async function openSocialUrl(url, label) {
+  try {
+    const can = await Linking.canOpenURL(url);
+    if (!can) {
+      Toast.show(`Could not open ${label}`, Toast.SHORT);
+      return;
+    }
+    await Linking.openURL(url);
+  } catch {
+    Toast.show(`Could not open ${label}`, Toast.SHORT);
+  }
+}
+
+/** Full-width brand icon row — equal slots, only platforms with a URL. */
+function MentorSocialLinks({ mentor, style }) {
+  const styles = useThemedStyles(createMentorProfileStyles);
+  const { theme } = useTheme();
+  const isLight = theme.mode === 'light';
+  const links = useMemo(() => getMentorSocialLinks(mentor), [mentor]);
+
+  if (!links.length) return null;
+
+  return (
+    <View style={[styles.socialRow, style]} accessibilityRole="list">
+      {links.map(link => (
+        <View key={link.key} style={styles.socialSlot}>
+          <Pressable
+            onPress={() => openSocialUrl(link.url, link.label)}
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${link.label}`}
+            style={({ pressed }) => [
+              styles.socialBtn,
+              isLight && styles.socialBtnLight,
+              { borderColor: `${link.color}44`, opacity: pressed ? 0.82 : 1 },
+            ]}
+          >
+            <FontAwesome5 name={link.icon} brand size={18} color={link.color} />
+          </Pressable>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -1150,6 +1197,10 @@ export default function MentorProfileScreen({ navigation, route }) {
             unlock_price: 299,
             category: '',
             cover_image_url: null,
+            youtube_url: null,
+            instagram_url: null,
+            x_url: null,
+            linkedin_url: null,
           };
         }
       };
@@ -1583,8 +1634,8 @@ export default function MentorProfileScreen({ navigation, route }) {
               </AvatarPulseRing>
               <PulseOnlineDot />
               {isOwnProfile ? (
-                <View style={styles.avatarCameraBadge}>
-                  <MaterialIcons name="photo-camera" size={14} color={C.text.primary} />
+                <View style={[styles.avatarCameraBadge, isLightTheme && styles.avatarCameraBadgeLight]}>
+                  <MaterialIcons name="photo-camera" size={14} color={TEAL} />
                 </View>
               ) : null}
             </PressableScale>
@@ -1621,6 +1672,8 @@ export default function MentorProfileScreen({ navigation, route }) {
                 ) : null}
               </View>
             )}
+
+            <MentorSocialLinks mentor={mentor} />
           </ProfileFadeIn>
 
           <View style={styles.bodyFlex}>
@@ -1998,8 +2051,54 @@ function createMentorProfileStyles(theme) {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(15,14,42,0.92)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(94,234,212,0.55)',
+  },
+  avatarCameraBadgeLight: {
+    backgroundColor: '#ffffff',
+    borderColor: 'rgba(45,212,191,0.65)',
+    ...Platform.select({
+      ios: {
+        shadowColor: 'rgba(15,14,42,0.18)',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 1,
+        shadowRadius: 4,
+      },
+      android: { elevation: 3 },
+    }),
+  },
+  socialRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    alignSelf: 'stretch',
+    width: '100%',
+    gap: 8,
+    marginTop: T.spacing.md,
+  },
+  socialSlot: {
+    flex: 1,
+    minWidth: 0,
+  },
+  socialBtn: {
+    width: '100%',
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: softFill(theme),
     borderWidth: 1,
-    borderColor: 'rgba(94,234,212,0.45)',
+  },
+  socialBtnLight: {
+    backgroundColor: '#ffffff',
+    ...Platform.select({
+      ios: {
+        shadowColor: 'rgba(18,16,42,0.08)',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 1,
+        shadowRadius: 4,
+      },
+      android: { elevation: 1 },
+    }),
   },
   avatarRingGrad: {
     padding: 3,

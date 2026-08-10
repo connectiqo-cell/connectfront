@@ -8,8 +8,6 @@ import {
   RefreshControl,
   Animated,
   Easing,
-  Platform,
-  InteractionManager,
 } from 'react-native';
 import { useFocusEffect, CommonActions } from '@react-navigation/native';
 import Toast from 'react-native-simple-toast';
@@ -19,7 +17,7 @@ import { UNIFIED_THEME } from '../../unifiedTheme';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { SearchBar } from '../../components/SearchBar';
 import { MentorImageCard } from '../../components/MentorImageCard';
-import { MentorDetailSheet } from '../../components/MentorDetailSheet';
+import { MentorDetailSheet, runAfterSheetClose } from '../../components/MentorDetailSheet';
 import { mentorApi } from '../../api/mentorApi';
 import { profileApi } from '../../api/profileApi';
 import { fetchActiveCategories } from '../../api/contentApi';
@@ -406,14 +404,9 @@ export default function LearnerHomeScreen({ navigation }) {
           mentorName: mentor.profiles?.name || 'Mentor',
         },
       });
-      const go = () => navigation.dispatch(action);
-      if (Platform.OS === 'ios') {
-        InteractionManager.runAfterInteractions(() => {
-          setTimeout(go, 320);
-        });
-      } else {
-        go();
-      }
+      // Always wait for MentorDetailSheet Modal teardown — Android Booking is also modal
+      // presentation; navigating during dismiss yields a blank first open.
+      runAfterSheetClose(() => navigation.dispatch(action));
     },
     [navigation],
   );

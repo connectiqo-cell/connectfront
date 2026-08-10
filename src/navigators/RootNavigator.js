@@ -50,6 +50,16 @@ const LOCKED_SCREEN_OPTIONS = Platform.select({
   },
 });
 
+/** Booking must be card on Android — modal + MentorDetailSheet RN Modal races to a blank first open. */
+const BOOKING_SCREEN_OPTIONS = Platform.select({
+  ios: LOCKED_SCREEN_OPTIONS,
+  default: {
+    presentation: 'card',
+    animationEnabled: false,
+    gestureEnabled: false,
+  },
+});
+
 /** Settings / profile overlays — card presentation; swipe/back enabled on iOS. */
 const OVERLAY_SCREEN_OPTIONS = Platform.select({
   ios: {
@@ -200,6 +210,7 @@ export const RootNavigator = () => {
               <RootStack.Screen
                 name={SCREEN_NAMES.Booking}
                 component={BookingScreen}
+                options={BOOKING_SCREEN_OPTIONS}
                 listeners={androidOverlayBackListeners}
               />
               <RootStack.Screen

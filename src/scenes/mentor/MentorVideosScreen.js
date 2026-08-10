@@ -672,6 +672,7 @@ function VideoCard({ video, index = 0, replayToken = 0, onToggleFree, onDelete, 
 function EditModal({ video, onClose, onSaved }) {
   const styles = useThemedStyles(createMentorVideosStyles);
   const { theme } = useTheme();
+  const { user } = useAuth();
   const C = theme.colors;
   const B = C.buttons;
   const S = C.surface;
@@ -682,9 +683,11 @@ function EditModal({ video, onClose, onSaved }) {
   const INPUT_BG = C.surface.sheet;
   const SHEET_BG = C.surface.sheet;
   const GLASS_BORDER = C.border.light;
+  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isFree, setIsFree] = useState(false);
+  const [pickedThumbnail, setPickedThumbnail] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -696,12 +699,29 @@ function EditModal({ video, onClose, onSaved }) {
       setTitle(video.title || '');
       setDescription(video.description || '');
       setIsFree(video.is_free || false);
+      setPickedThumbnail(null);
       setSaved(false);
       setErrorMsg('');
       scaleAnim.setValue(1);
       checkAnim.setValue(0);
     }
-  }, [video]);
+  }, [video, checkAnim, scaleAnim]);
+
+  const thumbPreviewUri = pickedThumbnail?.uri || video?.thumbnail_url || null;
+
+  const pickThumbnail = () => {
+    if (saving || saved) return;
+    launchImageLibrary(
+      { mediaType: 'photo', quality: 0.8 },
+      (response) => {
+        if (response.didCancel || response.errorCode) return;
+        const asset = response.assets?.[0];
+        if (!asset) return;
+        setPickedThumbnail(asset);
+        setErrorMsg('');
+      },
+    );
+  };
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -716,11 +736,16 @@ function EditModal({ video, onClose, onSaved }) {
     setErrorMsg('');
     setSaving(true);
     try {
+      const mentorId = video.mentor_id || user?.id;
       const updated = await videoApi.updateVideo({
         id: video.id,
+        mentorId,
         title: title.trim(),
         description: description.trim(),
         isFree,
+        thumbnailUri: pickedThumbnail?.uri,
+        thumbnailFileName:
+          pickedThumbnail?.fileName || (pickedThumbnail ? `thumb_${Date.now()}.jpg` : undefined),
       });
       onSaved(updated);
       setSaved(true);
@@ -734,10 +759,15 @@ function EditModal({ video, onClose, onSaved }) {
   };
 
   return (
-    <Modal visible={!!video} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={!!video} animationType="slide" transparent onRequestClose={() => !saving && onClose()}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <TouchableOpacity style={styles.editModalBackdrop} activeOpacity={1} onPress={onClose} />
-        <View style={styles.modalSheet}>
+        <TouchableOpacity
+          style={styles.editModalBackdrop}
+          activeOpacity={1}
+          onPress={() => !saving && onClose()}
+          disabled={saving}
+        />
+        <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
           <View style={styles.modalHandle} />
 
           <View style={styles.editModalHeader}>
@@ -745,75 +775,113 @@ function EditModal({ video, onClose, onSaved }) {
             <Text style={styles.modalTitle}>Edit Video</Text>
           </View>
 
-          <Text style={styles.fieldLabel}>Title</Text>
-          <TextInput
-            style={styles.input}
-            value={title}
-            onChangeText={t => { setTitle(t); setErrorMsg(''); }}
-            placeholder="Video title"
-            placeholderTextColor={C.text.muted}
-            maxLength={80}
-            autoCorrect
-            spellCheck
-            autoCapitalize="sentences"
-          />
-
-          <Text style={styles.fieldLabel}>Description</Text>
-          <TextInput
-            style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Optional description"
-            placeholderTextColor={C.text.muted}
-            multiline
-            maxLength={200}
-            autoCorrect
-            spellCheck
-            autoCapitalize="sentences"
-          />
-
-          <View style={styles.switchRow}>
-            <Text style={styles.fieldLabel}>Free to watch</Text>
-            <Switch
-              value={isFree}
-              onValueChange={setIsFree}
-              trackColor={{ false: C.surface.chipStrong, true: TEAL }}
-              thumbColor={isFree ? GOLD : C.text.muted}
-            />
-          </View>
-
-          {/* Error message */}
-          {errorMsg ? (
-            <View style={styles.errorBanner}>
-              <MaterialIcons name="error-outline" size={14} color={T.colors.accent.error} />
-              <Text style={styles.errorBannerText}>{errorMsg}</Text>
-            </View>
-          ) : null}
-
-          {/* Save button */}
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <Text style={styles.fieldLabel}>Thumbnail</Text>
             <TouchableOpacity
-              style={[
-                styles.uploadBtn,
-                saved && styles.savedBtn,
-                (saving || saved) && { opacity: 0.9 },
-              ]}
-              onPress={handleSave}
-              disabled={saving || saved}
+              style={[styles.thumbZone, thumbPreviewUri && styles.thumbZoneFilled]}
+              onPress={pickThumbnail}
               activeOpacity={0.85}
+              disabled={saving || saved}
             >
-              {saving ? (
-                <ActivityIndicator color="#000" size="small" />
-              ) : saved ? (
-                <Animated.View style={[styles.savedRow, { transform: [{ scale: checkAnim }] }]}>
-                  <MaterialIcons name="check-circle" size={18} color="#000" />
-                  <Text style={styles.uploadBtnText}>Saved!</Text>
-                </Animated.View>
+              {thumbPreviewUri ? (
+                <Image source={{ uri: thumbPreviewUri }} style={styles.thumbPreview} resizeMode="cover" />
               ) : (
-                <Text style={styles.uploadBtnText}>Save Changes</Text>
+                <View style={styles.thumbPlaceholder}>
+                  <MaterialIcons name="image" size={22} color={PURPLE_LINK} />
+                </View>
               )}
+              <View style={styles.thumbMeta}>
+                <Text style={styles.thumbTitle}>
+                  {pickedThumbnail
+                    ? 'New thumbnail selected'
+                    : thumbPreviewUri
+                      ? 'Thumbnail'
+                      : 'Add thumbnail'}
+                </Text>
+                <Text style={styles.thumbHint}>
+                  {pickedThumbnail ? 'Tap to change' : 'Tap to update cover image'}
+                </Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={22} color={C.text.muted} />
             </TouchableOpacity>
-          </Animated.View>
+
+            <Text style={styles.fieldLabel}>Title</Text>
+            <TextInput
+              style={styles.input}
+              value={title}
+              onChangeText={t => { setTitle(t); setErrorMsg(''); }}
+              placeholder="Video title"
+              placeholderTextColor={C.text.muted}
+              maxLength={TITLE_MAX}
+              editable={!saving && !saved}
+              autoCorrect
+              spellCheck
+              autoCapitalize="sentences"
+            />
+            <Text style={styles.charCount}>{title.length}/{TITLE_MAX}</Text>
+
+            <Text style={styles.fieldLabel}>Description</Text>
+            <TextInput
+              style={[styles.input, styles.inputMulti]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Optional description"
+              placeholderTextColor={C.text.muted}
+              multiline
+              maxLength={DESC_MAX}
+              editable={!saving && !saved}
+              autoCorrect
+              spellCheck
+              autoCapitalize="sentences"
+            />
+            <Text style={styles.charCount}>{description.length}/{DESC_MAX}</Text>
+
+            <View style={styles.switchRow}>
+              <Text style={styles.fieldLabel}>Free to watch</Text>
+              <Switch
+                value={isFree}
+                onValueChange={setIsFree}
+                disabled={saving || saved}
+                trackColor={{ false: C.surface.chipStrong, true: TEAL }}
+                thumbColor={isFree ? GOLD : C.text.muted}
+              />
+            </View>
+
+            {errorMsg ? (
+              <View style={styles.errorBanner}>
+                <MaterialIcons name="error-outline" size={14} color={T.colors.accent.error} />
+                <Text style={styles.errorBannerText}>{errorMsg}</Text>
+              </View>
+            ) : null}
+
+            <Animated.View style={{ transform: [{ scale: scaleAnim }], marginBottom: 8 }}>
+              <TouchableOpacity
+                style={[
+                  styles.uploadBtn,
+                  saved && styles.savedBtn,
+                  (saving || saved) && { opacity: 0.9 },
+                ]}
+                onPress={handleSave}
+                disabled={saving || saved}
+                activeOpacity={0.85}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#000" size="small" />
+                ) : saved ? (
+                  <Animated.View style={[styles.savedRow, { transform: [{ scale: checkAnim }] }]}>
+                    <MaterialIcons name="check-circle" size={18} color="#000" />
+                    <Text style={styles.uploadBtnText}>Saved!</Text>
+                  </Animated.View>
+                ) : (
+                  <Text style={styles.uploadBtnText}>Save Changes</Text>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>

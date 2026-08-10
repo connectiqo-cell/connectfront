@@ -10,6 +10,7 @@ import {
   ScrollView,
   Platform,
   Easing,
+  InteractionManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -159,6 +160,15 @@ function AvatarReveal({ visible, mentorKey, children }) {
   );
 }
 
+/** Wait for sheet close before pushing Booking — avoids blank first open (RN Modal + stack modal). */
+export const SHEET_NAV_DELAY_MS = 320;
+
+export function runAfterSheetClose(action, delayMs = SHEET_NAV_DELAY_MS) {
+  InteractionManager.runAfterInteractions(() => {
+    setTimeout(action, delayMs);
+  });
+}
+
 export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProfile }) {
   const styles = useThemedStyles(createThemedStyles);
   const { theme } = useTheme();
@@ -176,6 +186,10 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const actionsSlide = useRef(new Animated.Value(48)).current;
   const actionsOpacity = useRef(new Animated.Value(0)).current;
+  // Keep last mentor so Modal can finish dismiss instead of hard-unmounting (blank Booking race).
+  const lastMentorRef = useRef(mentor);
+  if (mentor) lastMentorRef.current = mentor;
+  const displayMentor = mentor || lastMentorRef.current;
 
   useEffect(() => {
     if (visible) {
@@ -227,20 +241,20 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
         }),
       ]).start();
     }
-  }, [visible, mentor?.id, slideAnim, backdropAnim, actionsSlide, actionsOpacity]);
+  }, [visible, displayMentor?.id, slideAnim, backdropAnim, actionsSlide, actionsOpacity]);
 
-  if (!mentor) return null;
+  if (!displayMentor) return null;
 
-  const name = mentor.profiles?.name || 'Unknown';
+  const name = displayMentor.profiles?.name || 'Unknown';
   const initial = name.charAt(0).toUpperCase();
-  const avatarUrl = mentor.profiles?.avatar_url;
-  const rating = mentor.rating != null && mentor.rating !== '' ? String(mentor.rating) : '—';
-  const price = mentor.price_per_hour;
+  const avatarUrl = displayMentor.profiles?.avatar_url;
+  const rating = displayMentor.rating != null && displayMentor.rating !== '' ? String(displayMentor.rating) : '—';
+  const price = displayMentor.price_per_hour;
   const priceLabel = !price || price === 0 ? 'Free' : `₹${price}`;
-  const expYears = mentor.experience_years ? `${mentor.experience_years}` : '—';
-  const sessions = mentor.total_sessions ?? 0;
-  const bio = mentor.bio || null;
-  const spec = mentor.specialization || null;
+  const expYears = displayMentor.experience_years ? `${displayMentor.experience_years}` : '—';
+  const sessions = displayMentor.total_sessions ?? 0;
+  const bio = displayMentor.bio || null;
+  const spec = displayMentor.specialization || null;
 
   return (
     <Modal
@@ -274,7 +288,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
           bounces={false}
         >
           <View style={styles.header}>
-            <AvatarReveal visible={visible} mentorKey={mentor.id} key={`avatar-${mentor.id}`}>
+            <AvatarReveal visible={visible} mentorKey={displayMentor.id} key={`avatar-${displayMentor.id}`}>
               <PressScale
                 onPress={() => showAvatarPreview({ uri: avatarUrl, name })}
                 accessibilityLabel={`View ${name} profile photo`}
@@ -295,7 +309,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
                 />
               </PressScale>
             </AvatarReveal>
-            <SheetReveal visible={visible} mentorKey={mentor.id} delay={130} offsetY={14} style={styles.headerInfo} key={`info-${mentor.id}`}>
+            <SheetReveal visible={visible} mentorKey={displayMentor.id} delay={130} offsetY={14} style={styles.headerInfo} key={`info-${displayMentor.id}`}>
               <Text style={styles.name}>{name}</Text>
               {spec ? (
                 <Text style={styles.spec} numberOfLines={2}>
@@ -309,7 +323,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             </SheetReveal>
           </View>
 
-          <SheetReveal visible={visible} mentorKey={mentor.id} delay={190} offsetY={20} key={`stats-${mentor.id}`}>
+          <SheetReveal visible={visible} mentorKey={displayMentor.id} delay={190} offsetY={20} key={`stats-${displayMentor.id}`}>
             <View style={styles.statsBar}>
               <StatSegment icon="star" iconColor={GOLD} value={rating} label="Rating" />
               <View style={styles.statDivider} />
@@ -322,7 +336,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
           </SheetReveal>
 
           {bio ? (
-            <SheetReveal visible={visible} mentorKey={mentor.id} delay={250} offsetY={20} key={`bio-${mentor.id}`}>
+            <SheetReveal visible={visible} mentorKey={displayMentor.id} delay={250} offsetY={20} key={`bio-${displayMentor.id}`}>
               <View style={styles.bioWrap}>
                 <Text style={styles.bioLabel}>About</Text>
                 <Text style={styles.bioText}>{bio}</Text>
@@ -350,7 +364,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             numberOfLines={1}
             onPress={() => {
               onClose();
-              onViewProfile(mentor);
+              onViewProfile(displayMentor);
             }}
             style={styles.actionBtn}
           />
@@ -362,7 +376,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
             pressScale
             pill
             numberOfLines={1}
-            onPress={() => onBook(mentor)}
+            onPress={() => onBook(displayMentor)}
             style={styles.actionBtn}
           />
         </Animated.View>

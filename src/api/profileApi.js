@@ -42,7 +42,7 @@ export const profileApi = {
     try {
       const { data, error } = await supabase
         .from('mentor_profiles')
-        .select('id, specialization, bio, experience_years, price_per_hour, rating, total_sessions, unlock_price, category, cover_image_url')
+        .select('id, specialization, bio, experience_years, price_per_hour, rating, total_sessions, unlock_price, category, cover_image_url, youtube_url, instagram_url, x_url, linkedin_url')
         .eq('id', mentorId)
         .single();
 
@@ -84,6 +84,10 @@ export const profileApi = {
     pricePerHour,
     coverImageUrl,
     category,
+    youtubeUrl,
+    instagramUrl,
+    xUrl,
+    linkedinUrl,
   }) => {
     try {
       const updates = {
@@ -95,6 +99,10 @@ export const profileApi = {
       };
       if (coverImageUrl !== undefined) updates.cover_image_url = coverImageUrl;
       if (category !== undefined) updates.category = category || '';
+      if (youtubeUrl !== undefined) updates.youtube_url = youtubeUrl || null;
+      if (instagramUrl !== undefined) updates.instagram_url = instagramUrl || null;
+      if (xUrl !== undefined) updates.x_url = xUrl || null;
+      if (linkedinUrl !== undefined) updates.linkedin_url = linkedinUrl || null;
 
       const { data, error } = await supabase
         .from('mentor_profiles')

@@ -12,7 +12,6 @@ import {
   Easing,
   useWindowDimensions,
   Platform,
-  InteractionManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -20,7 +19,7 @@ import Toast from 'react-native-simple-toast';
 import CosmicBackground from '../../components/CosmicBackground';
 import { SearchBar } from '../../components/SearchBar';
 import { MentorImageCard } from '../../components/MentorImageCard';
-import { MentorDetailSheet } from '../../components/MentorDetailSheet';
+import { MentorDetailSheet, runAfterSheetClose } from '../../components/MentorDetailSheet';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
@@ -304,19 +303,13 @@ export default function CategoryMentorsScreen({ route, navigation }) {
 
   const handleBookMentor = useCallback(
     mentor => {
-      const go = () => {
+      // Wait for sheet Modal close — same blank-first-open race as HomeScreen on Android.
+      runAfterSheetClose(() => {
         navigation.navigate(SCREEN_NAMES.Booking, {
           mentorId: mentor.id,
           mentorName: mentor.profiles?.name || 'Mentor',
         });
-      };
-      if (Platform.OS === 'ios') {
-        InteractionManager.runAfterInteractions(() => {
-          setTimeout(go, 320);
-        });
-      } else {
-        go();
-      }
+      });
     },
     [navigation],
   );

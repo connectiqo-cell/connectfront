@@ -44,6 +44,7 @@ import {
 import { CelebrationScreenFx } from '../../components/CelebrationPayButton';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
+import { normalizeSocialUrl } from '../../utils/socialLinks';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -772,6 +773,10 @@ export default function EditProfileScreen({ navigation }) {
   const [pricePerHour, setPricePerHour] = useState('');
   const [categories, setCategories] = useState([]);
   const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [instagramUrl, setInstagramUrl] = useState('');
+  const [xUrl, setXUrl] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showInterestPicker, setShowInterestPicker] = useState(false);
   const [adminCategoryNames, setAdminCategoryNames] = useState([]);
@@ -797,6 +802,10 @@ export default function EditProfileScreen({ navigation }) {
         categories,
         coverImageUrl,
         avatarUrl,
+        youtubeUrl,
+        instagramUrl,
+        xUrl,
+        linkedinUrl,
       }),
     [
       name,
@@ -810,6 +819,10 @@ export default function EditProfileScreen({ navigation }) {
       categories,
       coverImageUrl,
       avatarUrl,
+      youtubeUrl,
+      instagramUrl,
+      xUrl,
+      linkedinUrl,
     ],
   );
 
@@ -827,6 +840,10 @@ export default function EditProfileScreen({ navigation }) {
         categories,
         coverImageUrl,
         avatarUrl,
+        youtubeUrl: youtubeUrl.trim(),
+        instagramUrl: instagramUrl.trim(),
+        xUrl: xUrl.trim(),
+        linkedinUrl: linkedinUrl.trim(),
       }),
     [
       name,
@@ -840,6 +857,10 @@ export default function EditProfileScreen({ navigation }) {
       categories,
       coverImageUrl,
       avatarUrl,
+      youtubeUrl,
+      instagramUrl,
+      xUrl,
+      linkedinUrl,
     ],
   );
 
@@ -879,6 +900,10 @@ export default function EditProfileScreen({ navigation }) {
       let nextPricePerHour = '';
       let nextCategories = [];
       let nextCover = '';
+      let nextYoutube = '';
+      let nextInstagram = '';
+      let nextX = '';
+      let nextLinkedin = '';
       let nextLearnerBio = '';
       let nextInterests = [];
 
@@ -890,6 +915,10 @@ export default function EditProfileScreen({ navigation }) {
         nextPricePerHour = m.price_per_hour ? String(m.price_per_hour) : '';
         nextCategories = parseMentorCategories(m.category || '');
         nextCover = m.cover_image_url || '';
+        nextYoutube = m.youtube_url || '';
+        nextInstagram = m.instagram_url || '';
+        nextX = m.x_url || '';
+        nextLinkedin = m.linkedin_url || '';
       }
       if (learnerData.status === 'fulfilled' && learnerData.value) {
         const l = learnerData.value;
@@ -906,6 +935,10 @@ export default function EditProfileScreen({ navigation }) {
       setPricePerHour(nextPricePerHour);
       setCategories(nextCategories);
       setCoverImageUrl(nextCover);
+      setYoutubeUrl(nextYoutube);
+      setInstagramUrl(nextInstagram);
+      setXUrl(nextX);
+      setLinkedinUrl(nextLinkedin);
       setLearnerBio(nextLearnerBio);
       setInterests(nextInterests);
 
@@ -921,6 +954,10 @@ export default function EditProfileScreen({ navigation }) {
         categories: nextCategories,
         coverImageUrl: nextCover,
         avatarUrl: profile.avatar_url || '',
+        youtubeUrl: nextYoutube.trim(),
+        instagramUrl: nextInstagram.trim(),
+        xUrl: nextX.trim(),
+        linkedinUrl: nextLinkedin.trim(),
       });
     } catch (error) {
       console.error('Failed to load profiles:', error);
@@ -1116,6 +1153,10 @@ export default function EditProfileScreen({ navigation }) {
           pricePerHour: parseFloat(pricePerHour) || 0,
           coverImageUrl,
           category: serializeMentorCategories(categories),
+          youtubeUrl: normalizeSocialUrl(youtubeUrl) || null,
+          instagramUrl: normalizeSocialUrl(instagramUrl) || null,
+          xUrl: normalizeSocialUrl(xUrl) || null,
+          linkedinUrl: normalizeSocialUrl(linkedinUrl) || null,
         }),
         profileApi.updateLearnerProfile({
           userId,
@@ -1230,7 +1271,7 @@ export default function EditProfileScreen({ navigation }) {
                   activeOpacity={0.85}
                   accessibilityLabel="Take profile photo"
                 >
-                  <MaterialIcons name="camera-alt" size={14} color={C.text.primary} />
+                  <MaterialIcons name="camera-alt" size={14} color={TEAL} />
                 </TouchableOpacity>
               </AnimatedPressable>
 
@@ -1426,6 +1467,56 @@ export default function EditProfileScreen({ navigation }) {
               options={mentorCategoryOptions}
               onToggleCategory={cat => setCategories(prev => toggleMentorCategory(prev, cat))}
             />
+
+            <Text style={styles.socialSectionLabel}>Social links</Text>
+            <Text style={styles.socialSectionHint}>
+              Shown as icons on your mentor profile. Leave blank to hide.
+            </Text>
+            <Field
+              icon="play-circle-outline"
+              label="YouTube"
+              value={youtubeUrl}
+              onChangeText={setYoutubeUrl}
+              placeholder="https://youtube.com/@yourchannel"
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={200}
+            />
+            <Field
+              icon="camera-alt"
+              label="Instagram"
+              value={instagramUrl}
+              onChangeText={setInstagramUrl}
+              placeholder="https://instagram.com/yourhandle"
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={200}
+            />
+            <Field
+              icon="alternate-email"
+              label="X (Twitter)"
+              value={xUrl}
+              onChangeText={setXUrl}
+              placeholder="https://x.com/yourhandle"
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={200}
+            />
+            <Field
+              icon="work-outline"
+              label="LinkedIn"
+              value={linkedinUrl}
+              onChangeText={setLinkedinUrl}
+              placeholder="https://linkedin.com/in/yourprofile"
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={200}
+              isLast
+            />
           </SectionBlock>
 
           <FadeSlideIn delay={360} style={styles.dangerZone}>
@@ -1620,8 +1711,8 @@ function createEditProfileStyles(theme) {
     backgroundColor: PANEL_BG,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: C.border.default,
+    borderWidth: 1.5,
+    borderColor: TEAL,
   },
   heroName: {
     fontSize: 20,
@@ -1920,6 +2011,20 @@ function createEditProfileStyles(theme) {
   categoryChipTextActive: {
     color: GOLD,
     fontWeight: '700',
+  },
+  socialSectionLabel: {
+    marginTop: T.spacing.md,
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.text.primary,
+    letterSpacing: 0.2,
+  },
+  socialSectionHint: {
+    marginTop: 4,
+    marginBottom: T.spacing.sm,
+    fontSize: 12,
+    lineHeight: 17,
+    color: C.text.muted,
   },
   footer: {
     paddingHorizontal: T.spacing.lg,

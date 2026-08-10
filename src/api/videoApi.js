@@ -342,7 +342,7 @@ export const videoApi = {
     try {
       const { data, error } = await supabase
         .from('mentor_videos')
-        .select('id, title, description, video_url, thumbnail_url, is_free, position, created_at')
+        .select('id, mentor_id, title, description, video_url, thumbnail_url, is_free, position, created_at')
         .eq('mentor_id', mentorId)
         .order('position', { ascending: true })
         .order('created_at', { ascending: true });
@@ -367,14 +367,49 @@ export const videoApi = {
     }
   },
 
-  // ─── Update video metadata ────────────────────────────────────────────────────
-  updateVideo: async ({ id, title, description, isFree, position }) => {
+  // ─── Update video metadata (+ optional new thumbnail) ───────────────────────
+  updateVideo: async ({
+    id,
+    title,
+    description,
+    isFree,
+    position,
+    thumbnailUri,
+    thumbnailFileName,
+    mentorId,
+  }) => {
     try {
       const updates = {};
       if (title !== undefined) updates.title = title;
       if (description !== undefined) updates.description = description;
       if (isFree !== undefined) updates.is_free = isFree;
       if (position !== undefined) updates.position = position;
+
+      if (thumbnailUri && thumbnailFileName && mentorId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) throw new Error('Not authenticated');
+
+        const thumbExt = (thumbnailFileName.split('.').pop() || 'jpg').toLowerCase();
+        const thumbContentType = `image/${thumbExt === 'jpg' ? 'jpeg' : thumbExt}`;
+        const thumbPath = `${mentorId}/${Date.now()}_thumb.${thumbExt}`;
+        await uploadFileXHR(
+          thumbPath,
+          thumbnailUri,
+          thumbnailFileName,
+          thumbContentType,
+          session.access_token,
+          undefined,
+          THUMB_BUCKET,
+        );
+        const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
+          .from(THUMB_BUCKET)
+          .getPublicUrl(thumbPath);
+        updates.thumbnail_url = `${thumbPublicUrl}?t=${Date.now()}`;
+      }
+
+      if (!Object.keys(updates).length) {
+        throw new Error('Nothing to update');
+      }
 
       const { data, error } = await supabase
         .from('mentor_videos')

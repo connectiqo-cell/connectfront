@@ -23,8 +23,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
   ) -> Bool {
 #if canImport(FirebaseCore)
     // Required for FCM — needs GoogleService-Info.plist in the app bundle.
+    // Without the plist, FirebaseApp.configure() terminates the process on launch.
     if FirebaseApp.app() == nil {
-      FirebaseApp.configure()
+      if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+        FirebaseApp.configure()
+      } else {
+        NSLog("Skipping FirebaseApp.configure — GoogleService-Info.plist not found in bundle. Add ios/GoogleService-Info.plist and include it in the MyApp target.")
+      }
     }
 #endif
 
@@ -55,7 +60,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
   ) {
 #if canImport(FirebaseMessaging)
-    Messaging.messaging().apnsToken = deviceToken
+    // Only set APNs token after Firebase is configured (needs GoogleService-Info.plist).
+    if FirebaseApp.app() != nil {
+      Messaging.messaging().apnsToken = deviceToken
+    }
 #endif
   }
 

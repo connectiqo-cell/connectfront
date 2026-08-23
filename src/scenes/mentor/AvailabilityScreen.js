@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  RefreshControl,
+  AppState,
 } from 'react-native';
 import Toast from 'react-native-simple-toast';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -21,6 +23,7 @@ import CosmicButton from '../../components/CosmicButton';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { availabilityApi } from '../../api/availabilityApi';
+import { useAvailabilityRealtime } from '../../hooks/useAvailabilityRealtime';
 import {
   useScheduleStyles,
   ScheduleSectionBlock,
@@ -241,8 +244,9 @@ function PublishScheduleButton({ saving, loading, hasUnsavedChanges, justPublish
         ? 'Publish schedule'
         : 'Up to date';
 
+  // Keep CosmicButton outside native-driven transforms — iOS drops taps otherwise.
   return (
-    <Animated.View style={[styles.publishBtnOuter, { transform: [{ scale: btnScale }] }]}>
+    <View style={styles.publishBtnOuter}>
       <Animated.View
         pointerEvents="none"
         style={[
@@ -250,11 +254,14 @@ function PublishScheduleButton({ saving, loading, hasUnsavedChanges, justPublish
           { opacity: ringOpacity, transform: [{ scale: ringScale }] },
         ]}
       />
-      <View style={styles.publishBtnWrap}>
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.publishSuccessGlow, { opacity: glowOpacity }]}
-        />
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.publishSuccessGlow, { opacity: glowOpacity }]}
+      />
+      <Animated.View
+        pointerEvents="box-none"
+        style={Platform.OS === 'ios' ? null : { transform: [{ scale: btnScale }] }}
+      >
         <CosmicButton
           label={label}
           variant="premium"
@@ -262,11 +269,11 @@ function PublishScheduleButton({ saving, loading, hasUnsavedChanges, justPublish
           disabled={saving || loading || (!hasUnsavedChanges && !justPublished)}
           loading={saving}
           icon={justPublished ? 'check-circle' : undefined}
-          pressScale={!saving && !justPublished && hasUnsavedChanges}
+          pressScale={false}
           style={styles.saveBtn}
         />
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -519,20 +526,39 @@ function ScheduleTimeChip({ startTime, endTime, state, onPress, delayIndex = 0 }
   );
 }
 
-function SlotPeriodSection({ period, items, selectedDate, selectedSlots, bookedSlots, onToggle }) {
+function SlotPeriodSection({
+  period,
+  items,
+  selectedDate,
+  selectedSlots,
+  bookedSlots,
+  savedUnbookedSlots,
+  onToggle,
+  readOnly,
+}) {
   const styles = useThemedStyles(createAvailabilityStyles);
   const { theme } = useTheme();
   const slotAccent = theme.colors.accent.success;
 
-  // Hide slots that are already due — mentors should only manage upcoming times.
-  const visibleItems = (items || []).filter(
-    ({ startTime }) => !isTimeInPast(selectedDate, startTime),
-  );
+  const visibleItems = (items || []).filter(({ startTime }) => {
+    const endTime = addMinutesToTimeStatic(startTime, SLOT_DURATION);
+    const slotKey = `${startTime}-${endTime}`;
+    const isBooked = bookedSlots[selectedDate]?.includes(slotKey) ?? false;
+    const isSaved =
+      (savedUnbookedSlots || []).includes(slotKey) || selectedSlots.includes(slotKey);
+    if (readOnly) return isBooked || isSaved;
+    return true;
+  });
   if (!visibleItems.length) return null;
 
-  const selectedInPeriod = visibleItems.filter(({ startTime }) => {
+  const savedInPeriod = visibleItems.filter(({ startTime }) => {
     const endTime = addMinutesToTimeStatic(startTime, SLOT_DURATION);
-    return selectedSlots.includes(`${startTime}-${endTime}`);
+    const key = `${startTime}-${endTime}`;
+    return (savedUnbookedSlots || []).includes(key) || selectedSlots.includes(key);
+  }).length;
+  const bookedInPeriod = visibleItems.filter(({ startTime }) => {
+    const endTime = addMinutesToTimeStatic(startTime, SLOT_DURATION);
+    return bookedSlots[selectedDate]?.includes(`${startTime}-${endTime}`);
   }).length;
 
   return (
@@ -547,9 +573,13 @@ function SlotPeriodSection({ period, items, selectedDate, selectedSlots, bookedS
             <Text style={styles.slotPeriodHint}>{period.hint}</Text>
           </View>
         </View>
-        {selectedInPeriod > 0 ? (
+        {savedInPeriod > 0 || bookedInPeriod > 0 ? (
           <View style={styles.slotPeriodBadge}>
-            <Text style={styles.slotPeriodBadgeText}>{selectedInPeriod} selected</Text>
+            <Text style={styles.slotPeriodBadgeText}>
+              {readOnly
+                ? `${bookedInPeriod} booked${savedInPeriod ? ` · ${savedInPeriod} unused` : ''}`
+                : `${savedInPeriod} selected`}
+            </Text>
           </View>
         ) : null}
       </View>
@@ -558,9 +588,11 @@ function SlotPeriodSection({ period, items, selectedDate, selectedSlots, bookedS
           const endTime = addMinutesToTimeStatic(startTime, SLOT_DURATION);
           const slotKey = `${startTime}-${endTime}`;
           const isBooked = bookedSlots[selectedDate]?.includes(slotKey) ?? false;
+          const isPast = isTimeInPast(selectedDate, startTime);
           const isSelected = selectedSlots.includes(slotKey);
           let state = 'available';
           if (isBooked) state = 'booked';
+          else if (isPast) state = 'past';
           else if (isSelected) state = 'selected';
 
           return (
@@ -594,11 +626,6 @@ function parseSlotKey(slotKey) {
   };
 }
 
-function toDbTime(time) {
-  if (!time) return time;
-  return time.length === 5 ? `${time}:00` : time;
-}
-
 const getDaysInMonth = date => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 const getFirstDayOfMonth = date => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
 
@@ -619,6 +646,13 @@ const isDateAllowed = dateStr => {
   maxDate.setDate(maxDate.getDate() + 30);
   return date >= today && date <= maxDate;
 };
+
+const isDatePast = dateStr => {
+  if (!dateStr) return false;
+  return dateStr < formatDate(new Date());
+};
+
+const isDateViewable = dateStr => isDatePast(dateStr) || isDateAllowed(dateStr);
 
 const isTimeInPast = (dateStr, timeStr) => {
   if (!dateStr || !timeStr) return true;
@@ -651,29 +685,12 @@ const formatDisplayDate = dateStr =>
     day: 'numeric',
   });
 
-function buildSlotEntriesFromMap(allSlotsMap) {
-  const entries = [];
-  for (const [date, slots] of Object.entries(allSlotsMap)) {
-    if (!isDateAllowed(date)) continue;
-    const uniqueSlots = [...new Set(slots)];
-    for (const slotKey of uniqueSlots) {
-      const parsed = parseSlotKey(slotKey);
-      if (!parsed) continue;
-      if (isTimeInPast(date, parsed.startTime)) continue;
-      entries.push({
-        date,
-        startTime: toDbTime(parsed.startTime),
-        endTime: toDbTime(parsed.endTime),
-      });
-    }
-  }
-  return entries;
-}
-
 export default function MentorAvailabilityScreen() {
   const styles = useThemedStyles(createAvailabilityStyles);
   const scheduleStyles = useScheduleStyles();
   const { theme } = useTheme();
+  const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const accentPrimary = theme.colors.accent.primary;
   const accentSuccess = theme.colors.accent.success;
   const { profile, user, refreshProfile } = useAuth();
@@ -690,16 +707,24 @@ export default function MentorAvailabilityScreen() {
   const [selectedSlots, setSelectedSlots] = useState([]);
   const [allSlots, setAllSlots] = useState({});
   const [bookedSlots, setBookedSlots] = useState({});
+  const [slotRows, setSlotRows] = useState([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [justPublished, setJustPublished] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const hasUnsavedChangesRef = useRef(false);
   const selectedDateRef = useRef(formatDate(new Date()));
+  const selectedSlotsRef = useRef([]);
+  const slotRowsRef = useRef([]);
   const publishResetTimerRef = useRef(null);
+  const needsReloadRef = useRef(false);
+  const fetchGenRef = useRef(0);
 
   const mentorInitial = (profile?.name || user?.user_metadata?.full_name || 'M').charAt(0).toUpperCase();
   const mentorName = profile?.name || user?.user_metadata?.full_name || 'Mentor';
 
   selectedDateRef.current = selectedDate;
+  selectedSlotsRef.current = selectedSlots;
+  slotRowsRef.current = slotRows;
 
   const markUnsaved = () => {
     hasUnsavedChangesRef.current = true;
@@ -730,14 +755,35 @@ export default function MentorAvailabilityScreen() {
     [],
   );
 
-  const applyAvailabilityMaps = useCallback((unbookedMap, bookedMap) => {
+  const applyAvailabilityMaps = useCallback((unbookedMap, bookedMap, rows = [], { resetSelection = true } = {}) => {
     setAllSlots(unbookedMap);
     setBookedSlots(bookedMap);
+    setSlotRows(rows);
+    if (!resetSelection) return;
     const dateKey = selectedDateRef.current;
     setSelectedSlots(filterDueSlotKeys(dateKey, unbookedMap[dateKey] || []));
   }, []);
 
-  const loadAvailability = useCallback(async (force = false) => {
+  const mapsFromRows = rows => {
+    const unbookedMap = {};
+    const bookedMap = {};
+    (rows || []).forEach(slot => {
+      const date = slot.date;
+      const startTime = String(slot.start_time).substring(0, 5);
+      const endTime = String(slot.end_time).substring(0, 5);
+      const slotKey = `${startTime}-${endTime}`;
+      if (slot.is_booked === true || slot.is_booked === 1 || slot.is_booked === 'true' || slot.is_booked === 't') {
+        if (!bookedMap[date]) bookedMap[date] = [];
+        if (!bookedMap[date].includes(slotKey)) bookedMap[date].push(slotKey);
+      } else {
+        if (!unbookedMap[date]) unbookedMap[date] = [];
+        if (!unbookedMap[date].includes(slotKey)) unbookedMap[date].push(slotKey);
+      }
+    });
+    return { unbookedMap, bookedMap };
+  };
+
+  const loadAvailability = useCallback(async (force = false, { silent = false } = {}) => {
     if (!mentorId) {
       setLoading(false);
       setInitialLoading(false);
@@ -746,47 +792,48 @@ export default function MentorAvailabilityScreen() {
     if (hasUnsavedChangesRef.current && !force) {
       return;
     }
+    const gen = ++fetchGenRef.current;
     try {
       if (!hasLoadedRef.current) {
         setInitialLoading(true);
       }
-      setLoading(true);
+      if (!silent) setLoading(true);
       const availability = await availabilityApi.getAvailabilityForMentor(mentorId);
-
-      const unbookedMap = {};
-      const bookedMap = {};
-
-      availability.forEach(slot => {
-        const date = slot.date;
-        const startTime = slot.start_time.substring(0, 5);
-        const endTime = slot.end_time.substring(0, 5);
-        // Skip due slots entirely — they should not appear in schedule UI.
-        if (isTimeInPast(date, startTime)) return;
-        const slotKey = `${startTime}-${endTime}`;
-
-        if (slot.is_booked) {
-          if (!bookedMap[date]) bookedMap[date] = [];
-          if (!bookedMap[date].includes(slotKey)) bookedMap[date].push(slotKey);
-        } else {
-          if (!unbookedMap[date]) unbookedMap[date] = [];
-          if (!unbookedMap[date].includes(slotKey)) unbookedMap[date].push(slotKey);
-        }
-      });
-
-      applyAvailabilityMaps(unbookedMap, bookedMap);
+      if (gen !== fetchGenRef.current) return;
+      const { unbookedMap, bookedMap } = mapsFromRows(availability);
+      applyAvailabilityMaps(unbookedMap, bookedMap, availability || []);
       hasLoadedRef.current = true;
+      needsReloadRef.current = false;
     } catch (err) {
-      Toast.show(err?.message || 'Failed to load availability');
+      if (gen === fetchGenRef.current) {
+        Toast.show(err?.message || 'Failed to load availability');
+      }
     } finally {
-      setLoading(false);
-      setInitialLoading(false);
+      if (gen === fetchGenRef.current) {
+        setLoading(false);
+        setInitialLoading(false);
+      }
     }
   }, [applyAvailabilityMaps, mentorId]);
+
+  const persistDateSlots = useCallback(
+    async (date, keys, saveMentorId) => {
+      if (!saveMentorId || !date || !isDateAllowed(date)) return;
+      const desired = filterDueSlotKeys(date, keys).map(parseSlotKey).filter(Boolean);
+      const existingForDate = (slotRowsRef.current || []).filter(row => row.date === date);
+      await availabilityApi.syncSlotsForDate({
+        mentorId: saveMentorId,
+        date,
+        existing: existingForDate,
+        desired,
+      });
+    },
+    [],
+  );
 
   useFocusEffect(
     useCallback(() => {
       if (!mentorId) {
-        // Session exists but profile row still missing — nudge a refresh.
         if (user?.id) {
           refreshProfile?.();
         }
@@ -794,17 +841,84 @@ export default function MentorAvailabilityScreen() {
         setInitialLoading(false);
         return undefined;
       }
-      loadAvailability(false);
-      return undefined;
-    }, [mentorId, user?.id, loadAvailability, refreshProfile]),
+      const force = needsReloadRef.current;
+      needsReloadRef.current = false;
+      loadAvailability(force, { silent: hasLoadedRef.current });
+      return () => {
+        if (!hasUnsavedChangesRef.current) return;
+        const date = selectedDateRef.current;
+        const keys = selectedSlotsRef.current;
+        const id = mentorId || user?.id;
+        if (!id || !isDateAllowed(date)) return;
+        void persistDateSlots(date, keys, id)
+          .then(() => {
+            hasUnsavedChangesRef.current = false;
+            needsReloadRef.current = true;
+          })
+          .catch(() => {});
+      };
+    }, [mentorId, user?.id, loadAvailability, refreshProfile, persistDateSlots]),
   );
 
+  useEffect(() => {
+    if (!isFocused || !mentorId) return undefined;
+    const force = needsReloadRef.current;
+    needsReloadRef.current = false;
+    loadAvailability(force, { silent: hasLoadedRef.current });
+    return undefined;
+  }, [isFocused, mentorId, loadAvailability]);
+
+  useEffect(() => {
+    const unsub = navigation.addListener('tabPress', () => {
+      if (hasUnsavedChangesRef.current) return;
+      loadAvailability(true, { silent: true });
+    });
+    return unsub;
+  }, [navigation, loadAvailability]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active' && isFocused && !hasUnsavedChangesRef.current) {
+        loadAvailability(true, { silent: true });
+      }
+    });
+    return () => sub.remove();
+  }, [isFocused, loadAvailability]);
+
+  useAvailabilityRealtime(mentorId, () => {
+    loadAvailability(false, { silent: true });
+  });
+
   const handleSelectDate = date => {
+    if (!isDateViewable(date)) return;
+    if (date === selectedDate) return;
+
+    const previousDate = selectedDate;
+    const previousKeys = selectedSlots;
+    if (hasUnsavedChangesRef.current && isDateAllowed(previousDate)) {
+      const id = mentorId || user?.id;
+      if (id) {
+        void persistDateSlots(previousDate, previousKeys, id)
+          .then(async () => {
+            clearUnsaved();
+            const availability = await availabilityApi.getAvailabilityForMentor(id);
+            const { unbookedMap, bookedMap } = mapsFromRows(availability);
+            applyAvailabilityMaps(unbookedMap, bookedMap, availability || [], {
+              resetSelection: false,
+            });
+          })
+          .catch(err => {
+            Toast.show(err?.message || 'Could not save previous date');
+          });
+      }
+    }
+
     setSelectedDate(date);
     setSelectedSlots(filterDueSlotKeys(date, allSlots[date] || []));
   };
 
   const handleToggleSlot = slot => {
+    if (!isDateAllowed(selectedDate)) return;
     const slotEnd = addMinutesToTimeStatic(slot, SLOT_DURATION);
     const slotKey = `${slot}-${slotEnd}`;
 
@@ -812,16 +926,25 @@ export default function MentorAvailabilityScreen() {
     if (isTimeInPast(selectedDate, slot)) return;
 
     layoutSpring();
-    const updatedSlots = selectedSlots.includes(slotKey)
-      ? selectedSlots.filter(s => s !== slotKey)
-      : [...selectedSlots, slotKey];
-
-    setSelectedSlots(updatedSlots);
-    setAllSlots({ ...allSlots, [selectedDate]: updatedSlots });
+    setSelectedSlots(prev => {
+      const updatedSlots = prev.includes(slotKey)
+        ? prev.filter(s => s !== slotKey)
+        : [...prev, slotKey];
+      setAllSlots(prevAll => {
+        const existing = prevAll[selectedDate] || [];
+        const pastKept = existing.filter(key => {
+          const parsed = parseSlotKey(key);
+          return parsed && isTimeInPast(selectedDate, parsed.startTime);
+        });
+        return { ...prevAll, [selectedDate]: [...new Set([...pastKept, ...updatedSlots])] };
+      });
+      return updatedSlots;
+    });
     markUnsaved();
+    setJustPublished(false);
   };
 
-  // Drop slots that become due while the mentor stays on this screen.
+  // Drop due times from the editable selection only — keep saved/booked history.
   useEffect(() => {
     if (!selectedDate) return undefined;
     const prune = () => {
@@ -829,26 +952,16 @@ export default function MentorAvailabilityScreen() {
         const next = filterDueSlotKeys(selectedDate, prev);
         return next.length === prev.length ? prev : next;
       });
-      setAllSlots(prev => {
-        const day = prev[selectedDate];
-        if (!day?.length) return prev;
-        const nextDay = filterDueSlotKeys(selectedDate, day);
-        if (nextDay.length === day.length) return prev;
-        return { ...prev, [selectedDate]: nextDay };
-      });
-      setBookedSlots(prev => {
-        const day = prev[selectedDate];
-        if (!day?.length) return prev;
-        const nextDay = filterDueSlotKeys(selectedDate, day);
-        if (nextDay.length === day.length) return prev;
-        return { ...prev, [selectedDate]: nextDay };
-      });
     };
     const id = setInterval(prune, 30_000);
     return () => clearInterval(id);
   }, [selectedDate]);
 
   const handleSaveAvailability = async () => {
+    if (!isDateAllowed(selectedDate)) {
+      Toast.show('Past dates are read-only');
+      return;
+    }
     let saveMentorId = mentorId;
     if (!saveMentorId && user?.id) {
       saveMentorId = user.id;
@@ -862,8 +975,7 @@ export default function MentorAvailabilityScreen() {
 
     try {
       setSaving(true);
-      const slotEntries = buildSlotEntriesFromMap(allSlots);
-      await availabilityApi.syncMentorAvailability(saveMentorId, slotEntries);
+      await persistDateSlots(selectedDate, selectedSlots, saveMentorId);
       clearUnsaved();
       await loadAvailability(true);
       triggerPublishSuccess();
@@ -877,9 +989,13 @@ export default function MentorAvailabilityScreen() {
   };
 
   const today = new Date();
+  const isHistoryDate = isDatePast(selectedDate);
+  const canEditDate = isDateAllowed(selectedDate);
+  const earliestMonth = new Date(today.getFullYear(), today.getMonth() - 11, 1);
   const isPrevMonthDisabled =
-    currentDate.getFullYear() === today.getFullYear() &&
-    currentDate.getMonth() === today.getMonth();
+    currentDate.getFullYear() < earliestMonth.getFullYear() ||
+    (currentDate.getFullYear() === earliestMonth.getFullYear() &&
+      currentDate.getMonth() <= earliestMonth.getMonth());
 
   const daysInMonth = getDaysInMonth(currentDate);
   const firstDay = getFirstDayOfMonth(currentDate);
@@ -898,12 +1014,27 @@ export default function MentorAvailabilityScreen() {
   const todayStr = formatDate(today);
 
   const monthYear = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const openSlotCount = filterDueSlotKeys(selectedDate, selectedSlots).length;
-  const bookedCount = filterDueSlotKeys(
-    selectedDate,
-    bookedSlots[selectedDate] || [],
-  ).length;
-  const totalOpenSlots = buildSlotEntriesFromMap(allSlots).length;
+  const savedUnbookedForDate = allSlots[selectedDate] || [];
+  const openSlotCount = isHistoryDate
+    ? savedUnbookedForDate.length
+    : filterDueSlotKeys(selectedDate, selectedSlots).length;
+  const bookedCount = isHistoryDate
+    ? (bookedSlots[selectedDate] || []).length
+    : filterDueSlotKeys(selectedDate, bookedSlots[selectedDate] || []).length;
+  const historySlotCount = savedUnbookedForDate.length + bookedCount;
+  const upcomingOpenCount = Object.entries(allSlots).reduce((sum, [date, keys]) => {
+    if (isDatePast(date)) return sum;
+    return sum + filterDueSlotKeys(date, keys).length;
+  }, 0);
+
+  const handleRefreshSchedule = async () => {
+    setRefreshing(true);
+    try {
+      await loadAvailability(true, { silent: true });
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   let animStep = 0;
   const nextDelay = () => {
@@ -924,7 +1055,20 @@ export default function MentorAvailabilityScreen() {
 
   return (
     <View style={styles.screenRoot}>
-      <SafeScreen scrollable padding={T.spacing.md} hasBottomTabs={false} includeTopInset={false}>
+      <SafeScreen
+        scrollable
+        padding={T.spacing.md}
+        hasBottomTabs={false}
+        includeTopInset={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefreshSchedule}
+            tintColor={accentSuccess}
+            colors={[accentSuccess]}
+          />
+        }
+      >
         <FadeSlideIn delay={nextDelay()}>
           <View style={scheduleStyles.topBar}>
             <View style={scheduleStyles.topBarSide} />
@@ -941,7 +1085,7 @@ export default function MentorAvailabilityScreen() {
             <View style={scheduleStyles.metaRow}>
               <View style={scheduleStyles.metaItem}>
                 <MaterialIcons name="date-range" size={12} color={accentSuccess} />
-                <Text style={scheduleStyles.metaPillText}>Next 30 days</Text>
+                <Text style={scheduleStyles.metaPillText}>30-day booking window</Text>
               </View>
               <Text style={scheduleStyles.metaSep}>·</Text>
               <View style={scheduleStyles.metaItem}>
@@ -960,7 +1104,7 @@ export default function MentorAvailabilityScreen() {
             />
             <SchedulePreviewChip
               icon={<MaterialIcons name="schedule" size={13} color={accentSuccess} />}
-              label={`${openSlotCount} open slot${openSlotCount !== 1 ? 's' : ''}`}
+              label={`${upcomingOpenCount} open slot${upcomingOpenCount !== 1 ? 's' : ''}`}
             />
             {bookedCount > 0 ? (
               <SchedulePreviewChip
@@ -974,7 +1118,7 @@ export default function MentorAvailabilityScreen() {
         </FadeSlideIn>
 
         <FadeSlideIn delay={nextDelay()}>
-          <ScheduleSectionBlock step="01" title="Pick a date" subtitle="Select a day within the next 30 days">
+          <ScheduleSectionBlock step="01" title="Pick a date" subtitle="Upcoming days to publish · past days are history">
             <View style={scheduleStyles.calendarPanel}>
               <View style={scheduleStyles.monthHeader}>
                 <PressScale
@@ -996,7 +1140,12 @@ export default function MentorAvailabilityScreen() {
                 </PressScale>
                 <View style={scheduleStyles.monthTitleWrap}>
                   <Text style={scheduleStyles.monthYear}>{monthYear}</Text>
-                  <Text style={scheduleStyles.monthSub}>Available booking window</Text>
+                  <Text style={scheduleStyles.monthSub}>
+                    {currentDate.getMonth() === today.getMonth() &&
+                    currentDate.getFullYear() === today.getFullYear()
+                      ? 'Set availability or review history'
+                      : 'Schedule history'}
+                  </Text>
                 </View>
                 <PressScale
                   onPress={() => {
@@ -1029,15 +1178,17 @@ export default function MentorAvailabilityScreen() {
                       }
                       const dayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
                       const dateStr = formatDate(dayDate);
-                      const openCount = filterDueSlotKeys(dateStr, allSlots[dateStr] || []).length;
-                      const bookedCountForDay = filterDueSlotKeys(
-                        dateStr,
-                        bookedSlots[dateStr] || [],
-                      ).length;
+                      const dayIsPast = isDatePast(dateStr);
+                      const openCount = dayIsPast
+                        ? (allSlots[dateStr] || []).length
+                        : filterDueSlotKeys(dateStr, allSlots[dateStr] || []).length;
+                      const bookedCountForDay = dayIsPast
+                        ? (bookedSlots[dateStr] || []).length
+                        : filterDueSlotKeys(dateStr, bookedSlots[dateStr] || []).length;
                       const totalSlots = openCount + bookedCountForDay;
-                      const allowed = isDateAllowed(dateStr);
+                      const viewable = isDateViewable(dateStr);
                       const slotTone =
-                        openCount > 0 ? 'open' : bookedCountForDay > 0 ? 'booked' : 'open';
+                        bookedCountForDay > 0 && openCount === 0 ? 'booked' : 'open';
 
                       return (
                         <ScheduleDayCell
@@ -1045,12 +1196,12 @@ export default function MentorAvailabilityScreen() {
                           day={day}
                           isSelected={selectedDate === dateStr}
                           isToday={dateStr === todayStr}
-                          enabled={allowed}
-                          muteLabel={!allowed}
+                          enabled={viewable}
+                          muteLabel={!viewable}
                           hasSlots={totalSlots > 0}
                           slotCount={totalSlots}
                           slotTone={slotTone}
-                          onPress={() => allowed && handleSelectDate(dateStr)}
+                          onPress={() => viewable && handleSelectDate(dateStr)}
                         />
                       );
                     })}
@@ -1066,8 +1217,12 @@ export default function MentorAvailabilityScreen() {
         <FadeSlideIn delay={nextDelay()}>
           <ScheduleSectionBlock
             step="02"
-            title="Choose time slots"
-            subtitle="Tap to toggle · 30 min sessions"
+            title={isHistoryDate ? 'Past availability' : 'Choose time slots'}
+            subtitle={
+              isHistoryDate
+                ? 'Read-only · booked vs unused slots for this date'
+                : 'Tap to toggle · then Publish to save'
+            }
             accent="teal"
           >
             <View style={styles.slotsPanel}>
@@ -1075,16 +1230,30 @@ export default function MentorAvailabilityScreen() {
                 <View style={styles.slotsPanelHeaderText}>
                   <Text style={styles.slotsPanelDate}>{formatDisplayDate(selectedDate)}</Text>
                   <Text style={styles.slotsPanelMeta}>
-                    {openSlotCount} open
-                    {bookedCount > 0 ? ` · ${bookedCount} booked` : ''}
+                    {isHistoryDate
+                      ? `${historySlotCount} saved slot${historySlotCount !== 1 ? 's' : ''}${
+                          bookedCount > 0 ? ` · ${bookedCount} booked` : ''
+                        }`
+                      : `${openSlotCount} open${bookedCount > 0 ? ` · ${bookedCount} booked` : ''}`}
                   </Text>
                 </View>
-                {openSlotCount > 0 ? (
+                {openSlotCount > 0 || bookedCount > 0 ? (
                   <View style={styles.slotsPanelBadge}>
-                    <Text style={styles.slotsPanelBadgeText}>{openSlotCount}</Text>
+                    <Text style={styles.slotsPanelBadgeText}>
+                      {isHistoryDate ? historySlotCount : openSlotCount}
+                    </Text>
                   </View>
                 ) : null}
               </View>
+
+              {isHistoryDate ? (
+                <View style={styles.hintRow}>
+                  <MaterialIcons name="history" size={14} color={accentPrimary} />
+                  <Text style={styles.hintText}>
+                    This date is in the past. Slots cannot be changed.
+                  </Text>
+                </View>
+              ) : null}
 
               <SlotsLegend />
 
@@ -1094,29 +1263,39 @@ export default function MentorAvailabilityScreen() {
                   period={period}
                   items={GROUPED_TIME_SLOTS[period.id]}
                   selectedDate={selectedDate}
-                  selectedSlots={selectedSlots}
+                  selectedSlots={isHistoryDate ? savedUnbookedForDate : selectedSlots}
                   bookedSlots={bookedSlots}
+                  savedUnbookedSlots={savedUnbookedForDate}
                   onToggle={handleToggleSlot}
+                  readOnly={isHistoryDate || !canEditDate}
                 />
               ))}
 
-              {openSlotCount > 0 ? (
+              {isHistoryDate && historySlotCount === 0 ? (
+                <View style={styles.hintRow}>
+                  <MaterialIcons name="event-busy" size={14} color={accentPrimary} />
+                  <Text style={styles.hintText}>No availability was set for this date</Text>
+                </View>
+              ) : openSlotCount > 0 && !isHistoryDate ? (
                 <FadeSlideIn delay={80}>
                   <View style={styles.summaryChip}>
                     <MaterialIcons name="check-circle" size={16} color={B.successText} />
                     <Text style={styles.summaryChipText}>
                       {openSlotCount} slot{openSlotCount !== 1 ? 's' : ''} open on this date
+                      {hasUnsavedChanges ? ' · publish to save' : ''}
                     </Text>
                   </View>
                 </FadeSlideIn>
-              ) : (
+              ) : !isHistoryDate ? (
                 <FadeSlideIn delay={80}>
                   <View style={styles.hintRow}>
                     <MaterialIcons name="tips-and-updates" size={14} color={accentPrimary} />
-                    <Text style={styles.hintText}>Select slots when you are available for sessions</Text>
+                    <Text style={styles.hintText}>
+                      Select slots, then tap Publish schedule so learners can book them
+                    </Text>
                   </View>
                 </FadeSlideIn>
-              )}
+              ) : null}
             </View>
           </ScheduleSectionBlock>
         </FadeSlideIn>
@@ -1137,19 +1316,30 @@ export default function MentorAvailabilityScreen() {
       >
         <View style={styles.saveSummary}>
           <Text style={styles.saveSummaryLabel}>
-            {hasUnsavedChanges ? 'Unsaved changes to publish' : 'Open slots across schedule'}
+            {!canEditDate
+              ? 'Past schedule · read-only'
+              : hasUnsavedChanges
+                ? 'Unsaved changes to publish'
+                : 'Open slots on this date'}
           </Text>
           <Text style={[styles.saveSummaryCount, hasUnsavedChanges ? styles.saveSummaryCountDirty : null]}>
-            {totalOpenSlots}
+            {canEditDate ? openSlotCount : historySlotCount}
           </Text>
         </View>
-        <PublishScheduleButton
-          saving={saving}
-          loading={loading}
-          hasUnsavedChanges={hasUnsavedChanges}
-          justPublished={justPublished}
-          onPress={handleSaveAvailability}
-        />
+        {canEditDate ? (
+          <PublishScheduleButton
+            saving={saving}
+            loading={loading && !hasUnsavedChanges}
+            hasUnsavedChanges={hasUnsavedChanges}
+            justPublished={justPublished}
+            onPress={handleSaveAvailability}
+          />
+        ) : (
+          <View style={styles.historyFooterNote}>
+            <MaterialIcons name="lock" size={16} color={T.colors.text.muted} />
+            <Text style={styles.hintText}>Published history cannot be edited</Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -1357,6 +1547,12 @@ function createAvailabilityStyles(theme) {
   saveSummaryLabel: { fontSize: 12, fontWeight: '600', color: T.colors.text.muted },
   saveSummaryCount: { fontSize: 18, fontWeight: '800', color: C.accent.primary },
   saveSummaryCountDirty: { color: SUCCESS },
+  historyFooterNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 50,
+  },
   publishBtnOuter: {
     position: 'relative',
     alignItems: 'stretch',

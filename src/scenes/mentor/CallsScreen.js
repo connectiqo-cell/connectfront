@@ -408,6 +408,7 @@ export default function MentorCallsScreen({ navigation }) {
   const [historyPage, setHistoryPage] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
+  const [activeTab, setActiveTab] = useState('upcoming');
   const sessionsLoaderShownRef = useRef(false);
   const lastProfileIdRef = useRef(profile?.id);
 
@@ -617,11 +618,12 @@ export default function MentorCallsScreen({ navigation }) {
 
   if (!fullyEmpty) {
     listData.push({ type: 'stats', key: 'stats', delay: nextDelay() });
+    listData.push({ type: 'tabs', key: 'tabs', delay: nextDelay() });
   }
 
   if (fullyEmpty) {
     listData.push({ type: 'empty', key: 'empty', delay: nextDelay() });
-  } else {
+  } else if (activeTab === 'upcoming') {
     // Reschedule requests section
     if (reschedulePendingBookings.length > 0) {
       listData.push({
@@ -672,7 +674,7 @@ export default function MentorCallsScreen({ navigation }) {
         listData.push({ type: 'load_more_upcoming', key: 'more_upcoming', delay: nextDelay() });
       }
     }
-
+  } else {
     const visibleHistory = history.slice(0, historyShown);
     const hasMoreHistoryToShow = historyShown < history.length || hasMoreHistory;
 
@@ -681,6 +683,7 @@ export default function MentorCallsScreen({ navigation }) {
       key: 'history_header',
       title: 'History',
       icon: 'history',
+      isFirst: true,
       delay: nextDelay(),
     });
     if (!visibleHistory.length && !loadingMore) {
@@ -739,6 +742,28 @@ export default function MentorCallsScreen({ navigation }) {
               />
             </View>
           </FadeSlideIn>
+        );
+
+      case 'tabs':
+        return (
+          <View style={styles.sessionsTabs}>
+            <Pressable
+              onPress={() => setActiveTab('upcoming')}
+              style={[styles.sessionsTab, activeTab === 'upcoming' && styles.sessionsTabActive]}
+            >
+              <Text style={[styles.sessionsTabText, activeTab === 'upcoming' && styles.sessionsTabTextActive]}>
+                Upcoming
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setActiveTab('history')}
+              style={[styles.sessionsTab, activeTab === 'history' && styles.sessionsTabActive]}
+            >
+              <Text style={[styles.sessionsTabText, activeTab === 'history' && styles.sessionsTabTextActive]}>
+                History
+              </Text>
+            </Pressable>
+          </View>
         );
 
       case 'section_header':
@@ -893,6 +918,30 @@ function createMentorCallsStyles(theme) {
   },
   statsWrap: {
     marginBottom: T.spacing.md,
+  },
+  sessionsTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: T.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: GLASS_BORDER,
+  },
+  sessionsTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  sessionsTabActive: {
+    borderBottomColor: PURPLE_LINK,
+  },
+  sessionsTabText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: C.text.muted,
+  },
+  sessionsTabTextActive: {
+    color: PURPLE_LINK,
   },
   statsBar: {
     flexDirection: 'row',

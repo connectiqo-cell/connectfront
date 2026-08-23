@@ -1,6 +1,13 @@
 import { supabase } from '../lib/supabase';
 import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
 
+const toDateStr = d => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const earningsApi = {
   getEarningsByMentor: async (mentorId) => {
     try {
@@ -31,29 +38,27 @@ export const earningsApi = {
   getEarningsByWeek: async (mentorId) => {
     try {
       const today = new Date();
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay());
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 7);
-
-      const startStr = weekStart.toISOString().split('T')[0];
-      const endStr = weekEnd.toISOString().split('T')[0];
+      const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6);
+      const startStr = toDateStr(weekStart);
 
       const { data, error } = await supabase
         .from('earnings')
         .select('amount, created_at')
         .eq('mentor_id', mentorId)
         .neq('status', 'pending')
-        .gte('created_at', startStr)
-        .lt('created_at', endStr);
+        .gte('created_at', startStr);
 
       if (error) throw error;
 
-      // Group by day
       const grouped = {};
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(weekStart);
+        d.setDate(weekStart.getDate() + i);
+        grouped[toDateStr(d)] = 0;
+      }
       (data || []).forEach(earning => {
-        const day = earning.created_at.split('T')[0];
-        grouped[day] = (grouped[day] || 0) + parseFloat(earning.amount);
+        const day = String(earning.created_at).split('T')[0];
+        if (day in grouped) grouped[day] += parseFloat(earning.amount);
       });
 
       return Object.entries(grouped).map(([date, amount]) => ({ date, amount }));
@@ -65,34 +70,30 @@ export const earningsApi = {
   getEarningsByMonth: async (mentorId) => {
     try {
       const today = new Date();
-      const year = today.getFullYear();
-      const month = today.getMonth() + 1;
-
-      const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-      const nextMonth = month === 12 ? 1 : month + 1;
-      const nextYear = month === 12 ? year + 1 : year;
-      const monthEnd = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 27);
+      const startStr = toDateStr(start);
 
       const { data, error } = await supabase
         .from('earnings')
         .select('amount, created_at')
         .eq('mentor_id', mentorId)
         .neq('status', 'pending')
-        .gte('created_at', monthStart)
-        .lt('created_at', monthEnd);
+        .gte('created_at', startStr);
 
       if (error) throw error;
 
-      // Group by week
       const grouped = {};
       (data || []).forEach(earning => {
         const date = new Date(earning.created_at);
-        const weekNum = Math.ceil((date.getDate()) / 7);
+        const weekNum = Math.min(4, Math.ceil(date.getDate() / 7));
         const key = `Week ${weekNum}`;
         grouped[key] = (grouped[key] || 0) + parseFloat(earning.amount);
       });
 
-      return Object.entries(grouped).map(([week, amount]) => ({ week, amount }));
+      return [1, 2, 3, 4].map(n => ({
+        week: `Week ${n}`,
+        amount: grouped[`Week ${n}`] || 0,
+      }));
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -114,8 +115,6 @@ export const earningsApi = {
 
       if (error) throw error;
 
-      // Group by month
-      const grouped = {};
       const months = [
         'January',
         'February',
@@ -130,6 +129,7 @@ export const earningsApi = {
         'November',
         'December',
       ];
+      const grouped = Object.fromEntries(months.map(m => [m, 0]));
 
       (data || []).forEach(earning => {
         const date = new Date(earning.created_at);
@@ -137,7 +137,7 @@ export const earningsApi = {
         grouped[monthName] = (grouped[monthName] || 0) + parseFloat(earning.amount);
       });
 
-      return Object.entries(grouped).map(([month, amount]) => ({ month, amount }));
+      return months.map(month => ({ month, amount: grouped[month] || 0 }));
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }

@@ -163,13 +163,32 @@ export const paymentApi = {
   },
 
   /**
-   * Trigger a RazorpayX UPI payout via Edge Function.
+   * Create a manual withdrawal request for admin fulfilment — an operator
+   * settles it via UPI/IMPS/NEFT and records the UTR. Not a RazorpayX payout.
    */
   requestWithdrawal: async ({ mentorId, amount }) => {
     try {
       return await invokeFunction('process-withdrawal', { mentorId, amount });
     } catch (error) {
       throw new Error(error.message || 'Withdrawal failed');
+    }
+  },
+
+  /**
+   * List this mentor's withdrawal requests, most recent first.
+   */
+  getWithdrawalRequests: async (mentorId) => {
+    try {
+      const { data, error } = await supabase
+        .from('withdrawal_requests')
+        .select('id, amount, upi_id, status, payout_method, payout_reference, paid_at, rejected_reason, created_at')
+        .eq('mentor_id', mentorId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      throw new Error(getSupabaseErrorMessage(error));
     }
   },
 

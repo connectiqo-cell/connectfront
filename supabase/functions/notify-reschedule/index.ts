@@ -94,8 +94,11 @@ async function sendFcmNotification({
           },
         },
         apns: {
-          headers: { 'apns-priority': '10' },
-          payload: { aps: { alert: { title, body }, sound: 'default' } },
+          headers: {
+            'apns-priority': '10',
+            'apns-push-type': 'alert',
+          },
+          payload: { aps: { alert: { title, body }, sound: 'default', badge: 1 } },
         },
       },
     }),

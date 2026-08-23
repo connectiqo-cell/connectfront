@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -36,6 +36,7 @@ import {
   padCalendarWeeks,
 } from '../../components/schedule/ScheduleUI';
 import { availabilityApi } from '../../api/availabilityApi';
+import { useAvailabilityRealtime } from '../../hooks/useAvailabilityRealtime';
 import { mentorApi } from '../../api/mentorApi';
 import { paymentApi } from '../../api/paymentApi';
 import { scheduleSessionReminder, requestNotificationPermission } from '../../utils/sessionReminder';
@@ -137,6 +138,15 @@ const isSlotBooked = slot => {
 /** Learner-selectable: not booked and not past/due. */
 const isSlotAvailable = (slot, dateStr = slot?.date) =>
   Boolean(slot) && !isSlotBooked(slot) && !isSlotDue(dateStr, slot.start_time);
+
+/** Shown on the booking grid: upcoming available + upcoming booked. */
+const isSlotVisibleOnBooking = (slot, dateStr = slot?.date) =>
+  Boolean(slot) && !isSlotDue(dateStr, slot.start_time);
+
+const filterVisibleBookingSlots = (slots, dateStr) =>
+  (Array.isArray(slots) ? slots : [])
+    .filter(s => isSlotVisibleOnBooking(s, dateStr))
+    .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)));
 
 /** @deprecated use isSlotDue — kept as alias for existing call sites during cleanup */
 const isTimeInPast = (dateStr, timeStr) => isSlotDue(dateStr, timeStr);
@@ -503,13 +513,15 @@ function FeeRow({ label, amount, accent, bold }) {
   );
 }
 
-function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
+function BookingTimeChip({ slot, selected, booked, onPress, delayIndex = 0 }) {
   const styles = useThemedStyles(createBookingStyles);
   const { theme } = useTheme();
   const B = theme.colors.buttons;
+  const C = theme.colors;
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
   const entrance = useRef(new Animated.Value(0)).current;
+  const isInteractive = !booked;
 
   useEffect(() => {
     Animated.timing(entrance, {
@@ -531,6 +543,7 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
   }, [scale, selected]);
 
   const onPressIn = () => {
+    if (!isInteractive) return;
     Animated.parallel([
       Animated.spring(scale, { toValue: 0.96, friction: 6, tension: 160, useNativeDriver: true }),
       Animated.timing(glow, { toValue: 1, duration: 120, useNativeDriver: true }),
@@ -538,6 +551,7 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
   };
 
   const onPressOut = () => {
+    if (!isInteractive) return;
     Animated.parallel([
       Animated.spring(scale, {
         toValue: selected ? 1.02 : 1,
@@ -554,10 +568,20 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
   const chipY = entrance.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
 
   const durationMin = slotDurationMinutes(slot.start_time, slot.end_time);
+  const cellStyle = booked
+    ? styles.timeSlotBooked
+    : selected
+      ? styles.timeSlotSelected
+      : styles.timeSlotAvailable;
+  const textStyle = booked
+    ? styles.timeSlotTextBooked
+    : selected
+      ? styles.timeSlotTextSelected
+      : null;
 
   const cellBody = (
-    <View style={[styles.timeSlotCell, selected ? styles.timeSlotSelected : styles.timeSlotAvailable]}>
-      {selected ? (
+    <View style={[styles.timeSlotCell, cellStyle]}>
+      {selected && !booked ? (
         <LinearGradient
           colors={B.successGradient}
           start={{ x: 0, y: 0 }}
@@ -565,7 +589,14 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
           style={StyleSheet.absoluteFillObject}
         />
       ) : null}
-      {selected ? (
+      {booked ? (
+        <MaterialIcons
+          name="lock"
+          size={14}
+          color={C.accent.warning}
+          style={styles.timeSlotStatusIcon}
+        />
+      ) : selected ? (
         <MaterialIcons
           name="check-circle"
           size={14}
@@ -573,18 +604,28 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
           style={styles.timeSlotStatusIcon}
         />
       ) : null}
-      <Text style={[styles.timeSlotStart, selected && styles.timeSlotTextSelected]} numberOfLines={1}>
+      <Text style={[styles.timeSlotStart, textStyle]} numberOfLines={1}>
         {formatSlotTime(slot.start_time)}
       </Text>
-      <Text style={[styles.timeSlotEnd, selected && styles.timeSlotTextSelected]} numberOfLines={1}>
+      <Text style={[styles.timeSlotEnd, textStyle]} numberOfLines={1}>
         – {formatSlotTime(slot.end_time)}
       </Text>
-      <View style={[styles.timeSlotDurationPill, selected && styles.timeSlotDurationPillSelected]}>
+      <View
+        style={[
+          styles.timeSlotDurationPill,
+          selected && !booked && styles.timeSlotDurationPillSelected,
+          booked && styles.timeSlotDurationPillBooked,
+        ]}
+      >
         <Text
-          style={[styles.timeSlotDurationText, selected && styles.timeSlotDurationTextSelected]}
+          style={[
+            styles.timeSlotDurationText,
+            selected && !booked && styles.timeSlotDurationTextSelected,
+            booked && styles.timeSlotTextBooked,
+          ]}
           numberOfLines={1}
         >
-          {durationMin}m
+          {booked ? 'Booked' : `${durationMin}m`}
         </Text>
       </View>
     </View>
@@ -594,6 +635,19 @@ function BookingTimeChip({ slot, selected, onPress, delayIndex = 0 }) {
     Platform.OS === 'ios'
       ? [{ translateY: chipY }]
       : [{ translateY: chipY }, { scale }];
+
+  if (!isInteractive) {
+    return (
+      <Animated.View
+        style={[
+          styles.slotCellWrap,
+          { opacity: chipOpacity, transform: chipTransform },
+        ]}
+      >
+        {cellBody}
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View
@@ -659,6 +713,7 @@ function BookingSlotPeriodSection({ period, items, selectedTimes, onSelect }) {
               key={slot.id || `${slot.start_time}-${slot.end_time}`}
               slot={slot}
               selected={selected}
+              booked={isSlotBooked(slot)}
               delayIndex={index}
               onPress={() => onSelect(slot)}
             />
@@ -688,7 +743,11 @@ function BookingSlotsPanel({ selectedDate, slots, selectedTimes, onSelect }) {
         <View style={styles.slotsPanelHeaderText}>
           <Text style={styles.slotsPanelDate}>{formatDisplayDate(selectedDate)}</Text>
           <Text style={styles.slotsPanelMeta}>
-            {slots.length} available · choose continuous times for one meeting
+            {slots.filter(s => !isSlotBooked(s)).length} available
+            {slots.some(s => isSlotBooked(s))
+              ? ` · ${slots.filter(s => isSlotBooked(s)).length} booked`
+              : ''}
+            {' · choose continuous times'}
           </Text>
         </View>
         <View style={styles.slotsPanelBadge}>
@@ -805,7 +864,7 @@ export default function BookingScreen({ navigation, route }) {
       try {
         setLoading(true);
         const [availability, mentorProfile] = await Promise.all([
-          availabilityApi.getAvailabilityForMentor(mentorId, { bookableOnly: true }),
+          availabilityApi.getAvailabilityForMentor(mentorId),
           mentorApi.getMentorWithProfile(mentorId),
         ]);
 
@@ -833,15 +892,14 @@ export default function BookingScreen({ navigation, route }) {
 
         const byDate = {};
         availability.forEach(slot => {
-          // Booking UI only keeps open slots — drop booked / already-due ones.
-          if (!isSlotAvailable(slot, slot.date)) return;
+          if (!isSlotVisibleOnBooking(slot, slot.date)) return;
           if (!byDate[slot.date]) byDate[slot.date] = [];
           byDate[slot.date].push({
             id: slot.id,
             date: slot.date,
             start_time: slot.start_time,
             end_time: slot.end_time,
-            is_booked: false,
+            is_booked: isSlotBooked(slot),
           });
         });
         setMentorAvailability(byDate);
@@ -861,19 +919,64 @@ export default function BookingScreen({ navigation, route }) {
     return () => { active = false; };
   }, [mentorId, navigation]);
 
+  const reloadSlots = useCallback(async () => {
+    if (!mentorId) return;
+    try {
+      const availability = await availabilityApi.getAvailabilityForMentor(mentorId);
+      const byDate = {};
+      (availability || []).forEach(slot => {
+        if (!isSlotVisibleOnBooking(slot, slot.date)) return;
+        if (!byDate[slot.date]) byDate[slot.date] = [];
+        byDate[slot.date].push({
+          id: slot.id,
+          date: slot.date,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          is_booked: isSlotBooked(slot),
+        });
+      });
+      setMentorAvailability(byDate);
+    } catch {
+      /* keep last known slots */
+    }
+  }, [mentorId]);
+
+  useAvailabilityRealtime(mentorId, reloadSlots);
+
   useEffect(() => {
     layoutSpring();
     const slots = mentorAvailability[selectedDate] || [];
-    setTimeSlotsForDate(filterAvailableSlots(slots, selectedDate));
-    setSelectedTimes([]);
+    setTimeSlotsForDate(filterVisibleBookingSlots(slots, selectedDate));
   }, [selectedDate, mentorAvailability]);
+
+  const selectionDateRef = useRef(selectedDate);
+  useEffect(() => {
+    const dateChanged = selectionDateRef.current !== selectedDate;
+    selectionDateRef.current = selectedDate;
+    setSelectedTimes(prev => {
+      if (dateChanged) return [];
+      if (!prev.length) return prev;
+      const open = filterAvailableSlots(mentorAvailability[selectedDate] || [], selectedDate);
+      const still = prev.filter(s =>
+        open.some(
+          o =>
+            (o.id && s.id && o.id === s.id) ||
+            (o.start_time === s.start_time && o.end_time === s.end_time),
+        ),
+      );
+      if (still.length !== prev.length) {
+        Toast.show('A selected slot is no longer available and was removed');
+      }
+      return still.length === prev.length ? prev : still;
+    });
+  }, [mentorAvailability, selectedDate]);
 
   // Hide slots that become due while the user stays on this screen.
   useEffect(() => {
     if (!selectedDate) return undefined;
     const prune = () => {
       setTimeSlotsForDate(prev => {
-        const next = filterAvailableSlots(prev, selectedDate);
+        const next = filterVisibleBookingSlots(prev, selectedDate);
         return next.length === prev.length ? prev : next;
       });
       setSelectedTimes(prev => {
@@ -894,9 +997,9 @@ export default function BookingScreen({ navigation, route }) {
       Toast.show('Bookings are only available within the next 30 days');
       return;
     }
-    const openSlots = filterAvailableSlots(mentorAvailability[dateStr] || [], dateStr);
-    if (!openSlots.length) {
-      Toast.show('No available slots on this date');
+    const visible = filterVisibleBookingSlots(mentorAvailability[dateStr] || [], dateStr);
+    if (!visible.length) {
+      Toast.show('No slots on this date');
       return;
     }
     layoutSpring();
@@ -1348,7 +1451,10 @@ export default function BookingScreen({ navigation, route }) {
                     const daySlots = mentorAvailability[dateStr] || [];
                     const isSelected = selectedDate === dateStr;
                     const availableCount = filterAvailableSlots(daySlots, dateStr).length;
-                    const canBook = isDateAllowed(dateStr) && availableCount > 0;
+                    const bookedCount = filterVisibleBookingSlots(daySlots, dateStr).filter(s =>
+                      isSlotBooked(s),
+                    ).length;
+                    const canView = isDateAllowed(dateStr) && (availableCount > 0 || bookedCount > 0);
 
                     return (
                       <ScheduleDayCell
@@ -1356,12 +1462,12 @@ export default function BookingScreen({ navigation, route }) {
                         day={day}
                         isSelected={isSelected}
                         isToday={dateStr === todayStr}
-                        enabled={canBook}
-                        muteLabel={!isDateAllowed(dateStr) || availableCount === 0}
-                        hasSlots={availableCount > 0}
-                        slotCount={availableCount}
-                        slotTone="open"
-                        onPress={() => canBook && handleSelectDate(dateStr)}
+                        enabled={canView}
+                        muteLabel={!isDateAllowed(dateStr) || (!availableCount && !bookedCount)}
+                        hasSlots={availableCount > 0 || bookedCount > 0}
+                        slotCount={availableCount + bookedCount}
+                        slotTone={availableCount > 0 ? 'open' : 'booked'}
+                        onPress={() => canView && handleSelectDate(dateStr)}
                       />
                     );
                   })}
@@ -1995,6 +2101,10 @@ function createBookingStyles(theme) {
     borderColor: B.successBorder,
     borderWidth: 1.5,
   },
+  timeSlotBooked: {
+    backgroundColor: S.accentWarning,
+    borderColor: B.warningBorder,
+  },
   timeSlotStatusIcon: { position: 'absolute', top: 6, right: 6 },
   timeSlotStart: {
     fontSize: 13,
@@ -2011,6 +2121,7 @@ function createBookingStyles(theme) {
     textAlign: 'center',
   },
   timeSlotTextSelected: { color: B.successText },
+  timeSlotTextBooked: { color: C.accent.warning },
   timeSlotDurationPill: {
     marginTop: 6,
     paddingHorizontal: 7,
@@ -2020,6 +2131,9 @@ function createBookingStyles(theme) {
   },
   timeSlotDurationPillSelected: {
     backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  timeSlotDurationPillBooked: {
+    backgroundColor: 'rgba(245, 158, 11, 0.18)',
   },
   timeSlotDurationText: {
     fontSize: 10,

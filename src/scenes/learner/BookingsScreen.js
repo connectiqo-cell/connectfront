@@ -281,6 +281,7 @@ export default function LearnerBookingsScreen({ navigation }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [pendingProposals, setPendingProposals] = useState([]);
+  const [activeTab, setActiveTab] = useState('upcoming');
   const hasLoadedRef = useRef(false);
 
   const loadReviewedIds = useCallback(async bookings => {
@@ -522,6 +523,8 @@ export default function LearnerBookingsScreen({ navigation }) {
   if (fullyEmpty) {
     listData.push({ type: 'empty', key: 'empty', delay: nextDelay() });
   } else {
+    listData.push({ type: 'tabs', key: 'tabs', delay: nextDelay() });
+    if (activeTab === 'upcoming') {
     // Reschedule section (shown before regular upcoming)
     if (reschedulePendingBookings.length > 0 || pendingProposals.length > 0) {
       listData.push({
@@ -572,7 +575,7 @@ export default function LearnerBookingsScreen({ navigation }) {
         listData.push({ type: 'load_more_upcoming', key: 'load_more_upcoming', delay: nextDelay() });
       }
     }
-
+    } else {
     const visibleHistory = history.slice(0, historyShown);
     const hasMoreHistoryToShow = historyShown < history.length || hasMoreHistory;
 
@@ -581,6 +584,7 @@ export default function LearnerBookingsScreen({ navigation }) {
       key: 'history_header',
       title: 'History',
       icon: 'history',
+      isFirst: true,
       delay: nextDelay(),
     });
     if (visibleHistory.length === 0 && !loadingMore) {
@@ -604,10 +608,33 @@ export default function LearnerBookingsScreen({ navigation }) {
     if (hasMoreHistoryToShow) {
       listData.push({ type: 'load_more', key: 'load_more', delay: nextDelay() });
     }
+    }
   }
 
   const renderItem = ({ item }) => {
     switch (item.type) {
+      case 'tabs':
+        return (
+          <View style={styles.sessionsTabs}>
+            <Pressable
+              onPress={() => setActiveTab('upcoming')}
+              style={[styles.sessionsTab, activeTab === 'upcoming' && styles.sessionsTabActive]}
+            >
+              <Text style={[styles.sessionsTabText, activeTab === 'upcoming' && styles.sessionsTabTextActive]}>
+                Upcoming
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setActiveTab('history')}
+              style={[styles.sessionsTab, activeTab === 'history' && styles.sessionsTabActive]}
+            >
+              <Text style={[styles.sessionsTabText, activeTab === 'history' && styles.sessionsTabTextActive]}>
+                History
+              </Text>
+            </Pressable>
+          </View>
+        );
+
       case 'section_header':
         return (
           <SectionHeader
@@ -764,6 +791,30 @@ function createBookingsStyles(theme) {
   listContent: {
     paddingHorizontal: T.spacing.lg,
     paddingTop: T.spacing.md,
+  },
+  sessionsTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: T.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: GLASS_BORDER,
+  },
+  sessionsTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  sessionsTabActive: {
+    borderBottomColor: PURPLE_LINK,
+  },
+  sessionsTabText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: C.text.muted,
+  },
+  sessionsTabTextActive: {
+    color: PURPLE_LINK,
   },
   secHdrRow: {
     flexDirection: 'row',

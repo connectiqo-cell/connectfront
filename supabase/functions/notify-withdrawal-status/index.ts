@@ -1,13 +1,13 @@
-// Supabase Edge Function: notify-booking-status
-// Deploy: supabase functions deploy notify-booking-status
+// Supabase Edge Function: notify-withdrawal-status
+// Deploy: supabase functions deploy notify-withdrawal-status
 //
-// Called from the app after a mentor updates booking status.
-// Sends an FCM push notification to the learner.
+// Called from the admin panel after an operator marks a withdrawal request
+// processing / completed / rejected. Sends an FCM push to the mentor.
 
 import { serve }        from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// ── Inline FCM helper ─────────────────────────────────────────────────────────
+// ── Inline FCM helper (matches notify-booking-status's copy) ───────────────
 function base64url(s: string) {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
@@ -72,29 +72,29 @@ async function getFcmToken(supabase: ReturnType<typeof createClient>, userId: st
   const { data } = await supabase.from('profiles').select('fcm_token').eq('id', userId).single();
   return (data as { fcm_token?: string } | null)?.fcm_token ?? null;
 }
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const STATUS_MESSAGES: Record<string, { title: string; body: (mentorName: string) => string }> = {
-  confirmed: {
-    title: 'Session confirmed',
-    body:  (name) => `${name} has confirmed your session. Get ready!`,
-  },
-  rejected: {
-    title: 'Session declined',
-    body:  (name) => `${name} could not accept your session. Please book another slot.`,
+function fmtInr(amount: number): string {
+  return `₹${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+}
+
+const STATUS_MESSAGES: Record<string, { title: string; body: (amount: string) => string }> = {
+  processing: {
+    title: 'Payout in progress',
+    body:  (amt) => `We're sending ${amt} to your UPI.`,
   },
   completed: {
-    title: 'Session completed',
-    body:  (name) => `Your session with ${name} is marked complete. Leave a review!`,
+    title: 'Payout sent',
+    body:  (amt) => `${amt} has been sent to your UPI.`,
   },
-  cancelled: {
-    title: 'Session cancelled',
-    body:  (name) => `Your session with ${name} has been cancelled.`,
+  rejected: {
+    title: 'Withdrawal not sent',
+    body:  (amt) => `${amt} was returned to your wallet. Check the app for details.`,
   },
 };
 
@@ -104,10 +104,10 @@ serve(async (req) => {
   }
 
   try {
-    const { bookingId, status } = await req.json();
+    const { withdrawalRequestId, status } = await req.json();
 
-    if (!bookingId || !status) {
-      throw new Error('bookingId and status are required');
+    if (!withdrawalRequestId || !status) {
+      throw new Error('withdrawalRequestId and status are required');
     }
 
     const supabase = createClient(
@@ -115,18 +115,13 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // Fetch booking with mentor and learner names
-    const { data: booking, error } = await supabase
-      .from('bookings')
-      .select(`
-        id, learner_id, mentor_id,
-        mentor:profiles!mentor_id ( name ),
-        learner:profiles!learner_id ( name )
-      `)
-      .eq('id', bookingId)
+    const { data: withdrawal, error } = await supabase
+      .from('withdrawal_requests')
+      .select('id, mentor_id, amount')
+      .eq('id', withdrawalRequestId)
       .single();
 
-    if (error || !booking) throw new Error('Booking not found');
+    if (error || !withdrawal) throw new Error('Withdrawal request not found');
 
     const msg = STATUS_MESSAGES[status];
     if (!msg) {
@@ -135,18 +130,17 @@ serve(async (req) => {
       });
     }
 
-    const mentorName = (booking.mentor as { name?: string } | null)?.name || 'Your mentor';
-    const learnerToken = await getFcmToken(supabase, booking.learner_id);
+    const mentorToken = await getFcmToken(supabase, withdrawal.mentor_id);
+    const amountLabel  = fmtInr(withdrawal.amount);
 
-    if (learnerToken) {
+    if (mentorToken) {
       await sendFcmNotification({
-        token: learnerToken,
+        token: mentorToken,
         title: msg.title,
-        body:  msg.body(mentorName),
+        body:  msg.body(amountLabel),
         data:  {
-          bookingId,
-          type: `booking_${status}`,
-          senderName: mentorName,
+          withdrawalRequestId,
+          type: `withdrawal_${status}`,
         },
       });
     }
@@ -156,7 +150,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (err) {
-    console.error('notify-booking-status error:', err);
+    console.error('notify-withdrawal-status error:', err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

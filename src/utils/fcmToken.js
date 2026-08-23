@@ -1,6 +1,17 @@
 import { Platform, PermissionsAndroid } from 'react-native';
 import { supabase } from '../lib/supabase';
 
+async function waitForApnsToken(messaging, getAPNSToken, attempts = 12, delayMs = 500) {
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const apns = await getAPNSToken(messaging);
+      if (apns) return apns;
+    } catch (_) {}
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
+  return null;
+}
+
 export async function registerFcmToken(userId) {
   try {
     const {
@@ -11,6 +22,7 @@ export async function registerFcmToken(userId) {
       onTokenRefresh,
       registerDeviceForRemoteMessages,
       isDeviceRegisteredForRemoteMessages,
+      getAPNSToken,
     } = require('@react-native-firebase/messaging');
 
     // Android 13+: system notification permission (required for tray popups).
@@ -36,21 +48,7 @@ export async function registerFcmToken(userId) {
 
     const messaging = getMessaging();
 
-    // iOS: must register for remote messages before getToken().
-    if (Platform.OS === 'ios') {
-      try {
-        const registered =
-          typeof isDeviceRegisteredForRemoteMessages === 'function'
-            ? !!isDeviceRegisteredForRemoteMessages(messaging)
-            : false;
-        if (!registered && typeof registerDeviceForRemoteMessages === 'function') {
-          await registerDeviceForRemoteMessages(messaging);
-        }
-      } catch (regErr) {
-        console.warn('iOS registerDeviceForRemoteMessages failed:', regErr?.message || regErr);
-      }
-    }
-
+    // Ask for notification permission BEFORE registering with APNs / fetching FCM token.
     const authStatus = await requestPermission(messaging, {
       alert: true,
       announcement: false,
@@ -69,11 +67,36 @@ export async function registerFcmToken(userId) {
       return;
     }
 
+    // iOS: must have an APNs device token before getToken() or FCM returns empty / throws.
+    if (Platform.OS === 'ios') {
+      try {
+        const registered =
+          typeof isDeviceRegisteredForRemoteMessages === 'function'
+            ? !!isDeviceRegisteredForRemoteMessages(messaging)
+            : false;
+        if (!registered && typeof registerDeviceForRemoteMessages === 'function') {
+          await registerDeviceForRemoteMessages(messaging);
+        }
+      } catch (regErr) {
+        console.warn('iOS registerDeviceForRemoteMessages failed:', regErr?.message || regErr);
+      }
+
+      const apns = await waitForApnsToken(messaging, getAPNSToken);
+      if (!apns) {
+        console.warn(
+          'iOS APNs token missing — FCM push will not work. Use a physical device, enable Push Notifications capability, and upload an APNs Auth Key (.p8) in Firebase Console → Project Settings → Cloud Messaging.',
+        );
+        return;
+      }
+    }
+
     const token = await getToken(messaging);
     if (!token || !userId) {
       console.warn('FCM getToken returned empty — check GoogleService-Info.plist / google-services.json');
       return;
     }
+
+    console.log('FCM token registered for', Platform.OS, token.slice(0, 12) + '…');
 
     const { error } = await supabase
       .from('profiles')
@@ -92,6 +115,6 @@ export async function registerFcmToken(userId) {
         .eq('id', userId);
     });
   } catch (err) {
-    console.warn('FCM token registration failed:', err);
+    console.warn('FCM token registration failed:', err?.message || err);
   }
 }

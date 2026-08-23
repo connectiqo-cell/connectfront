@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Pressable,
   Animated,
   Easing,
+  AppState,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -20,6 +21,7 @@ import { useThemedStyles } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { earningsApi } from '../../api/earningsApi';
 import { paymentApi } from '../../api/paymentApi';
+import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDate } from '../../utils/dateHelpers';
 
@@ -547,7 +549,10 @@ function TxnRow({ item, index, isLast, baseDelay }) {
 
 export default function MentorEarningsScreen() {
   const styles = useThemedStyles(createEarningsStyles);
-  const { profile } = useAuth();
+  const navigation = useNavigation();
+  const isFocused = useIsFocused();
+  const { profile, user } = useAuth();
+  const mentorId = profile?.id ?? user?.id ?? null;
   const [activePeriod, setActivePeriod] = useState('month');
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [periodEarnings, setPeriodEarnings] = useState([]);
@@ -558,34 +563,45 @@ export default function MentorEarningsScreen() {
   const [periodLoading, setPeriodLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const hasLoadedRef = useRef(false);
+  const fetchGenRef = useRef(0);
 
-  const loadEarningsData = useCallback(async () => {
-    if (!profile?.id) {
+  const loadEarningsData = useCallback(async ({ silent = false } = {}) => {
+    if (!mentorId) {
       setLoading(false);
       return;
     }
+    const gen = ++fetchGenRef.current;
     try {
-      if (!hasLoadedRef.current) {
+      if (!hasLoadedRef.current && !silent) {
         setLoading(true);
       } else {
         setPeriodLoading(true);
       }
 
       const periodFetch =
-        activePeriod === 'week' ? earningsApi.getEarningsByWeek(profile.id)
-        : activePeriod === 'month' ? earningsApi.getEarningsByMonth(profile.id)
-        : earningsApi.getEarningsByYear(profile.id);
+        activePeriod === 'week' ? earningsApi.getEarningsByWeek(mentorId)
+        : activePeriod === 'month' ? earningsApi.getEarningsByMonth(mentorId)
+        : earningsApi.getEarningsByYear(mentorId);
 
       const [wallet, data, all] = await Promise.all([
-        paymentApi.getWallet(profile.id),
+        paymentApi.getWallet(mentorId).catch(() => ({ total_earned: 0 })),
         periodFetch,
-        earningsApi.getEarningsByMentor(profile.id),
+        earningsApi.getEarningsByMentor(mentorId),
       ]);
 
+      if (gen !== fetchGenRef.current) return;
+
+      const earningsList = all || [];
+      const earningsSum = earningsList.reduce(
+        (sum, row) => sum + parseFloat(row.amount || 0),
+        0,
+      );
+      const walletTotal = parseFloat(wallet?.total_earned || 0);
+
       hasLoadedRef.current = true;
-      setTotalEarnings(wallet?.total_earned || 0);
+      setTotalEarnings(walletTotal > 0 ? walletTotal : earningsSum);
       setPeriodEarnings(data || []);
-      setAllEarnings(all || []);
+      setAllEarnings(earningsList);
       setShownCount(6);
 
       let labels = [];
@@ -599,7 +615,8 @@ export default function MentorEarningsScreen() {
           if (d.date) {
             const [y, m, day] = d.date.split('-').map(Number);
             const dayIdx = new Date(y, m - 1, day).getDay();
-            earningsByDate[DAY_LABELS[dayIdx]] = parseFloat(d.amount || 0);
+            earningsByDate[DAY_LABELS[dayIdx]] =
+              (earningsByDate[DAY_LABELS[dayIdx]] || 0) + parseFloat(d.amount || 0);
           }
         });
         values = labels.map(lbl => earningsByDate[lbl] || 0);
@@ -623,27 +640,71 @@ export default function MentorEarningsScreen() {
       const hasData = values.some(v => v > 0);
       setChartData(hasData ? { labels, datasets: [{ data: values }] } : null);
     } catch {
-      Toast.show('Failed to load earnings');
+      if (gen === fetchGenRef.current) Toast.show('Failed to load earnings');
     } finally {
-      setLoading(false);
-      setPeriodLoading(false);
+      if (gen === fetchGenRef.current) {
+        setLoading(false);
+        setPeriodLoading(false);
+      }
     }
-  }, [profile?.id, activePeriod]);
+  }, [mentorId, activePeriod]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!profile?.id) {
+      if (!mentorId) {
         setLoading(false);
         return undefined;
       }
-      loadEarningsData();
+      loadEarningsData({ silent: hasLoadedRef.current });
       return undefined;
-    }, [profile?.id, loadEarningsData]),
+    }, [mentorId, loadEarningsData]),
   );
+
+  useEffect(() => {
+    if (!isFocused || !mentorId) return undefined;
+    loadEarningsData({ silent: hasLoadedRef.current });
+    return undefined;
+  }, [isFocused, mentorId, loadEarningsData]);
+
+  useEffect(() => {
+    const unsub = navigation.addListener('tabPress', () => {
+      loadEarningsData({ silent: true });
+    });
+    return unsub;
+  }, [navigation, loadEarningsData]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active' && isFocused) {
+        loadEarningsData({ silent: true });
+      }
+    });
+    return () => sub.remove();
+  }, [isFocused, loadEarningsData]);
+
+  useEffect(() => {
+    if (!mentorId) return undefined;
+    const channel = supabase
+      .channel(`earnings-dashboard-${mentorId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'earnings', filter: `mentor_id=eq.${mentorId}` },
+        () => loadEarningsData({ silent: true }),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mentor_wallets', filter: `id=eq.${mentorId}` },
+        () => loadEarningsData({ silent: true }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [mentorId, loadEarningsData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadEarningsData();
+    await loadEarningsData({ silent: true });
     setRefreshing(false);
   };
 

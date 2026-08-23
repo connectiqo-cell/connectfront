@@ -27,6 +27,7 @@ import { paymentApi } from '../../api/paymentApi';
 import { payoutApi } from '../../api/payoutApi';
 import { useAuth } from '../../hooks/useAuth';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
+import { useWithdrawalRequestsRealtime } from '../../hooks/useWithdrawalRequestsRealtime';
 
 const MIN_WITHDRAWAL = 5000;
 
@@ -35,6 +36,21 @@ const fmt = n =>
 
 const fmtCompact = n =>
   `₹${parseFloat(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+function getWithdrawalStatusConfig(theme) {
+  const C = theme.colors;
+  const S = C.surface;
+  return {
+    pending: { label: 'Pending', color: C.accent.warning, bg: S.accentWarning },
+    processing: { label: 'Processing', color: C.accent.info, bg: 'rgba(56,189,248,0.12)' },
+    completed: { label: 'Completed', color: C.accent.success, bg: S.accentSuccess },
+    rejected: { label: 'Rejected', color: C.accent.error, bg: 'rgba(248,113,113,0.12)' },
+  };
+}
+function withdrawalStatusConfig(status, theme) {
+  const map = getWithdrawalStatusConfig(theme);
+  return map[status] || { label: status, color: theme.colors.text.muted, bg: theme.colors.surface.accentViolet };
+}
 
 function runEntrance(opacity, translateY, delay = 0) {
   opacity.setValue(0);
@@ -735,6 +751,38 @@ function TransactionRow({ item, isMentor, index = 0, replayToken = 0 }) {
   );
 }
 
+function WithdrawalRow({ item, index = 0 }) {
+  const styles = useThemedStyles(createWalletStyles);
+  const { theme } = useTheme();
+  const cfg = withdrawalStatusConfig(item.status, theme);
+  const dateLabel = moment(item.created_at).format('DD MMM · hh:mm A');
+
+  return (
+    <View style={styles.wdRow}>
+      <View style={styles.wdRowInner}>
+        <View style={[styles.wdIcon, { backgroundColor: cfg.bg }]}>
+          <MaterialIcons name="account-balance" size={16} color={cfg.color} />
+        </View>
+        <View style={styles.wdBody}>
+          <View style={styles.wdTitleRow}>
+            <Text style={styles.txTitle}>{fmtCompact(item.amount)}</Text>
+            <View style={[styles.wdStatusPill, { backgroundColor: cfg.bg }]}>
+              <Text style={[styles.wdStatusPillText, { color: cfg.color }]}>{cfg.label}</Text>
+            </View>
+          </View>
+          <Text style={styles.txDate}>{item.upi_id || 'UPI'} · {dateLabel}</Text>
+          {item.status === 'completed' && item.payout_reference ? (
+            <Text style={styles.wdDetail}>Ref {item.payout_reference}</Text>
+          ) : null}
+          {item.status === 'rejected' && item.rejected_reason ? (
+            <Text style={styles.wdDetail}>{item.rejected_reason}</Text>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function GuideRow({ icon, text, index = 0 }) {
   const styles = useThemedStyles(createWalletStyles);
   const { theme } = useTheme();
@@ -819,7 +867,10 @@ export default function WalletScreen({ navigation }) {
   const [wallet, setWallet] = useState({ balance: 0, total_earned: 0, total_withdrawn: 0 });
   const [pendingAmount, setPendingAmount] = useState(0);
   const [transactions, setTransactions] = useState([]);
+  const [withdrawalHistory, setWithdrawalHistory] = useState([]);
   const [storedUpi, setStoredUpi] = useState('');
+  const [storedBankAccount, setStoredBankAccount] = useState('');
+  const [storedIfsc, setStoredIfsc] = useState('');
   const [payoutReady, setPayoutReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -853,17 +904,21 @@ export default function WalletScreen({ navigation }) {
       if (!profile?.id) return;
       try {
         if (!silent) setLoading(true);
-        const [w, pending, payoutStatus, txs] = await Promise.all([
+        const [w, pending, payoutStatus, txs, withdrawals] = await Promise.all([
           paymentApi.getWallet(profile.id),
           paymentApi.getPendingEarnings(profile.id),
           payoutApi.getAccountStatus(profile.id).catch(err => { console.warn('⚠️ Payout status check failed:', err?.message); return null; }),
           paymentApi.getTransactions(profile.id).catch(() => []),
+          paymentApi.getWithdrawalRequests(profile.id).catch(() => []),
         ]);
         setWallet(w);
         setPendingAmount(pending);
         setStoredUpi(payoutStatus?.upiId || '');
+        setStoredBankAccount(payoutStatus?.bankAccount || '');
+        setStoredIfsc(payoutStatus?.ifsc || '');
         setPayoutReady(payoutStatus?.status === 'active');
         setTransactions((txs || []).slice(0, 8));
+        setWithdrawalHistory(withdrawals || []);
         loadedRef.current = true;
       } catch {
         Toast.show('Failed to load wallet');
@@ -880,6 +935,8 @@ export default function WalletScreen({ navigation }) {
       loadData(loadedRef.current);
     }, [profile?.id, loadData]),
   );
+
+  useWithdrawalRequestsRealtime(profile?.id, useCallback(() => loadData(true), [loadData]));
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -903,9 +960,10 @@ export default function WalletScreen({ navigation }) {
       return;
     }
 
+    const destination = storedUpi || (storedBankAccount ? `${storedBankAccount} (${storedIfsc})` : 'your saved payout details');
     Alert.alert(
       'Confirm withdrawal',
-      `Send ${fmt(amount)} to\n${storedUpi}\n\nProcessed within 1–2 business days.`,
+      `Send ${fmt(amount)} to\n${destination}\n\nProcessed within 1–2 business days.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -914,7 +972,7 @@ export default function WalletScreen({ navigation }) {
             try {
               setSubmitting(true);
               await paymentApi.requestWithdrawal({ mentorId: profile.id, amount });
-              Toast.show("Withdrawal requested · We'll send to your UPI within 1–2 days", Toast.LONG);
+              Toast.show("Withdrawal requested · We'll send it within 1–2 days", Toast.LONG);
               setShowWithdraw(false);
               setWithdrawAmount('');
               await loadData(true);
@@ -933,7 +991,8 @@ export default function WalletScreen({ navigation }) {
     setWithdrawAmount(String(Math.floor(value)));
   };
 
-  const canWithdraw = wallet.balance >= MIN_WITHDRAWAL && !!storedUpi;
+  const hasPayoutMethod = !!storedUpi || !!(storedBankAccount && storedIfsc);
+  const canWithdraw = wallet.balance >= MIN_WITHDRAWAL && hasPayoutMethod;
   const progressPct = Math.min((wallet.balance / MIN_WITHDRAWAL) * 100, 100);
   const amountNeeded = Math.max(MIN_WITHDRAWAL - wallet.balance, 0);
   const mentorTx = transactions.filter(t => t.mentor_id === profile?.id);
@@ -1017,7 +1076,7 @@ export default function WalletScreen({ navigation }) {
               {payoutReady ? (
                 <PulseBadge style={styles.verifiedChip}>
                   <MaterialIcons name="verified" size={13} color={C.accent.success} />
-                  <Text style={styles.verifiedText}>Payout ready</Text>
+                  <Text style={styles.verifiedText}>UPI linked</Text>
                 </PulseBadge>
               ) : null}
             </View>
@@ -1065,18 +1124,18 @@ export default function WalletScreen({ navigation }) {
           />
         </View>
 
-        {!storedUpi && !loading ? (
+        {!hasPayoutMethod && !loading ? (
           <MenuRow
             icon="account-balance"
             title="Complete payout setup"
-            subtitle="Add your UPI ID to enable withdrawals to your bank"
+            subtitle="Add a UPI ID or bank account to enable withdrawals"
             onPress={() => navigation.navigate(SCREEN_NAMES.PayoutSetup)}
             accent={C.accent.warning}
             accentBg={S.accentWarning}
             badge="Required"
             replayToken={replayToken}
           />
-        ) : storedUpi ? (
+        ) : hasPayoutMethod ? (
           <FadeSlideIn delay={260} replayToken={replayToken}>
             <HoverHighlight
               style={styles.upiCard}
@@ -1085,10 +1144,10 @@ export default function WalletScreen({ navigation }) {
               pressScale={0.99}
             >
               <View style={styles.upiLeft}>
-                <MaterialIcons name="phone-android" size={18} color={TEAL} />
+                <MaterialIcons name={storedUpi ? 'phone-android' : 'account-balance'} size={18} color={TEAL} />
                 <View>
-                  <Text style={styles.upiLabel}>Payout UPI</Text>
-                  <Text style={styles.upiValue}>{storedUpi}</Text>
+                  <Text style={styles.upiLabel}>{storedUpi ? 'Payout UPI' : 'Payout bank account'}</Text>
+                  <Text style={styles.upiValue}>{storedUpi || `${storedBankAccount} · ${storedIfsc}`}</Text>
                 </View>
               </View>
               <AnimatedPressable
@@ -1115,9 +1174,9 @@ export default function WalletScreen({ navigation }) {
             <Text style={styles.withdrawStatus}>
               {canWithdraw
                 ? 'Your balance meets the withdrawal threshold'
-                : storedUpi
+                : hasPayoutMethod
                   ? `₹${amountNeeded.toLocaleString('en-IN')} more to unlock withdrawals`
-                  : 'Set up payout UPI to withdraw'}
+                  : 'Set up a payout method to withdraw'}
             </Text>
             {canWithdraw ? (
               <PulseBadge style={styles.readyBadge}>
@@ -1168,8 +1227,10 @@ export default function WalletScreen({ navigation }) {
             <View style={styles.withdrawForm}>
               <Text style={styles.fieldLabel}>Sending to</Text>
               <View style={[styles.inputWrap, styles.inputReadOnly]}>
-                <MaterialIcons name="phone-android" size={18} color={TEAL} style={styles.inputIcon} />
-                <Text style={styles.upiReadOnly}>{storedUpi}</Text>
+                <MaterialIcons name={storedUpi ? 'phone-android' : 'account-balance'} size={18} color={TEAL} style={styles.inputIcon} />
+                <Text style={styles.upiReadOnly}>
+                  {storedUpi || (storedBankAccount ? `${storedBankAccount} · ${storedIfsc}` : '—')}
+                </Text>
               </View>
 
               <Text style={styles.fieldLabel}>Amount</Text>
@@ -1233,6 +1294,29 @@ export default function WalletScreen({ navigation }) {
               </AnimatedPressable>
             </View>
           </ExpandFadeIn>
+        </SectionBlock>
+
+        <SectionBlock
+          icon="account-balance"
+          title="Withdrawal history"
+          subtitle={withdrawalHistory.length ? 'Your requests and their status' : 'Requests appear here once submitted'}
+          accent={TEAL}
+          accentBg={S.accentTeal}
+          delay={340}
+        >
+          {withdrawalHistory.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="account-balance" size={32} color={C.text.muted} />
+              <Text style={styles.emptyTitle}>No withdrawal requests yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Requests you submit will show up here with their status.
+              </Text>
+            </View>
+          ) : (
+            withdrawalHistory.map((item, index) => (
+              <WithdrawalRow key={item.id} item={item} index={index} />
+            ))
+          )}
         </SectionBlock>
 
         <SectionBlock
@@ -1868,6 +1952,49 @@ function createWalletStyles(theme) {
     fontWeight: '700',
     color: TEAL,
     textTransform: 'uppercase',
+  },
+
+  wdRow: {
+    borderRadius: 12,
+    marginBottom: 2,
+    overflow: 'hidden',
+  },
+  wdRowInner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: T.spacing.sm,
+    paddingVertical: T.spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(167,139,250,0.12)',
+  },
+  wdIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wdBody: { flex: 1 },
+  wdTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: T.spacing.xs,
+  },
+  wdStatusPill: {
+    borderRadius: T.borderRadius.round,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  wdStatusPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  wdDetail: {
+    fontSize: 11,
+    color: C.text.muted,
+    marginTop: 2,
   },
 
   emptyState: {

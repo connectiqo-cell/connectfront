@@ -199,8 +199,6 @@ async function reconcileVideoSubscription(
   intent: { mentor_id: string; learner_id: string },
   orderId: string,
   paymentId: string,
-  keyId: string,
-  keySecret: string,
 ) {
   const { data: existingUnlock } = await supabase
     .from('learner_unlocks')
@@ -232,7 +230,6 @@ async function reconcileVideoSubscription(
   const platformBaseFee    = mentorAmount * platformFeePercent / 100;
   const gstOnFee           = platformBaseFee * gstPercent / 100;
   const amountPaid         = Math.round(mentorAmount + platformBaseFee + gstOnFee);
-  const mentorAmountPaise  = Math.round(mentorAmount) * 100;
 
   const now       = new Date();
   const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -267,34 +264,10 @@ async function reconcileVideoSubscription(
   });
   if (walletErr) throw walletErr;
 
-  try {
-    if (mp.razorpay_account_id && mp.kyc_status === 'active') {
-      const creds = btoa(`${keyId}:${keySecret}`);
-      const rzpRes = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/transfers`, {
-        method: 'POST',
-        headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transfers: [{
-            account: mp.razorpay_account_id,
-            amount: mentorAmountPaise,
-            currency: 'INR',
-            on_hold: false,
-            notes: { mentor_id: intent.mentor_id, learner_id: intent.learner_id, type: 'video_subscription' },
-          }],
-        }),
-      });
-      const result = await rzpRes.json();
-      if (rzpRes.ok) {
-        const transferId = result?.items?.[0]?.id ?? null;
-        await supabase
-          .from('earnings')
-          .update({ route_transfer_id: transferId, route_transferred_at: new Date().toISOString() })
-          .eq('id', earningRow.id);
-      }
-    }
-  } catch (transferErr) {
-    console.warn('Route transfer error (non-fatal):', transferErr);
-  }
+  // Manual mentor payout model — Razorpay is never used to move money to
+  // mentors. The wallet credit above is the payout path; earnings stay on
+  // the ledger for manual withdrawal + admin fulfilment regardless of any
+  // Razorpay Route account a mentor set up in the past.
 
   return { outcome: 'reconciled' };
 }
@@ -355,9 +328,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (intent) {
-        const keyId     = Deno.env.get('RAZORPAY_KEY_ID')!;
-        const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET')!;
-        const result = await reconcileVideoSubscription(supabase, intent, orderId, paymentId, keyId, keySecret);
+        const result = await reconcileVideoSubscription(supabase, intent, orderId, paymentId);
         if (result.outcome === 'reconciled') {
           await logAudit(supabase, 'webhook_reconciled_video_subscription', orderId, { orderId, paymentId });
         }

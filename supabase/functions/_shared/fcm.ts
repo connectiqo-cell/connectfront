@@ -106,11 +106,15 @@ export async function sendFcmNotification({
             },
           },
           apns: {
-            headers: { 'apns-priority': '10' },
+            headers: {
+              'apns-priority': '10',
+              'apns-push-type': 'alert',
+            },
             payload: {
               aps: {
                 alert: { title, body },
                 sound: 'default',
+                badge: 1,
               },
             },
           },

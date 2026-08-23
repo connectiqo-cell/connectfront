@@ -34,15 +34,18 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // ── 2. Verify mentor has UPI set up ───────────────────────────────────────
+    // ── 2. Verify mentor has a payout method set up (UPI and/or bank account) ─
     const { data: mp, error: mpErr } = await supabase
       .from('mentor_profiles')
-      .select('upi_id')
+      .select('upi_id, bank_account, ifsc')
       .eq('id', mentorId)
       .single();
 
     if (mpErr) throw mpErr;
-    if (!mp?.upi_id) throw new Error('No UPI ID found. Complete payout setup first.');
+    const hasBankDetails = Boolean(mp?.bank_account && mp?.ifsc);
+    if (!mp?.upi_id && !hasBankDetails) {
+      throw new Error('No payout method found. Complete payout setup first.');
+    }
 
     // ── 3. Atomically deduct balance (fails if insufficient) ─────────────────
     const { data: newBalance, error: deductErr } = await supabase.rpc(
@@ -55,10 +58,12 @@ serve(async (req) => {
     const { data: withdrawal, error: withdrawalErr } = await supabase
       .from('withdrawal_requests')
       .insert({
-        mentor_id: mentorId,
+        mentor_id:    mentorId,
         amount,
-        upi_id:    mp.upi_id,
-        status:    'pending',
+        upi_id:       mp.upi_id ?? null,
+        bank_account: mp.bank_account ?? null,
+        ifsc:         mp.ifsc ?? null,
+        status:       'pending',
       })
       .select('id')
       .single();

@@ -41,47 +41,8 @@ function getStatusConfig(theme) {
         ? ['rgba(16,185,129,0.18)', 'rgba(109,74,255,0.08)', PANEL_BG]
         : ['rgba(52,211,153,0.35)', 'rgba(94,234,212,0.18)', PANEL_BG],
       glow: C.accent.success,
-      title: 'Payouts are live',
-      subtitle: 'Withdrawals from your wallet will be sent to your UPI.',
-    },
-    pending: {
-      color: C.accent.warning,
-      bg: S.accentWarning,
-      border: 'rgba(251,191,36,0.35)',
-      icon: 'hourglass-top',
-      label: 'KYC pending',
-      heroGradient: isLight
-        ? ['rgba(245,158,11,0.16)', 'rgba(109,74,255,0.08)', PANEL_BG]
-        : ['rgba(251,191,36,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
-      glow: C.accent.warning,
-      title: 'Almost there',
-      subtitle: 'Razorpay has emailed you to complete KYC. Check your inbox, then pull to refresh here.',
-    },
-    needs_clarification: {
-      color: C.accent.warning,
-      bg: S.accentWarning,
-      border: 'rgba(251,191,36,0.35)',
-      icon: 'help-outline',
-      label: 'Action needed',
-      heroGradient: isLight
-        ? ['rgba(245,158,11,0.16)', 'rgba(109,74,255,0.08)', PANEL_BG]
-        : ['rgba(251,191,36,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
-      glow: C.accent.warning,
-      title: 'Razorpay needs more info',
-      subtitle: 'Check the email from Razorpay for what needs clarifying, then pull to refresh here.',
-    },
-    suspended: {
-      color: C.accent.danger || '#ef4444',
-      bg: S.accentWarning,
-      border: 'rgba(239,68,68,0.35)',
-      icon: 'error-outline',
-      label: 'Suspended',
-      heroGradient: isLight
-        ? ['rgba(239,68,68,0.16)', 'rgba(109,74,255,0.08)', PANEL_BG]
-        : ['rgba(239,68,68,0.28)', 'rgba(167,139,250,0.15)', PANEL_BG],
-      glow: '#ef4444',
-      title: 'Account suspended',
-      subtitle: 'Your Razorpay account was suspended. Contact Razorpay support to resolve this.',
+      title: 'Payouts are ready',
+      subtitle: 'Withdrawals from your wallet will be sent to this UPI ID.',
     },
     not_started: {
       color: C.text.muted,
@@ -94,7 +55,7 @@ function getStatusConfig(theme) {
         : ['rgba(124,58,237,0.4)', 'rgba(94,234,212,0.18)', PANEL_BG],
       glow: C.accent.secondary,
       title: 'Set up payouts',
-      subtitle: 'Link your UPI so session earnings can reach your bank.',
+      subtitle: 'Add your UPI ID so withdrawals have somewhere to go.',
     },
   };
 }
@@ -103,7 +64,7 @@ const PAYOUT_STEPS = [
   { icon: 'payments', text: 'Learner pays when they book your session.' },
   { icon: 'call-split', text: 'Your share is credited after the session completes.' },
   { icon: 'account-balance-wallet', text: 'Request withdrawal from My Wallet (min ₹5,000).' },
-  { icon: 'send', text: 'Funds arrive on your UPI within 1–2 business days.' },
+  { icon: 'send', text: 'We settle it to your UPI within 1–2 business days.' },
 ];
 
 function runEntrance(opacity, translateY, delay = 0) {
@@ -696,7 +657,6 @@ export default function PayoutSetupScreen({ navigation }) {
     : ['transparent', 'rgba(15,14,42,0.92)', PANEL_BG];
   const { profile } = useAuth();
   const [status, setStatus] = useState('not_started');
-  const [accountId, setAccountId] = useState(null);
   const [upiIdDisplay, setUpiIdDisplay] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -723,22 +683,30 @@ export default function PayoutSetupScreen({ navigation }) {
     outputRange: [-180, 280],
   });
 
-  const [legalName, setLegalName] = useState(profile?.name || '');
-  const [email, setEmail] = useState(profile?.email || '');
   const [upiId, setUpiId] = useState('');
-  const [phone, setPhone] = useState('');
-  const [addressLine1, setAddressLine1] = useState('');
-  const [city, setCity] = useState('');
-  const [stateField, setStateField] = useState('');
-  const [postalCode, setPostalCode] = useState('');
+  const [bankAccount, setBankAccount] = useState('');
+  const [ifsc, setIfsc] = useState('');
+  const [accountHolderName, setAccountHolderName] = useState('');
+  const [bankAccountDisplay, setBankAccountDisplay] = useState('');
+  const [ifscDisplay, setIfscDisplay] = useState('');
+  const [editMode, setEditMode] = useState(false);
 
   const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.not_started;
   const isSetUp = status !== 'not_started';
 
-  useEffect(() => {
-    if (profile?.name) setLegalName(prev => prev || profile.name);
-    if (profile?.email) setEmail(prev => prev || profile.email);
-  }, [profile?.name, profile?.email]);
+  const startEdit = () => {
+    setUpiId(upiIdDisplay);
+    setBankAccount(bankAccountDisplay);
+    setIfsc(ifscDisplay);
+    setEditMode(true);
+  };
+
+  const cancelEdit = () => {
+    setUpiId(upiIdDisplay);
+    setBankAccount(bankAccountDisplay);
+    setIfsc(ifscDisplay);
+    setEditMode(false);
+  };
 
   const loadStatus = useCallback(
     async (isRefresh = false) => {
@@ -748,9 +716,13 @@ export default function PayoutSetupScreen({ navigation }) {
       try {
         const res = await payoutApi.getAccountStatus(profile.id);
         setStatus(res.status || 'not_started');
-        setAccountId(res.accountId || null);
         setUpiIdDisplay(res.upiId || '');
+        setBankAccountDisplay(res.bankAccount || '');
+        setIfscDisplay(res.ifsc || '');
         if (res.upiId) setUpiId(prev => prev || res.upiId);
+        if (res.bankAccount) setBankAccount(prev => prev || res.bankAccount);
+        if (res.ifsc) setIfsc(prev => prev || res.ifsc);
+        if (res.accountHolderName) setAccountHolderName(prev => prev || res.accountHolderName);
         loadedRef.current = true;
       } catch {
         setStatus('not_started');
@@ -774,20 +746,13 @@ export default function PayoutSetupScreen({ navigation }) {
   };
 
   const handleSetup = async () => {
-    if (!legalName.trim()) {
-      Toast.show('Enter your legal / business name');
+    const hasBank = bankAccount.trim() || ifsc.trim();
+    if (!upiId.trim() && !hasBank) {
+      Toast.show('Enter a UPI ID or a bank account + IFSC');
       return;
     }
-    if (!phone.trim()) {
-      Toast.show('Enter your phone number');
-      return;
-    }
-    if (!addressLine1.trim() || !city.trim() || !stateField.trim() || !postalCode.trim()) {
-      Toast.show('Enter your full registered address');
-      return;
-    }
-    if (!upiId.trim()) {
-      Toast.show('Enter your UPI ID (e.g. name@upi)');
+    if (hasBank && (!bankAccount.trim() || !ifsc.trim())) {
+      Toast.show('Bank account number and IFSC are both required together');
       return;
     }
 
@@ -795,18 +760,17 @@ export default function PayoutSetupScreen({ navigation }) {
       setSubmitting(true);
       const res = await payoutApi.createLinkedAccount({
         mentorId: profile.id,
-        legalName: legalName.trim(),
-        phone: phone.trim(),
-        addressLine1: addressLine1.trim(),
-        city: city.trim(),
-        state: stateField.trim(),
-        postalCode: postalCode.trim(),
-        upiId: upiId.trim(),
+        upiId: upiId.trim() || undefined,
+        bankAccount: bankAccount.trim() || undefined,
+        ifsc: ifsc.trim() || undefined,
+        accountHolderName: accountHolderName.trim() || undefined,
       });
-      setAccountId(res.accountId);
-      setStatus(res.status || 'pending');
-      setUpiIdDisplay(upiId.trim());
-      Toast.show('Account created! Razorpay will email you to complete KYC.');
+      setStatus(res.status || 'active');
+      setUpiIdDisplay(res.upiId || upiId.trim());
+      setBankAccountDisplay(res.bankAccount || bankAccount.trim());
+      setIfscDisplay(res.ifsc || ifsc.trim());
+      setEditMode(false);
+      Toast.show('Payout details saved.');
     } catch (e) {
       Toast.show(e.message || 'Setup failed');
     } finally {
@@ -824,7 +788,7 @@ export default function PayoutSetupScreen({ navigation }) {
           </AnimatedPressable>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Payout Setup</Text>
-            <Text style={styles.headerSubtitle}>Connect UPI & complete KYC for mentor earnings</Text>
+            <Text style={styles.headerSubtitle}>Add the UPI ID your withdrawals should go to</Text>
           </View>
           <AnimatedPressable
             onPress={handleRefresh}
@@ -864,9 +828,7 @@ export default function PayoutSetupScreen({ navigation }) {
 
             <View style={styles.heroTop}>
               <View style={styles.heroIconWrap}>
-                {(status === 'pending' || status === 'active' || status === 'not_started') && (
-                  <PulseGlow color={statusCfg.glow} size={76} />
-                )}
+                <PulseGlow color={statusCfg.glow} size={76} />
                 <LinearGradient colors={B.premiumGradient} style={styles.heroIconRing}>
                   <MaterialIcons name={statusCfg.icon} size={28} color={GOLD} />
                 </LinearGradient>
@@ -882,7 +844,7 @@ export default function PayoutSetupScreen({ navigation }) {
               {status === 'active' ? (
                 <PulseBadge style={styles.secureChip} animate>
                   <MaterialIcons name="lock" size={12} color={TEAL} />
-                  <Text style={styles.secureChipText}>Secured by Razorpay</Text>
+                  <Text style={styles.secureChipText}>We never share your UPI ID</Text>
                 </PulseBadge>
               ) : null}
             </View>
@@ -903,111 +865,56 @@ export default function PayoutSetupScreen({ navigation }) {
           ))}
         </SectionBlock>
 
-        {isSetUp ? (
+        {isSetUp && !editMode ? (
           <SectionBlock
             icon="account-balance"
-            title="Account details"
-            subtitle="Your linked Razorpay payout account"
+            title="Payout details"
+            subtitle="Where withdrawals are sent"
             accent={GOLD}
             accentBg={S.accentGold}
             delay={220}
             replayToken={replayToken}
           >
-            {accountId ? (
-              <InfoRow label="Account ID" value={accountId} mono index={0} replayToken={replayToken} />
-            ) : null}
             {upiIdDisplay ? (
-              <InfoRow label="UPI ID" value={upiIdDisplay} index={1} replayToken={replayToken} />
+              <InfoRow label="UPI ID" value={upiIdDisplay} index={0} replayToken={replayToken} />
+            ) : null}
+            {bankAccountDisplay ? (
+              <InfoRow label="Bank account" value={`${bankAccountDisplay} · ${ifscDisplay}`} index={1} replayToken={replayToken} />
             ) : null}
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Status</Text>
               <StatusBadge status={status} />
             </View>
 
-            {status === 'pending' || status === 'needs_clarification' ? (
-              <NoticeCard variant="warning">
-                <MaterialIcons name="info-outline" size={18} color={C.accent.warning} />
-                <Text style={styles.noticeWarningText}>
-                  {STATUS_CONFIG[status]?.subtitle}
-                </Text>
-              </NoticeCard>
-            ) : null}
+            <NoticeCard variant="success">
+              <MaterialIcons name="check-circle" size={18} color={C.accent.success} />
+              <Text style={styles.noticeSuccessText}>
+                Withdrawals you request are settled to this payout method by our team.
+              </Text>
+            </NoticeCard>
 
-            {status === 'active' ? (
-              <NoticeCard variant="success">
-                <MaterialIcons name="check-circle" size={18} color={C.accent.success} />
-                <Text style={styles.noticeSuccessText}>
-                  Your account is active. Session earnings are split to it automatically.
-                </Text>
-              </NoticeCard>
-            ) : null}
+            <WalletLinkRow onPress={() => navigation.navigate(SCREEN_NAMES.Wallet)} />
 
-            {status === 'active' ? (
-              <WalletLinkRow onPress={() => navigation.navigate(SCREEN_NAMES.Wallet)} />
-            ) : null}
+            <AnimatedPressable
+              onPress={startEdit}
+              style={styles.editDetailsBtn}
+              hoverScale={1.02}
+              pressScale={0.97}
+            >
+              <MaterialIcons name="edit" size={16} color={TEAL} />
+              <Text style={styles.editDetailsBtnText}>Edit UPI / bank details</Text>
+            </AnimatedPressable>
           </SectionBlock>
-        ) : (
+        ) : isSetUp && editMode ? (
           <SectionBlock
             icon="edit"
-            title="Create payout account"
-            subtitle="Details are sent securely to Razorpay"
-            accent={PURPLE_LINK}
-            accentBg={S.accentViolet}
+            title="Edit payout details"
+            subtitle="Update your UPI ID and/or bank account"
+            accent={GOLD}
+            accentBg={S.accentGold}
             delay={220}
             replayToken={replayToken}
           >
-            <Field
-              icon="badge"
-              label="Legal / business name"
-              value={legalName}
-              onChangeText={setLegalName}
-              placeholder="Your full name or business name"
-              hint="Must match your bank / UPI account holder name"
-              index={0}
-            />
-            <Field
-              icon="call"
-              label="Phone number"
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="9876543210"
-              keyboardType="phone-pad"
-              hint="Used for Razorpay account verification"
-              index={1}
-            />
-            <Field
-              icon="home"
-              label="Registered address"
-              value={addressLine1}
-              onChangeText={setAddressLine1}
-              placeholder="Street address"
-              index={2}
-            />
-            <Field
-              icon="location-city"
-              label="City"
-              value={city}
-              onChangeText={setCity}
-              placeholder="City"
-              index={3}
-            />
-            <Field
-              icon="map"
-              label="State"
-              value={stateField}
-              onChangeText={setStateField}
-              placeholder="State"
-              index={4}
-            />
-            <Field
-              icon="local-post-office"
-              label="PIN code"
-              value={postalCode}
-              onChangeText={setPostalCode}
-              placeholder="400001"
-              keyboardType="number-pad"
-              index={5}
-            />
             <Field
               icon="phone-android"
               label="UPI ID"
@@ -1017,18 +924,117 @@ export default function PayoutSetupScreen({ navigation }) {
               keyboardType="email-address"
               autoCapitalize="none"
               hint="Where withdrawal amounts will be sent"
-              index={6}
+              index={0}
+            />
+
+            <Text style={styles.fieldLabel}>Bank account (for NEFT/IMPS) — optional</Text>
+            <Field
+              icon="account-balance"
+              label="Account number"
+              value={bankAccount}
+              onChangeText={setBankAccount}
+              placeholder="1234567890"
+              keyboardType="number-pad"
+              index={1}
+            />
+            <Field
+              icon="pin"
+              label="IFSC code"
+              value={ifsc}
+              onChangeText={t => setIfsc(t.toUpperCase())}
+              placeholder="HDFC0001234"
+              autoCapitalize="characters"
+              index={2}
+            />
+            <Field
+              icon="badge"
+              label="Account holder name"
+              value={accountHolderName}
+              onChangeText={setAccountHolderName}
+              placeholder="As per bank records"
+              index={3}
+            />
+
+            <View style={styles.editActionsRow}>
+              <AnimatedPressable
+                onPress={cancelEdit}
+                style={styles.cancelEditBtn}
+                disabled={submitting}
+                hoverScale={1.02}
+                pressScale={0.97}
+              >
+                <Text style={styles.cancelEditBtnText}>Cancel</Text>
+              </AnimatedPressable>
+              <View style={{ flex: 1 }}>
+                <GradientButton
+                  label={submitting ? 'Saving…' : 'Save changes'}
+                  icon="account-balance"
+                  onPress={handleSetup}
+                  loading={submitting}
+                  disabled={submitting}
+                />
+              </View>
+            </View>
+          </SectionBlock>
+        ) : (
+          <SectionBlock
+            icon="edit"
+            title="Add your payout details"
+            subtitle="UPI, bank account, or both — used to send your withdrawals"
+            accent={PURPLE_LINK}
+            accentBg={S.accentViolet}
+            delay={220}
+            replayToken={replayToken}
+          >
+            <Field
+              icon="phone-android"
+              label="UPI ID"
+              value={upiId}
+              onChangeText={setUpiId}
+              placeholder="yourname@upi"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              hint="Where withdrawal amounts will be sent"
+              index={0}
+            />
+
+            <Text style={styles.fieldLabel}>Bank account (for NEFT/IMPS) — optional</Text>
+            <Field
+              icon="account-balance"
+              label="Account number"
+              value={bankAccount}
+              onChangeText={setBankAccount}
+              placeholder="1234567890"
+              keyboardType="number-pad"
+              index={1}
+            />
+            <Field
+              icon="pin"
+              label="IFSC code"
+              value={ifsc}
+              onChangeText={t => setIfsc(t.toUpperCase())}
+              placeholder="HDFC0001234"
+              autoCapitalize="characters"
+              index={2}
+            />
+            <Field
+              icon="badge"
+              label="Account holder name"
+              value={accountHolderName}
+              onChangeText={setAccountHolderName}
+              placeholder="As per bank records"
+              index={3}
             />
 
             <HoverHighlight style={styles.trustNote} hoverScale={1.01} pressScale={0.99}>
               <MaterialIcons name="shield" size={16} color={TEAL} />
               <Text style={styles.trustNoteText}>
-                Razorpay will email {email || 'your account email'} to complete a quick KYC. We never store your banking password.
+                We never share your payout details outside the payout team.
               </Text>
             </HoverHighlight>
 
             <GradientButton
-              label={submitting ? 'Creating account…' : 'Create payout account'}
+              label={submitting ? 'Saving…' : 'Save payout details'}
               icon="account-balance"
               onPress={handleSetup}
               loading={submitting}
@@ -1041,7 +1047,8 @@ export default function PayoutSetupScreen({ navigation }) {
           <View style={styles.footerNote}>
             <MaterialIcons name="info-outline" size={15} color={C.text.muted} />
             <Text style={styles.footerNoteText}>
-              Payouts are processed by Razorpay. Platform fee applies per session as shown at booking.
+              Payouts are settled manually by our team via UPI/IMPS/NEFT within 1–2 business days.
+              Platform fee applies per session as shown at booking.
             </Text>
           </View>
         </FadeSlideIn>
@@ -1380,6 +1387,44 @@ function createPayoutStyles(theme) {
     fontSize: 14,
     fontWeight: '700',
     color: TEAL,
+  },
+
+  editDetailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: T.spacing.sm,
+    marginTop: T.spacing.sm,
+    paddingVertical: T.spacing.sm + 2,
+    paddingHorizontal: T.spacing.md,
+    borderRadius: 12,
+    backgroundColor: S.accentTeal,
+    borderWidth: 1,
+    borderColor: 'rgba(94,234,212,0.3)',
+  },
+  editDetailsBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: TEAL,
+  },
+  editActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: T.spacing.sm,
+    marginTop: T.spacing.xs,
+  },
+  cancelEditBtn: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: T.spacing.lg,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: softBorder(theme),
+  },
+  cancelEditBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: C.text.secondary,
   },
 
   fieldBlock: { marginBottom: T.spacing.sm },

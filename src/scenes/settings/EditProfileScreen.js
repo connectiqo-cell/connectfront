@@ -27,7 +27,6 @@ import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { useSystemBack } from '../../hooks/useSystemBack';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
-import { CategoryPicker } from '../../components/CategoryPicker';
 import { useAuth } from '../../hooks/useAuth';
 import { profileApi } from '../../api/profileApi';
 import { supabase } from '../../lib/supabase';
@@ -35,8 +34,6 @@ import { MENTOR_CATEGORIES } from '../../constants/mentorCategories';
 import { fetchActiveCategoryNames } from '../../api/contentApi';
 import {
   formatSelectedCategoriesLabel,
-  MAX_LEARNER_INTERESTS,
-  MIN_LEARNER_INTERESTS,
   parseMentorCategories,
   serializeMentorCategories,
   toggleMentorCategory,
@@ -66,13 +63,15 @@ function calcCompletion(fields) {
   const checks = [
     !!fields.name?.trim(),
     !!fields.username?.trim(),
-    !!fields.learnerBio?.trim(),
+    !!fields.bio?.trim(),
     !!fields.interests?.length,
     !!fields.specialization?.trim(),
-    !!fields.mentorBio?.trim(),
     !!fields.experienceYears?.trim(),
     !!fields.pricePerHour?.trim(),
     !!fields.categories?.length,
+    !!fields.location?.trim(),
+    !!fields.website?.trim(),
+    !!fields.skills?.length,
     !!fields.coverImageUrl?.trim(),
     !!fields.avatarUrl?.trim(),
   ];
@@ -183,7 +182,7 @@ function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay
   );
 }
 
-function CategoryChip({ label, active, onPress, index }) {
+function CategoryChip({ label, active, onPress, index, icon }) {
   const styles = useThemedStyles(createEditProfileStyles);
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.92)).current;
@@ -215,10 +214,27 @@ function CategoryChip({ label, active, onPress, index }) {
         hoverScale={1.06}
         pressScale={0.94}
       >
-        <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{label}</Text>
+        <View style={styles.categoryChipInner}>
+          {icon ? (
+            <MaterialIcons
+              name={icon}
+              size={12}
+              color={active ? GOLD : C.text.secondary}
+            />
+          ) : null}
+          <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{label}</Text>
+        </View>
       </AnimatedPressable>
     </Animated.View>
   );
+}
+
+function parseSkills(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map(s => String(s).trim()).filter(Boolean))];
+  }
+  return [...new Set(String(raw).split(',').map(s => s.trim()).filter(Boolean))];
 }
 
 function CategoryDropdown({ categories, open, onToggle, options, onToggleCategory }) {
@@ -765,20 +781,22 @@ export default function EditProfileScreen({ navigation }) {
   const [name, setName] = useState(profile?.name || '');
   const [username, setUsername] = useState(profile?.username || '');
   const [usernameError, setUsernameError] = useState('');
-  const [learnerBio, setLearnerBio] = useState('');
+  const [bio, setBio] = useState('');
   const [interests, setInterests] = useState([]);
   const [specialization, setSpecialization] = useState('');
-  const [mentorBio, setMentorBio] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
   const [pricePerHour, setPricePerHour] = useState('');
   const [categories, setCategories] = useState([]);
+  const [location, setLocation] = useState('');
+  const [website, setWebsite] = useState('');
+  const [skills, setSkills] = useState([]);
+  const [skillInput, setSkillInput] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [instagramUrl, setInstagramUrl] = useState('');
   const [xUrl, setXUrl] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-  const [showInterestPicker, setShowInterestPicker] = useState(false);
   const [adminCategoryNames, setAdminCategoryNames] = useState([]);
 
   const savedSnapshot = useRef(null);
@@ -788,41 +806,45 @@ export default function EditProfileScreen({ navigation }) {
     return MENTOR_CATEGORIES;
   }, [adminCategoryNames]);
 
+  const availableInterests = useMemo(
+    () =>
+      mentorCategoryOptions.filter(
+        cat => !interests.some(i => String(i).toLowerCase() === String(cat).toLowerCase()),
+      ),
+    [mentorCategoryOptions, interests],
+  );
+
   const completion = useMemo(
     () =>
       calcCompletion({
         name,
         username,
-        learnerBio,
+        bio,
         interests,
         specialization,
-        mentorBio,
         experienceYears,
         pricePerHour,
         categories,
+        location,
+        website,
+        skills,
         coverImageUrl,
         avatarUrl,
-        youtubeUrl,
-        instagramUrl,
-        xUrl,
-        linkedinUrl,
       }),
     [
       name,
       username,
-      learnerBio,
+      bio,
       interests,
       specialization,
-      mentorBio,
       experienceYears,
       pricePerHour,
       categories,
+      location,
+      website,
+      skills,
       coverImageUrl,
       avatarUrl,
-      youtubeUrl,
-      instagramUrl,
-      xUrl,
-      linkedinUrl,
     ],
   );
 
@@ -831,13 +853,15 @@ export default function EditProfileScreen({ navigation }) {
       JSON.stringify({
         name: name.trim(),
         username: username.trim().toLowerCase(),
-        learnerBio: learnerBio.trim(),
+        bio: bio.trim(),
         interests,
         specialization: specialization.trim(),
-        mentorBio: mentorBio.trim(),
         experienceYears: experienceYears.trim(),
         pricePerHour: pricePerHour.trim(),
         categories,
+        location: location.trim(),
+        website: website.trim(),
+        skills,
         coverImageUrl,
         avatarUrl,
         youtubeUrl: youtubeUrl.trim(),
@@ -848,13 +872,15 @@ export default function EditProfileScreen({ navigation }) {
     [
       name,
       username,
-      learnerBio,
+      bio,
       interests,
       specialization,
-      mentorBio,
       experienceYears,
       pricePerHour,
       categories,
+      location,
+      website,
+      skills,
       coverImageUrl,
       avatarUrl,
       youtubeUrl,
@@ -895,10 +921,13 @@ export default function EditProfileScreen({ navigation }) {
       ]);
 
       let nextSpecialization = '';
-      let nextMentorBio = '';
+      let nextBio = '';
       let nextExperienceYears = '';
       let nextPricePerHour = '';
       let nextCategories = [];
+      let nextLocation = '';
+      let nextWebsite = '';
+      let nextSkills = [];
       let nextCover = '';
       let nextYoutube = '';
       let nextInstagram = '';
@@ -910,10 +939,13 @@ export default function EditProfileScreen({ navigation }) {
       if (mentorData.status === 'fulfilled' && mentorData.value) {
         const m = mentorData.value;
         nextSpecialization = m.specialization || '';
-        nextMentorBio = m.bio || '';
+        nextBio = m.bio || '';
         nextExperienceYears = m.experience_years ? String(m.experience_years) : '';
         nextPricePerHour = m.price_per_hour ? String(m.price_per_hour) : '';
         nextCategories = parseMentorCategories(m.category || '');
+        nextLocation = m.location || '';
+        nextWebsite = m.website || '';
+        nextSkills = parseSkills(m.skills);
         nextCover = m.cover_image_url || '';
         nextYoutube = m.youtube_url || '';
         nextInstagram = m.instagram_url || '';
@@ -926,32 +958,38 @@ export default function EditProfileScreen({ navigation }) {
         nextInterests = parseMentorCategories(l.interests);
       }
 
+      const resolvedBio = nextBio || nextLearnerBio;
+
       setAvatarUrl(profile.avatar_url || '');
       setName(profile.name || '');
       setUsername(profile.username || '');
       setSpecialization(nextSpecialization);
-      setMentorBio(nextMentorBio);
+      setBio(resolvedBio);
       setExperienceYears(nextExperienceYears);
       setPricePerHour(nextPricePerHour);
       setCategories(nextCategories);
+      setLocation(nextLocation);
+      setWebsite(nextWebsite);
+      setSkills(nextSkills);
       setCoverImageUrl(nextCover);
       setYoutubeUrl(nextYoutube);
       setInstagramUrl(nextInstagram);
       setXUrl(nextX);
       setLinkedinUrl(nextLinkedin);
-      setLearnerBio(nextLearnerBio);
       setInterests(nextInterests);
 
       savedSnapshot.current = JSON.stringify({
         name: (profile.name || '').trim(),
         username: (profile.username || '').trim().toLowerCase(),
-        learnerBio: nextLearnerBio.trim(),
+        bio: resolvedBio.trim(),
         interests: nextInterests,
         specialization: nextSpecialization.trim(),
-        mentorBio: nextMentorBio.trim(),
         experienceYears: nextExperienceYears.trim(),
         pricePerHour: nextPricePerHour.trim(),
         categories: nextCategories,
+        location: nextLocation.trim(),
+        website: nextWebsite.trim(),
+        skills: nextSkills,
         coverImageUrl: nextCover,
         avatarUrl: profile.avatar_url || '',
         youtubeUrl: nextYoutube.trim(),
@@ -1014,9 +1052,9 @@ export default function EditProfileScreen({ navigation }) {
     }
   };
 
-  const handlePickCover = async () => {
+  const handlePickCover = async (source) => {
     try {
-      const picked = await pickProfileCover();
+      const picked = await pickProfileCover({ source });
       if (!picked) return;
       setLoading(true);
       const url = await profileApi.uploadCoverImage({
@@ -1032,6 +1070,35 @@ export default function EditProfileScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRemoveCover = () => {
+    Alert.alert('Remove cover photo?', 'This will remove the cover from your mentor profile.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setLoading(true);
+            await profileApi.removeCoverImage({ userId });
+            setCoverImageUrl('');
+            Toast.show('Cover photo removed');
+          } catch (e) {
+            Toast.show(e?.message || 'Failed to remove cover', Toast.LONG);
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleAddSkill = () => {
+    const value = skillInput.trim();
+    if (!value) return;
+    setSkills(prev => (prev.some(s => s.toLowerCase() === value.toLowerCase()) ? prev : [...prev, value]));
+    setSkillInput('');
   };
 
   const validateUsername = useCallback(
@@ -1131,14 +1198,11 @@ export default function EditProfileScreen({ navigation }) {
       Toast.show(usernameResult.message || 'Please fix your username');
       return;
     }
-    if (interests.length !== MAX_LEARNER_INTERESTS) {
-      Toast.show(`Please select exactly ${MAX_LEARNER_INTERESTS} interests`);
-      return;
-    }
 
     try {
       setSaving(true);
       setSaveSuccess(false);
+      const trimmedBio = bio.trim();
       await Promise.all([
         profileApi.updateProfile({
           userId,
@@ -1147,20 +1211,23 @@ export default function EditProfileScreen({ navigation }) {
         }),
         profileApi.updateMentorProfile({
           userId,
-          specialization,
-          bio: mentorBio,
+          specialization: specialization.trim(),
+          bio: trimmedBio,
           experienceYears: parseInt(experienceYears, 10) || 0,
           pricePerHour: parseFloat(pricePerHour) || 0,
-          coverImageUrl,
+          coverImageUrl: coverImageUrl || null,
           category: serializeMentorCategories(categories),
+          location: location.trim(),
+          website: website.trim(),
           youtubeUrl: normalizeSocialUrl(youtubeUrl) || null,
           instagramUrl: normalizeSocialUrl(instagramUrl) || null,
           xUrl: normalizeSocialUrl(xUrl) || null,
           linkedinUrl: normalizeSocialUrl(linkedinUrl) || null,
+          skills,
         }),
         profileApi.updateLearnerProfile({
           userId,
-          bio: learnerBio,
+          bio: trimmedBio,
           interests,
         }),
       ]);
@@ -1202,38 +1269,66 @@ export default function EditProfileScreen({ navigation }) {
       >
         <FadeSlideIn delay={50}>
           <View style={styles.heroCard}>
-            <AnimatedPressable
-              onPress={handlePickCover}
-              disabled={loading}
-              style={styles.coverBanner}
-              hoverScale={1.01}
-              pressScale={0.99}
-            >
-              {coverImageUrl ? (
-                <Image source={{ uri: coverImageUrl }} style={styles.coverImage} resizeMode="cover" />
-              ) : (
+            <View style={styles.coverSection}>
+              <Text style={styles.coverSectionLabel}>Cover Photo</Text>
+              <AnimatedPressable
+                onPress={() => handlePickCover()}
+                disabled={loading}
+                style={styles.coverBanner}
+                hoverScale={1.01}
+                pressScale={0.99}
+              >
+                {coverImageUrl ? (
+                  <Image source={{ uri: coverImageUrl }} style={styles.coverImage} resizeMode="cover" />
+                ) : (
+                  <LinearGradient
+                    colors={
+                      isLightTheme
+                        ? ['rgba(109,74,255,0.18)', 'rgba(139,92,246,0.1)', livePanel]
+                        : ['rgba(124,58,237,0.35)', 'rgba(94,234,212,0.2)', livePanel]
+                    }
+                    style={StyleSheet.absoluteFill}
+                  />
+                )}
                 <LinearGradient
                   colors={
                     isLightTheme
-                      ? ['rgba(109,74,255,0.18)', 'rgba(139,92,246,0.1)', livePanel]
-                      : ['rgba(124,58,237,0.35)', 'rgba(94,234,212,0.2)', livePanel]
+                      ? ['transparent', 'rgba(248,249,255,0.55)', livePanel]
+                      : ['transparent', 'rgba(15,14,42,0.85)', livePanel]
                   }
-                  style={StyleSheet.absoluteFill}
+                  style={styles.coverFade}
                 />
-              )}
-              <LinearGradient
-                colors={
-                  isLightTheme
-                    ? ['transparent', 'rgba(248,249,255,0.55)', livePanel]
-                    : ['transparent', 'rgba(15,14,42,0.85)', livePanel]
-                }
-                style={styles.coverFade}
-              />
-              <View style={styles.coverEditChip}>
-                <MaterialIcons name="photo-camera" size={14} color={TEAL} />
-                <Text style={styles.coverEditText}>{coverImageUrl ? 'Change cover' : 'Add cover photo'}</Text>
+                <View style={styles.coverEditChip}>
+                  <MaterialIcons name="photo-camera" size={14} color={TEAL} />
+                  <Text style={styles.coverEditText}>{coverImageUrl ? 'Change cover' : 'Add cover photo'}</Text>
+                </View>
+              </AnimatedPressable>
+              <View style={styles.coverActions}>
+                <Pressable onPress={() => handlePickCover('library')} disabled={loading} hitSlop={8}>
+                  <Text style={styles.coverActionText}>Upload from device</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => handlePickCover('camera')}
+                  disabled={loading}
+                  hitSlop={8}
+                  style={styles.coverActionRow}
+                >
+                  <MaterialIcons name="photo-camera" size={14} color={C.text.secondary} />
+                  <Text style={styles.coverActionMuted}>Take a photo</Text>
+                </Pressable>
+                {coverImageUrl ? (
+                  <Pressable
+                    onPress={handleRemoveCover}
+                    disabled={loading}
+                    hitSlop={8}
+                    style={styles.coverActionRow}
+                  >
+                    <MaterialIcons name="delete-outline" size={14} color="#ef4444" />
+                    <Text style={styles.coverActionDanger}>Remove photo</Text>
+                  </Pressable>
+                ) : null}
               </View>
-            </AnimatedPressable>
+            </View>
 
             <View style={styles.heroBody}>
               <AnimatedPressable
@@ -1293,8 +1388,8 @@ export default function EditProfileScreen({ navigation }) {
         <View style={styles.body}>
           <SectionBlock
             icon="person"
-            title="Personal information"
-            subtitle="Name and public username"
+            title="Profile"
+            subtitle="One profile for mentoring and learning"
             accent={TEAL}
             accentBg={S.accentTeal}
             delay={120}
@@ -1330,108 +1425,31 @@ export default function EditProfileScreen({ navigation }) {
               value={profile?.email}
               readOnly
               hint="Contact support to change your email"
-              isLast
             />
-          </SectionBlock>
-
-          <SectionBlock
-            icon="school"
-            title="Learner profile"
-            subtitle="Help mentors understand your goals"
-            accent={TEAL}
-            accentBg={S.accentTeal}
-            delay={200}
-          >
             <Field
               icon="info-outline"
               label="About you"
-              value={learnerBio}
-              onChangeText={setLearnerBio}
-              placeholder="What are you learning? What do you need help with?"
+              value={bio}
+              onChangeText={setBio}
+              placeholder="Tell people a bit about yourself."
+              hint="Shown on your public profile for both mentoring and learning"
               multiline
               maxLength={BIO_MAX}
             />
-            <View style={[styles.fieldWrap, styles.fieldWrapLast]}>
-              <View style={styles.fieldLabelRow}>
-                <View style={styles.fieldLabelLeft}>
-                  <MaterialIcons
-                    name="interests"
-                    size={14}
-                    color={liveTheme.colors.text.muted}
-                  />
-                  <Text style={styles.fieldLabel}>Interested categories</Text>
-                </View>
-                <Text style={styles.fieldHint}>
-                  {interests.length} / {MAX_LEARNER_INTERESTS}
-                </Text>
-              </View>
-              <Pressable
-                style={styles.interestPickerTrigger}
-                onPress={() => setShowInterestPicker(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Edit interested categories"
-              >
-                <View style={styles.interestPickerCopy}>
-                  <Text
-                    style={
-                      interests.length
-                        ? styles.interestPickerValue
-                        : styles.dropdownPlaceholder
-                    }
-                    numberOfLines={2}
-                  >
-                    {interests.length
-                      ? formatSelectedCategoriesLabel(interests, 3)
-                      : `Choose ${MAX_LEARNER_INTERESTS} categories`}
-                  </Text>
-                  <Text style={styles.interestPickerHint}>
-                    These categories appear first in Discover
-                  </Text>
-                </View>
-                <View style={styles.interestEditBadge}>
-                  <MaterialIcons
-                    name="edit"
-                    size={16}
-                    color={liveTheme.colors.accent.secondary}
-                  />
-                </View>
-              </Pressable>
-              {interests.length ? (
-                <View style={styles.interestChips}>
-                  {interests.map(interest => (
-                    <View key={interest} style={styles.interestChip}>
-                      <Text style={styles.interestChipText}>{interest}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          </SectionBlock>
-
-          <SectionBlock
-            icon="workspace-premium"
-            title="Mentor profile"
-            subtitle="Shown on your mentor page and in search"
-            accent={GOLD}
-            accentBg={S.accentGold}
-            delay={280}
-          >
             <Field
               icon="stars"
               label="Specialization"
               value={specialization}
               onChangeText={setSpecialization}
-              placeholder="e.g. Full Stack Developer"
+              placeholder="e.g. Senior Frontend Engineer"
               maxLength={80}
             />
-            <Field
-              icon="info-outline"
-              label="Professional bio"
-              value={mentorBio}
-              onChangeText={setMentorBio}
-              placeholder="Experience, teaching style, what learners can expect"
-              multiline
-              maxLength={BIO_MAX}
+            <CategoryDropdown
+              categories={categories}
+              open={showCategoryPicker}
+              onToggle={() => setShowCategoryPicker(v => !v)}
+              options={mentorCategoryOptions}
+              onToggleCategory={cat => setCategories(prev => toggleMentorCategory(prev, cat))}
             />
             <View style={styles.rowFields}>
               <View style={styles.rowFieldHalf}>
@@ -1459,36 +1477,127 @@ export default function EditProfileScreen({ navigation }) {
                 />
               </View>
             </View>
-
-            <CategoryDropdown
-              categories={categories}
-              open={showCategoryPicker}
-              onToggle={() => setShowCategoryPicker(v => !v)}
-              options={mentorCategoryOptions}
-              onToggleCategory={cat => setCategories(prev => toggleMentorCategory(prev, cat))}
-            />
-
-            <Text style={styles.socialSectionLabel}>Social links</Text>
-            <Text style={styles.socialSectionHint}>
-              Shown as icons on your mentor profile. Leave blank to hide.
-            </Text>
             <Field
-              icon="play-circle-outline"
-              label="YouTube"
-              value={youtubeUrl}
-              onChangeText={setYoutubeUrl}
-              placeholder="https://youtube.com/@yourchannel"
+              icon="place"
+              label="Location"
+              value={location}
+              onChangeText={setLocation}
+              placeholder="e.g. Pune, Maharashtra"
+              maxLength={80}
+            />
+            <Field
+              icon="language"
+              label="Website"
+              value={website}
+              onChangeText={setWebsite}
+              placeholder="e.g. www.example.com"
               keyboardType="url"
               autoCapitalize="none"
               autoCorrect={false}
-              maxLength={200}
+              maxLength={120}
             />
+            <View style={styles.fieldWrap}>
+              <View style={styles.fieldLabelRow}>
+                <View style={styles.fieldLabelLeft}>
+                  <MaterialIcons name="bolt" size={14} color={C.text.muted} />
+                  <Text style={styles.fieldLabel}>Skills</Text>
+                </View>
+              </View>
+              {skills.length ? (
+                <View style={styles.interestChips}>
+                  {skills.map(skill => (
+                    <Pressable
+                      key={skill}
+                      onPress={() => setSkills(prev => prev.filter(s => s !== skill))}
+                      style={styles.skillChip}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${skill}`}
+                    >
+                      <Text style={styles.skillChipText}>{skill}</Text>
+                      <MaterialIcons name="close" size={12} color={TEAL} />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+              <View style={styles.skillInputRow}>
+                <TextInput
+                  style={styles.skillInput}
+                  value={skillInput}
+                  onChangeText={setSkillInput}
+                  placeholder="e.g. React, Public Speaking"
+                  placeholderTextColor={C.text.disabled}
+                  autoCorrect={false}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={handleAddSkill}
+                />
+                <Pressable onPress={handleAddSkill} style={styles.skillAddBtn}>
+                  <MaterialIcons name="add" size={16} color={C.text.secondary} />
+                  <Text style={styles.skillAddText}>Add</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.fieldWrap}>
+              <View style={styles.fieldLabelRow}>
+                <View style={styles.fieldLabelLeft}>
+                  <MaterialIcons name="interests" size={14} color={liveTheme.colors.text.muted} />
+                  <Text style={styles.fieldLabel}>Interests</Text>
+                </View>
+                <Text style={styles.fieldHint}>
+                  {interests.length ? `${interests.length} selected` : 'None yet'}
+                </Text>
+              </View>
+              <Text style={styles.socialSectionHint}>
+                Fine-tune your Recommended for you feed. Tap a selected interest to remove it.
+              </Text>
+              {interests.length ? (
+                <View style={styles.interestChips}>
+                  {interests.map(interest => (
+                    <Pressable
+                      key={interest}
+                      onPress={() => setInterests(prev => toggleMentorCategory(prev, interest))}
+                      style={styles.interestChip}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${interest}`}
+                    >
+                      <MaterialIcons name="check" size={12} color={TEAL} />
+                      <Text style={styles.interestChipText}>{interest}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.interestEmpty}>No interests selected yet.</Text>
+              )}
+              {availableInterests.length ? (
+                <>
+                  <Text style={styles.addMoreLabel}>Add more</Text>
+                  <View style={styles.interestChips}>
+                    {availableInterests.map((cat, index) => (
+                      <CategoryChip
+                        key={cat}
+                        label={cat}
+                        icon="add"
+                        active={false}
+                        index={index}
+                        onPress={() => setInterests(prev => toggleMentorCategory(prev, cat))}
+                      />
+                    ))}
+                  </View>
+                </>
+              ) : null}
+            </View>
+
+            <Text style={styles.socialSectionLabel}>Social links</Text>
+            <Text style={styles.socialSectionHint}>
+              Shown as icons on your public profile. Leave blank to hide.
+            </Text>
             <Field
-              icon="camera-alt"
-              label="Instagram"
-              value={instagramUrl}
-              onChangeText={setInstagramUrl}
-              placeholder="https://instagram.com/yourhandle"
+              icon="work-outline"
+              label="LinkedIn"
+              value={linkedinUrl}
+              onChangeText={setLinkedinUrl}
+              placeholder="https://linkedin.com/in/yourprofile"
               keyboardType="url"
               autoCapitalize="none"
               autoCorrect={false}
@@ -1506,11 +1615,22 @@ export default function EditProfileScreen({ navigation }) {
               maxLength={200}
             />
             <Field
-              icon="work-outline"
-              label="LinkedIn"
-              value={linkedinUrl}
-              onChangeText={setLinkedinUrl}
-              placeholder="https://linkedin.com/in/yourprofile"
+              icon="camera-alt"
+              label="Instagram"
+              value={instagramUrl}
+              onChangeText={setInstagramUrl}
+              placeholder="https://instagram.com/yourhandle"
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={200}
+            />
+            <Field
+              icon="play-circle-outline"
+              label="YouTube"
+              value={youtubeUrl}
+              onChangeText={setYoutubeUrl}
+              placeholder="https://youtube.com/@yourchannel"
               keyboardType="url"
               autoCapitalize="none"
               autoCorrect={false}
@@ -1558,17 +1678,6 @@ export default function EditProfileScreen({ navigation }) {
       </View>
 
       <LoadingOverlay visible={!profileReady && !saving} message="Loading profile…" />
-
-      <CategoryPicker
-        visible={showInterestPicker}
-        multiple
-        title="Edit interested categories"
-        selectedCategories={interests}
-        minSelections={MIN_LEARNER_INTERESTS}
-        maxSelections={MAX_LEARNER_INTERESTS}
-        onChange={setInterests}
-        onClose={() => setShowInterestPicker(false)}
-      />
 
       <CelebrationScreenFx
         active={saveSuccess}
@@ -1642,6 +1751,18 @@ function createEditProfileStyles(theme) {
     borderBottomColor: C.border.light,
     marginBottom: T.spacing.lg,
   },
+  coverSection: {
+    paddingTop: T.spacing.md,
+  },
+  coverSectionLabel: {
+    paddingHorizontal: T.spacing.lg,
+    marginBottom: 8,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: C.text.muted,
+  },
   coverBanner: {
     height: 130,
     backgroundColor: INPUT_BG,
@@ -1672,11 +1793,39 @@ function createEditProfileStyles(theme) {
     fontWeight: '700',
     color: TEAL,
   },
+  coverActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: T.spacing.lg,
+    paddingTop: T.spacing.sm,
+    paddingBottom: T.spacing.md,
+  },
+  coverActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  coverActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: TEAL,
+  },
+  coverActionMuted: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.text.secondary,
+  },
+  coverActionDanger: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ef4444',
+  },
   heroBody: {
     alignItems: 'center',
     paddingHorizontal: T.spacing.lg,
     paddingBottom: T.spacing.lg,
-    marginTop: -48,
   },
   avatarTouchable: {
     position: 'relative',
@@ -1950,6 +2099,9 @@ function createEditProfileStyles(theme) {
     marginTop: T.spacing.sm,
   },
   interestChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
@@ -1961,6 +2113,70 @@ function createEditProfileStyles(theme) {
     fontSize: 11,
     fontWeight: '700',
     color: TEAL,
+  },
+  interestEmpty: {
+    fontSize: 12,
+    color: C.text.muted,
+    marginTop: T.spacing.sm,
+  },
+  addMoreLabel: {
+    marginTop: T.spacing.md,
+    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: C.text.muted,
+  },
+  skillChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: S.accentTeal,
+    borderWidth: 1,
+    borderColor: C.border.light,
+  },
+  skillChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: TEAL,
+  },
+  skillInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: T.spacing.sm,
+  },
+  skillInput: {
+    flex: 1,
+    backgroundColor: INPUT_BG,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.22)',
+    borderRadius: 12,
+    paddingHorizontal: T.spacing.md,
+    paddingVertical: T.spacing.sm,
+    minHeight: 46,
+    fontSize: 15,
+    color: C.text.primary,
+  },
+  skillAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border.light,
+    backgroundColor: INPUT_BG,
+  },
+  skillAddText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.text.secondary,
   },
   dropdownTrigger: {
     flexDirection: 'row',
@@ -1998,6 +2214,11 @@ function createEditProfileStyles(theme) {
     backgroundColor: INPUT_BG,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.22)',
+  },
+  categoryChipInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   categoryChipActive: {
     backgroundColor: S.accentGold,

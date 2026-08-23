@@ -1,8 +1,6 @@
 // Supabase Edge Function: get-account-status
-// Polls Razorpay for the mentor's linked-account KYC status (no webhook
-// exists, so this is invoked on screen focus / pull-to-refresh instead).
-//
-// Required secrets: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
+// Manual payout model: "payout ready" means the mentor has saved a UPI ID
+// and/or a bank account + IFSC. No Razorpay account, no KYC polling.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -11,18 +9,6 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-// Razorpay linked-account status values: created | under_review |
-// needs_clarification | activated | suspended
-function mapKycStatus(rzpStatus: string | undefined): string {
-  switch (rzpStatus) {
-    case 'activated':          return 'active';
-    case 'suspended':          return 'suspended';
-    case 'needs_clarification':return 'needs_clarification';
-    case 'under_review':       return 'pending';
-    default:                   return 'pending';
-  }
-}
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -49,46 +35,22 @@ serve(async (req: Request) => {
 
     const { data: mp, error } = await supabase
       .from('mentor_profiles')
-      .select('razorpay_account_id, upi_id, kyc_status')
+      .select('upi_id, bank_account, ifsc, account_holder_name')
       .eq('id', mentorId)
       .single();
 
     if (error) throw error;
 
-    if (!mp?.razorpay_account_id) {
-      return new Response(
-        JSON.stringify({ status: 'not_started', accountId: null, upiId: mp?.upi_id || null }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    // ── 2. Fetch live status from Razorpay ─────────────────────────────────────
-    const keyId     = Deno.env.get('RAZORPAY_KEY_ID')!;
-    const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET')!;
-    const creds     = btoa(`${keyId}:${keySecret}`);
-
-    const rzpRes = await fetch(
-      `https://api.razorpay.com/v2/accounts/${mp.razorpay_account_id}`,
-      { headers: { Authorization: `Basic ${creds}` } },
-    );
-    const account = await rzpRes.json();
-    if (!rzpRes.ok) throw new Error(account?.error?.description || 'Failed to fetch account status');
-
-    const kycStatus = mapKycStatus(account?.status);
-
-    // ── 3. Sync status back to DB if changed ───────────────────────────────────
-    if (kycStatus !== mp.kyc_status || account?.status) {
-      await supabase
-        .from('mentor_profiles')
-        .update({ kyc_status: kycStatus, razorpay_account_status: account?.status || null })
-        .eq('id', mentorId);
-    }
+    const hasBankDetails = Boolean(mp?.bank_account && mp?.ifsc);
 
     return new Response(
       JSON.stringify({
-        status:    kycStatus,
-        accountId: mp.razorpay_account_id,
-        upiId:     mp.upi_id || null,
+        status:             mp?.upi_id || hasBankDetails ? 'active' : 'not_started',
+        accountId:          null,
+        upiId:              mp?.upi_id || null,
+        bankAccount:        mp?.bank_account || null,
+        ifsc:               mp?.ifsc || null,
+        accountHolderName:  mp?.account_holder_name || null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );

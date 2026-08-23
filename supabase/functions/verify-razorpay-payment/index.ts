@@ -52,8 +52,11 @@ async function sendFcmNotification({ token, title, body, data = {} }: { token: s
           },
         },
         apns: {
-          headers: { 'apns-priority': '10' },
-          payload: { aps: { alert: { title, body }, sound: 'default' } },
+          headers: {
+            'apns-priority': '10',
+            'apns-push-type': 'alert',
+          },
+          payload: { aps: { alert: { title, body }, sound: 'default', badge: 1 } },
         },
       },
     }),
@@ -239,37 +242,33 @@ serve(async (req) => {
       }
     }
     const orderedSlotIds = sortedSlots.map((s: { id: string }) => s.id);
-    const primarySlotId = orderedSlotIds[0];
     const slotCount = orderedSlotIds.length;
     const mentorAmountTotal = tx.mentor_earning_paise / 100;
 
-    // ── 5. Create ONE booking spanning the continuous block ─────────────────
-    const { data: bookings, error: bookingErr } = await supabase
-      .from('bookings')
-      .insert([{
-        mentor_id: mentorId,
-        learner_id: learnerId,
-        slot_id: primarySlotId,
-        slot_ids: orderedSlotIds,
-        message: resolvedMessage,
-        recording_requested: resolvedRecordingRequested,
-        status: 'confirmed',
-      }])
-      .select();
+    // ── 5/6. Atomically claim every slot + create the booking + pending
+    // earnings row in one DB transaction (claim_and_book_slots RPC, see
+    // 20260819000000_atomic_claim_and_book_slots.sql). The earlier SELECT
+    // (step 4) is only a fast-path friendly-error check — the RPC's
+    // UPDATE ... WHERE is_booked = false is the actual guard: Postgres
+    // row-locks each targeted slot during that update, so two concurrent
+    // callers can never both win the same slot.
+    const { data: primaryBookingId, error: claimErr } = await supabase.rpc('claim_and_book_slots', {
+      p_mentor_id: mentorId,
+      p_learner_id: learnerId,
+      p_slot_ids: orderedSlotIds,
+      p_message: resolvedMessage,
+      p_recording_requested: resolvedRecordingRequested,
+      p_mentor_amount: mentorAmountTotal,
+    });
 
-    if (bookingErr) {
-      if ((bookingErr as { code?: string }).code === '23505') {
+    if (claimErr) {
+      if (String(claimErr.message).startsWith('SLOT_ALREADY_BOOKED')) {
         throw new Error('One of the selected slots was just booked by someone else. Please select again.');
       }
-      throw bookingErr;
+      throw claimErr;
     }
 
-    const created = bookings || [];
-    const primaryBookingId = created[0]?.id;
     const bookingIds = primaryBookingId ? [primaryBookingId] : [];
-
-    // ── 6. Mark all slots booked ──────────────────────────────────────────────
-    await supabase.from('availability_slots').update({ is_booked: true }).in('id', orderedSlotIds);
 
     // ── 7. Update transaction to paid ───────────────────────────────────────────
     await supabase.from('transactions').update({
@@ -282,17 +281,7 @@ serve(async (req) => {
       updated_at:          new Date().toISOString(),
     }).eq('razorpay_order_id', razorpayOrderId);
 
-    // ── 8. Save earnings as pending (one row for the continuous session) ─────
-    if (primaryBookingId) {
-      await supabase.from('earnings').insert([{
-        mentor_id: mentorId,
-        booking_id: primaryBookingId,
-        amount: mentorAmountTotal,
-        status: 'pending',
-      }]);
-    }
-
-    // ── 9. Notify mentor of new booking ────────────────────────────────────
+    // ── 8. Notify mentor of new booking ────────────────────────────────────
     try {
       const [mentorToken, learnerProfile] = await Promise.all([
         getFcmToken(supabase, mentorId),

@@ -33,7 +33,6 @@ serve(async (req: Request) => {
       throw new Error('Missing required fields');
     }
 
-    const keyId     = Deno.env.get('RAZORPAY_KEY_ID')!;
     const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET')!;
 
     // ── 1. Verify HMAC signature ──────────────────────────────────────────────
@@ -90,7 +89,6 @@ serve(async (req: Request) => {
     const gstOnFee        = platformBaseFee * gstPercent / 100;
     const convenienceFee  = platformBaseFee + gstOnFee;
     const amountPaid      = Math.round(mentorAmount + convenienceFee);
-    const mentorAmountPaise = Math.round(mentorAmount) * 100;
 
     const now       = new Date();
     const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 days
@@ -133,44 +131,10 @@ serve(async (req: Request) => {
 
     if (walletError) throw walletError;
 
-    // ── 9. If mentor is on an activated Route account, transfer their cut now.
-    // Non-fatal: if this fails, the wallet ledger above is still correct and
-    // the mentor is paid out via the manual withdrawal path instead.
-    try {
-      if (mp.razorpay_account_id && mp.kyc_status === 'active') {
-        const creds = btoa(`${keyId}:${keySecret}`);
-        const rzpRes = await fetch(
-          `https://api.razorpay.com/v1/payments/${razorpayPaymentId}/transfers`,
-          {
-            method: 'POST',
-            headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              transfers: [
-                {
-                  account:  mp.razorpay_account_id,
-                  amount:   mentorAmountPaise,
-                  currency: 'INR',
-                  on_hold:  false,
-                  notes:    { mentor_id: mentorId, learner_id: learnerId, type: 'video_subscription' },
-                },
-              ],
-            }),
-          },
-        );
-        const result = await rzpRes.json();
-        if (rzpRes.ok) {
-          const transferId = result?.items?.[0]?.id ?? null;
-          await supabase
-            .from('earnings')
-            .update({ route_transfer_id: transferId, route_transferred_at: new Date().toISOString() })
-            .eq('id', earningRow.id);
-        } else {
-          console.warn('Route transfer failed (non-fatal):', result?.error?.description);
-        }
-      }
-    } catch (transferErr) {
-      console.warn('Route transfer error (non-fatal):', transferErr);
-    }
+    // Manual mentor payout model — Razorpay is never used to move money to
+    // mentors. The wallet credit above (step 8) is the payout path; earnings
+    // stay on the ledger for manual withdrawal + admin fulfilment regardless
+    // of any Razorpay Route account a mentor set up in the past.
 
     return new Response(
       JSON.stringify({ success: true, expiresAt: expiresAt.toISOString() }),

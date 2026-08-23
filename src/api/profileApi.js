@@ -42,7 +42,7 @@ export const profileApi = {
     try {
       const { data, error } = await supabase
         .from('mentor_profiles')
-        .select('id, specialization, bio, experience_years, price_per_hour, rating, total_sessions, unlock_price, category, cover_image_url, youtube_url, instagram_url, x_url, linkedin_url')
+        .select('id, specialization, bio, experience_years, price_per_hour, rating, total_sessions, unlock_price, category, cover_image_url, location, website, linkedin_url, x_url, instagram_url, youtube_url, skills')
         .eq('id', mentorId)
         .single();
 
@@ -84,10 +84,13 @@ export const profileApi = {
     pricePerHour,
     coverImageUrl,
     category,
+    location,
+    website,
     youtubeUrl,
     instagramUrl,
     xUrl,
     linkedinUrl,
+    skills,
   }) => {
     try {
       const updates = {
@@ -99,10 +102,13 @@ export const profileApi = {
       };
       if (coverImageUrl !== undefined) updates.cover_image_url = coverImageUrl;
       if (category !== undefined) updates.category = category || '';
+      if (location !== undefined) updates.location = location || null;
+      if (website !== undefined) updates.website = website || null;
       if (youtubeUrl !== undefined) updates.youtube_url = youtubeUrl || null;
       if (instagramUrl !== undefined) updates.instagram_url = instagramUrl || null;
       if (xUrl !== undefined) updates.x_url = xUrl || null;
       if (linkedinUrl !== undefined) updates.linkedin_url = linkedinUrl || null;
+      if (skills !== undefined) updates.skills = skills;
 
       const { data, error } = await supabase
         .from('mentor_profiles')
@@ -219,6 +225,23 @@ export const profileApi = {
       return coverUrl;
     } catch (error) {
       console.error('[uploadCoverImage]', error?.message || error);
+      throw new Error(getSupabaseErrorMessage(error));
+    }
+  },
+
+  removeCoverImage: async ({ userId }) => {
+    try {
+      const { error } = await supabase
+        .from('mentor_profiles')
+        .update({ cover_image_url: null })
+        .eq('id', userId);
+      if (error) throw error;
+
+      await supabase.storage
+        .from('cover_image')
+        .remove(['jpg', 'jpeg', 'png', 'webp'].map(ext => `${userId}/cover.${ext}`))
+        .catch(() => undefined);
+    } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
   },

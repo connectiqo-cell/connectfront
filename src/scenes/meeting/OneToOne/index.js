@@ -14,6 +14,7 @@ import {
   StatusBar,
   Easing,
 } from "react-native";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CosmicLoader } from "../../../components/LoadingSpinner";
 import {
@@ -42,6 +43,7 @@ import {
 import colors from "../../../styles/colors";
 import IconContainer from "../../../components/IconContainer";
 import OneToOneCallLayout from "./OneToOneCallLayout";
+import LargeView from "./LargeView";
 import CallSessionTimer from "./CallSessionTimer";
 import Menu from "../../../components/Menu";
 import MenuItem from "../Components/MenuItem";
@@ -61,6 +63,7 @@ import {
 } from "../../../utils/recordingConfig";
 import { getToken } from "../../../api/api";
 import { useBackgroundWebcamRestore } from "../../../hooks/useBackgroundWebcamRestore";
+import { useSystemPip, useIsInSystemPip, enterSystemPip } from "../../../hooks/useSystemPip";
 import { useInCallChatPopup } from "../../../hooks/useInCallChatPopup";
 import { useTheme, useThemedStyles } from "../../../hooks/useTheme";
 import { useOrientation } from "../../../utils/useOrientation";
@@ -832,6 +835,11 @@ export default function OneToOneMeetingViewer({
 
   useEffect(() => {
     const onBackPress = () => {
+      // WhatsApp-style: Back minimizes into system PiP instead of leaving.
+      if (Platform.OS === 'android' && !presenterId && !localScreenShareOn) {
+        enterSystemPip();
+        return true;
+      }
       confirmLeaveMeeting();
       return true;
     };
@@ -842,9 +850,15 @@ export default function OneToOneMeetingViewer({
     );
 
     return () => backHandlerSubscription.remove();
-  }, [exitMeeting]);
+  }, [exitMeeting, presenterId, localScreenShareOn]);
+
+  useSystemPip(!presenterId && !localScreenShareOn);
+  const inSystemPip = useIsInSystemPip();
 
   useBackgroundWebcamRestore({
+    // Android: keep camera on so system PiP can show the call (FGS already
+    // keeps the process alive). iOS still pauses/restores until native PiP lands.
+    enabled: Platform.OS === 'ios',
     localWebcamOn,
     toggleWebcam,
     changeWebcam,
@@ -866,6 +880,22 @@ export default function OneToOneMeetingViewer({
         }}
       >
         <CosmicLoader size={56} />
+      </View>
+    );
+  }
+
+  // Compact video-only UI while Android system PiP is active
+  if (inSystemPip && Platform.OS === 'android') {
+    const pipParticipantId =
+      remoteParticipantId ||
+      primaryParticipantId ||
+      localParticipantId;
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <LargeView
+          participantId={pipParticipantId}
+          openStatsBottomSheet={() => {}}
+        />
       </View>
     );
   }
@@ -987,6 +1017,19 @@ export default function OneToOneMeetingViewer({
           <CallSessionTimer slot={slot} onSlotEnded={handleSlotTimerEnded} />
         </View>
         <View style={styles.headerActions}>
+          {Platform.OS === 'android' && !presenterId && !localScreenShareOn ? (
+            <TouchableOpacity
+              onPress={() => {
+                revealChrome();
+                enterSystemPip();
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={styles.headerIconBtn}
+              accessibilityLabel="Minimize call"
+            >
+              <MaterialIcons name="picture-in-picture-alt" size={22} color={colors.chromeInk} />
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity
             onPress={() => {
               revealChrome();

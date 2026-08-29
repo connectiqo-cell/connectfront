@@ -12,6 +12,7 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
 import live.videosdk.rnwebrtc.WebRTCModulePackage
+import live.videosdk.pipmode.AndroidPipPackage
 import com.connectiqo.app.ForegroundServiceMediaPackage
 
 class MainApplication : Application(), ReactApplication {
@@ -22,8 +23,11 @@ class MainApplication : Application(), ReactApplication {
           // Get the default list of packages
           val packages = PackageList(this).packages.toMutableList()
 
-          // Add VideoSDK WebRTC package manually
+          // Add VideoSDK WebRTC + PiP packages manually (safe if already autolinked)
           packages.add(WebRTCModulePackage())
+          if (packages.none { it is AndroidPipPackage }) {
+            packages.add(AndroidPipPackage())
+          }
           packages.add(ForegroundServiceMediaPackage())
           return packages
         }

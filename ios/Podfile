@@ -70,6 +70,18 @@ target 'MyApp' do
       end
     end
 
+    # Xcode 26 + NitroModules (Swift/C++ interop) builds glog as a Clang module, but
+    # glog includes log_severity.h inside `namespace google`, which modules reject.
+    # Ship glog without a module map so its headers are included textually.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'glog'
+
+      target.build_configurations.each do |build_config|
+        build_config.build_settings['DEFINES_MODULE'] = 'NO'
+        build_config.build_settings.delete('MODULEMAP_FILE')
+      end
+    end
+
     fmt_base = File.join(installer.sandbox.root, 'fmt', 'include', 'fmt', 'base.h')
     if File.exist?(fmt_base)
       content = File.read(fmt_base)

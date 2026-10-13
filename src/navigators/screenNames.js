@@ -34,6 +34,7 @@ export const SCREEN_NAMES = {
   // Modal overlays (shared)
   EditProfile: "EditProfile_Screen",
   MentorProfile: "MentorProfile_Screen",
+  ScanMentorQr: "ScanMentorQr_Screen",
   Booking: "Booking_Screen",
   VideoCall: "VideoCall_Screen",
   RecordingPlayer: "RecordingPlayer_Screen",
@@ -57,6 +58,10 @@ export const SCREEN_NAMES = {
 
   /** In-app notification center */
   Notifications: "Notifications_Screen",
+
+  // Learner <-> mentor messaging (same backend as web portal /messages)
+  Messages: "Messages_Screen",
+  MessageThread: "MessageThread_Screen",
 
   // Learner video player
   VideoPlayer: "VideoPlayer_Screen",

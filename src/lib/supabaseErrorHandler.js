@@ -48,6 +48,9 @@ export const getSupabaseErrorMessage = (error) => {
 
   // Database errors
   if (code === '23505') {
+    if (message.includes('user_reports') || message.includes('report')) {
+      return 'You already have an open report for this item.';
+    }
     return 'This record already exists.';
   }
   if (code === '23502') {

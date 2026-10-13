@@ -61,6 +61,7 @@ export const BookingCard = ({
   onPressRecording = null,
   onPressDownload = null,
   onPressRate = null,
+  onPressReport = null,
   statusLabel = null,
   entranceDelay = null,
   pressScale = false,
@@ -119,12 +120,12 @@ export const BookingCard = ({
   const getOtherUserInfo = () => {
     if (showLearnerDetails) {
       return {
-        name: booking.profiles?.name || 'Unknown Learner',
+        name: booking.profiles?.name || 'Unknown Creator',
         avatar: booking.profiles?.avatar_url,
       };
     }
     return {
-      name: booking.profiles?.name || 'Unknown Mentor',
+      name: booking.profiles?.name || 'Unknown Creator',
       avatar: booking.profiles?.avatar_url,
     };
   };
@@ -162,7 +163,7 @@ export const BookingCard = ({
       : displayStatus;
 
   const hasActions =
-    canJoin || canCancel || canViewRecording || canDownloadRecording || onPressRate;
+    canJoin || canCancel || canViewRecording || canDownloadRecording || onPressRate || onPressReport;
 
   const card = (
     <View
@@ -219,14 +220,27 @@ export const BookingCard = ({
           )}
         </View>
 
-        <View style={[styles.statusPill, { borderColor: `${statusColor}44` }]}>
-          <MaterialIcons name={statusIcon} size={14} color={statusColor} />
-          <Text
-            style={[styles.statusText, compact && styles.statusTextCompact, { color: statusColor }]}
-            numberOfLines={1}
-          >
-            {statusTitle}
-          </Text>
+        <View style={styles.topRight}>
+          <View style={[styles.statusPill, { borderColor: `${statusColor}44` }]}>
+            <MaterialIcons name={statusIcon} size={14} color={statusColor} />
+            <Text
+              style={[styles.statusText, compact && styles.statusTextCompact, { color: statusColor }]}
+              numberOfLines={1}
+            >
+              {statusTitle}
+            </Text>
+          </View>
+          {onPressReport ? (
+            <Pressable
+              onPress={onPressReport}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={`Report ${name}`}
+              style={styles.reportBtn}
+            >
+              <MaterialIcons name="flag" size={18} color={T.text.muted} />
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -402,7 +416,22 @@ function createThemedStyles(theme) {
     borderRadius: UNIFIED_THEME.borderRadius.chip,
     borderWidth: 1,
     backgroundColor: softFill(theme),
-    maxWidth: '36%',
+    maxWidth: '100%',
+  },
+  topRight: {
+    alignItems: 'flex-end',
+    gap: 6,
+    maxWidth: '40%',
+  },
+  reportBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: softFill(theme),
+    borderWidth: 1,
+    borderColor: softBorder(theme),
   },
   statusText: {
     ...UNIFIED_THEME.typography.labelSm,

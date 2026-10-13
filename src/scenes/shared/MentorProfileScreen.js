@@ -28,6 +28,8 @@ import { SafeScreen } from '../../components/SafeScreen';
 import CosmicButton from '../../components/CosmicButton';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import ReportUserSheet from '../../components/ReportUserSheet';
+import { messagesApi } from '../../api/messagesApi';
+import FirstTimeGuide, { MENTOR_PROFILE_KEY, MENTOR_PROFILE_STEPS } from '../../components/FirstTimeGuide';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { softBorder, softFill, avatarRingColors } from '../../theme/surfaceStyles';
@@ -38,14 +40,14 @@ import { bookingApi } from '../../api/bookingApi';
 import { useAuth } from '../../hooks/useAuth';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { navigateToLearnerVideosTab } from '../../navigators/navigateToLearnerVideos';
+import { isMentorFreezeActive } from '../../utils/mentorFreeze';
 import { parseMentorCategories } from '../../utils/mentorCategories';
 import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
 import { isSameUserId } from '../../utils/mentorOwnership';
-import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
-import { purchaseAndroidProduct, finishAndroidPurchase, getPlayProductIdForPrice } from '../../utils/playBilling';
-import { purchaseIosProduct, finishIosPurchase, getAppleProductIdForPrice } from '../../utils/appleBilling';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 import { getMentorSocialLinks } from '../../utils/socialLinks';
+import { mentorApi } from '../../api/mentorApi';
+import { isMentorShareUuid } from '../../utils/shareProfile';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -85,7 +87,7 @@ function mapBookingToPastSession(b) {
   const recapUrl = rec?.recording_playback_url || rec?.recording_url || null;
   return {
     id: b.id,
-    student_name: learner?.name || 'Learner',
+    student_name: learner?.name || 'Creator',
     topic: (b.message && String(b.message).trim()) || '1-on-1 session',
     date_label: slot?.date ? formatSlotDateLabel(slot.date) : '',
     rating: rev?.rating != null ? Number(rev.rating) : null,
@@ -785,6 +787,8 @@ function PortraitVideoCard({
   cardWidth = RAIL_CARD_W,
   thumbAspect = 1.38,
   animDelay = 0,
+  likeCount = 0,
+  dislikeCount = 0,
 }) {
   const { theme: liveTheme } = useTheme();
   const railCard = useThemedStyles(createMentorRailCardStyles);
@@ -799,7 +803,7 @@ function PortraitVideoCard({
 
   const handlePress = () => {
     if (canPlay) onPlay(video);
-    else Toast.show('Unlock videos to watch this', Toast.SHORT);
+    else Toast.show('Membership required to watch this video', Toast.SHORT);
   };
 
   return (
@@ -857,6 +861,16 @@ function PortraitVideoCard({
         </View>
         <View style={railCard.info}>
           <Text style={[railCard.titleTxt, { color: liveTheme.colors.text.primary }]} numberOfLines={2}>{video.title}</Text>
+          <View style={railCard.reactionRow}>
+            <View style={railCard.reactionChip}>
+              <MaterialIcons name="thumb-up" size={11} color={liveTheme.colors.text.muted} />
+              <Text style={[railCard.reactionCount, { color: liveTheme.colors.text.muted }]}>{likeCount}</Text>
+            </View>
+            <View style={railCard.reactionChip}>
+              <MaterialIcons name="thumb-down" size={11} color={liveTheme.colors.text.muted} />
+              <Text style={[railCard.reactionCount, { color: liveTheme.colors.text.muted }]}>{dislikeCount}</Text>
+            </View>
+          </View>
         </View>
       </PressableScale>
     </ProfileFadeIn>
@@ -944,8 +958,22 @@ function createMentorRailCardStyles(theme) {
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  info: { paddingHorizontal: 2, paddingVertical: 8, minHeight: 40, justifyContent: 'center' },
+  info: { paddingHorizontal: 2, paddingVertical: 8, minHeight: 52, justifyContent: 'center', gap: 4 },
   titleTxt: { color: C.text.primary, fontSize: 12, fontWeight: '700', lineHeight: 16 },
+  reactionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  reactionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  reactionCount: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
 });
 }
 
@@ -967,7 +995,7 @@ function ProfileReviewPreview({ review }) {
   const GOLD = C.accent.primary;
   const PURPLE_LINK = C.buttons.nebulaGradient[0];
   const learner = firstRow(review?.profiles);
-  const name = learner?.name || 'Learner';
+  const name = learner?.name || 'Creator';
   const avatar = learner?.avatar_url || null;
   const ratingNum = Number(review?.rating) || 0;
   const comment = (review?.comment && String(review.comment).trim()) || null;
@@ -1022,7 +1050,7 @@ function PastSessionRow({ session, onWatchRecap }) {
           activeOpacity={0.85}
           onPress={() => showAvatarPreview({
             uri: session.student_avatar_url,
-            name: session.student_name || 'Learner',
+            name: session.student_name || 'Creator',
           })}
         >
           <Image source={{ uri: session.student_avatar_url }} style={past.avatar} />
@@ -1127,20 +1155,24 @@ export default function MentorProfileScreen({ navigation, route }) {
   const { height: winH, width: winW } = useWindowDimensions();
   const { user, profile, refreshProfile } = useAuth();
   const { showAvatarPreview: openAvatarPreview } = useAvatarPreview();
-  const mentorId = route.params?.mentorId ?? null;
+  const routeIdentifier = route.params?.mentorId ?? null;
+  const [mentorId, setMentorId] = useState(
+    () => (isMentorShareUuid(routeIdentifier) ? routeIdentifier.trim() : null),
+  );
   const paramMentorName = route.params?.mentorName?.trim?.() || '';
   const coverFromParams = route.params?.coverImageUrl?.trim?.() || '';
 
   const [mentor, setMentor] = useState(null);
   const [videos, setVideos] = useState([]);
+  const [reactionCounts, setReactionCounts] = useState(new Map());
   const [pastSessions, setPastSessions] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [unlocking, setUnlocking] = useState(false);
-  const [isUnlocked, setIsUnlocked] = useState(false);
   const [showSubSheet, setShowSubSheet] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [membershipRefreshing, setMembershipRefreshing] = useState(false);
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
@@ -1167,8 +1199,8 @@ export default function MentorProfileScreen({ navigation, route }) {
   }, [winW]);
 
   const loadData = useCallback(async (isRefresh = false) => {
-    if (!mentorId) {
-      setError('missing_mentor');
+    if (!routeIdentifier) {
+      setError('Creator not found.');
       setLoading(false);
       setRefreshing(false);
       return;
@@ -1177,22 +1209,33 @@ export default function MentorProfileScreen({ navigation, route }) {
     else setLoading(true);
     setError(null);
     try {
-      const isSelf = isSameUserId(mentorId, user, profile);
+      const resolvedId = await mentorApi.resolveMentorId(routeIdentifier);
+      if (!resolvedId) {
+        setMentorId(null);
+        setError('This creator is temporarily unavailable.');
+        setMentor(null);
+        setVideos([]);
+        setPastSessions([]);
+        setReviews([]);
+        return;
+      }
+      setMentorId(resolvedId);
+      const isSelf = isSameUserId(resolvedId, user, profile);
 
       const fetchMentorRow = async () => {
         try {
-          return await profileApi.getMentorProfile(mentorId);
+          return await profileApi.getMentorProfile(resolvedId);
         } catch (err) {
           // Own Profile tab: ensure a mentor_profiles row exists so full view works
           // for accounts that signed up before mentor rows were always created.
           if (!isSelf) throw err;
           const msg = String(err?.message || '').toLowerCase();
           if (msg.includes('not found') || msg.includes('no rows') || msg.includes('0 rows')) {
-            return profileApi.createMentorProfile(mentorId);
+            return profileApi.createMentorProfile(resolvedId);
           }
           // Soft-fallback: still show identity from profiles even if mentor row is broken.
           return {
-            id: mentorId,
+            id: resolvedId,
             specialization: '',
             bio: '',
             experience_years: 0,
@@ -1212,20 +1255,41 @@ export default function MentorProfileScreen({ navigation, route }) {
 
       const [mpRow, profRow, vids, bookingRows, reviewRows] = await Promise.all([
         fetchMentorRow(),
-        profileApi.getProfile(mentorId).catch(() => null),
-        videoApi.getMentorVideos(mentorId).catch(() => []),
-        bookingApi.getCompletedSessionsForMentorProfile(mentorId).catch(() => []),
-        profileApi.getReviewsForMentor(mentorId, { limit: 3 }).catch(() => []),
+        profileApi.getProfile(resolvedId).catch(() => null),
+        videoApi.getMentorVideos(resolvedId).catch(() => []),
+        bookingApi.getCompletedSessionsForMentorProfile(resolvedId).catch(() => []),
+        profileApi.getReviewsForMentor(resolvedId, { limit: 3 }).catch(() => []),
       ]);
+
+      // Frozen mentors are hidden from others (Instagram-style); owner can still open Me.
+      if (!isSelf && isMentorFreezeActive(mpRow)) {
+        setMentor(null);
+        setVideos([]);
+        setReactionCounts(new Map());
+        setPastSessions([]);
+        setReviews([]);
+        setError('This creator is temporarily unavailable.');
+        return;
+      }
 
       const merged = {
         ...mpRow,
-        profiles: profRow || { name: paramMentorName || 'Mentor', avatar_url: null },
+        profiles: profRow || { name: paramMentorName || 'Creator', avatar_url: null },
       };
       setMentor(merged);
       setVideos(Array.isArray(vids) ? vids : []);
       setPastSessions((Array.isArray(bookingRows) ? bookingRows : []).map(mapBookingToPastSession));
       setReviews(Array.isArray(reviewRows) ? reviewRows : []);
+
+      const videoList = Array.isArray(vids) ? vids : [];
+      if (videoList.length) {
+        videoApi
+          .getVideoReactionCounts(videoList.map(v => v.id))
+          .then(counts => setReactionCounts(counts))
+          .catch(() => setReactionCounts(new Map()));
+      } else {
+        setReactionCounts(new Map());
+      }
 
       let unlocked = false;
       if (isSelf) {
@@ -1233,25 +1297,30 @@ export default function MentorProfileScreen({ navigation, route }) {
       } else if (user?.id) {
         unlocked = await videoApi.checkUnlocked({
           learnerId: user.id,
-          mentorId,
+          mentorId: resolvedId,
         }).catch(() => false);
       }
       setIsUnlocked(unlocked);
     } catch (e) {
-      setError(e?.message || 'Failed to load mentor');
+      setError(e?.message || 'Failed to load creator');
       setMentor(null);
       setVideos([]);
+      setReactionCounts(new Map());
       setPastSessions([]);
       setReviews([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [mentorId, paramMentorName, user?.id, profile?.id]);
+  }, [routeIdentifier, paramMentorName, user?.id, profile?.id]);
 
   useEffect(() => {
     if (isOwnProfile) setIsUnlocked(true);
   }, [isOwnProfile]);
+
+  useEffect(() => {
+    setMentorId(isMentorShareUuid(routeIdentifier) ? routeIdentifier.trim() : null);
+  }, [routeIdentifier]);
 
   useEffect(() => {
     loadData(false);
@@ -1288,79 +1357,33 @@ export default function MentorProfileScreen({ navigation, route }) {
   const memberVideos = useMemo(() => videos.filter(v => !v.is_free), [videos]);
   const previewVideos = useMemo(() => videos.filter(v => v.is_free), [videos]);
 
-  const handleUnlock = async () => {
-    if (!hasLockedVideos) {
-      Toast.show('All videos here are already free.', Toast.SHORT);
+  const refreshMembershipAccess = useCallback(async () => {
+    if (!mentorId || !user?.id) {
+      Toast.show('Please sign in to check library access.', Toast.SHORT);
       return;
     }
-    if (!user?.id) {
-      Toast.show('Please log in to subscribe.', Toast.SHORT);
-      return;
-    }
-    if (isSameUserId(mentorId, user, profile)) {
-      Toast.show('This is your channel.', Toast.SHORT);
-      return;
-    }
-    setUnlocking(true);
+    setMembershipRefreshing(true);
     try {
-      if (Platform.OS === 'android') {
-        const productId = getPlayProductIdForPrice(mentor?.unlock_price || 299);
-        const purchase = await purchaseAndroidProduct(productId);
-
-        await videoApi.verifyPlayPurchase({
-          mentorId,
-          learnerId:     user.id,
-          productId:     purchase.productId,
-          purchaseToken: purchase.purchaseToken,
-        });
-
-        await finishAndroidPurchase(purchase);
-      } else if (Platform.OS === 'ios') {
-        const productId = getAppleProductIdForPrice(mentor?.unlock_price || 299);
-        const purchase = await purchaseIosProduct(productId);
-
-        await videoApi.verifyApplePurchase({
-          mentorId,
-          learnerId:     user.id,
-          productId:     purchase.productId,
-          transactionId: purchase.transactionId,
-        });
-
-        await finishIosPurchase(purchase);
+      const unlocked = await videoApi.checkUnlocked({
+        mentorId,
+        learnerId: user.id,
+      });
+      setIsUnlocked(unlocked);
+      if (unlocked) {
+        Toast.show('You’re in — enjoy the full video library.', Toast.SHORT);
+        setShowSubSheet(false);
       } else {
-        const order = await videoApi.createVideoOrder({ mentorId, learnerId: user.id });
-        const displayName = mentor?.profiles?.name || 'Mentor';
-        const paymentData = await openRazorpayCheckout({
-          key: order.keyId,
-          amount: order.amount,
-          currency: order.currency || 'INR',
-          name: 'Connectiqo',
-          description: `Unlock ${displayName}'s video library`,
-          order_id: order.orderId,
-          prefill: { email: user.email || '' },
-          theme: { color: '#5eead4' },
-          upi: { flow: 'intent' },
-        });
-
-        await videoApi.verifyVideoSubscription({
-          razorpayOrderId: order.orderId,
-          razorpayPaymentId: paymentData.razorpay_payment_id,
-          razorpaySignature: paymentData.razorpay_signature,
-          mentorId,
-          learnerId: user.id,
-        });
+        Toast.show(
+          'This account doesn’t have library access yet. Sign in with the account that does, then try again.',
+          Toast.LONG,
+        );
       }
-
-      setIsUnlocked(true);
-      Toast.show('Videos unlocked! You can watch all videos.', Toast.SHORT);
-    } catch (e) {
-      if (e?.code !== 'PAYMENT_CANCELLED') {
-        Toast.show(e?.message || 'Payment failed', Toast.LONG);
-      }
+    } catch {
+      Toast.show('Couldn’t check access right now. Please try again.', Toast.SHORT);
     } finally {
-      setUnlocking(false);
+      setMembershipRefreshing(false);
     }
-  };
+  }, [mentorId, user?.id]);
 
   const goBook = () => {
     if (!mentorId) return;
@@ -1368,8 +1391,27 @@ export default function MentorProfileScreen({ navigation, route }) {
       Toast.show('Please log in to book a session.', Toast.SHORT);
       return;
     }
-    const nm = mentor?.profiles?.name || paramMentorName || 'Mentor';
+    const nm = mentor?.profiles?.name || paramMentorName || 'Creator';
     navigation.navigate(SCREEN_NAMES.Booking, { mentorId, mentorName: nm });
+  };
+
+  const [openingChat, setOpeningChat] = useState(false);
+  /** Starts (or resumes) the conversation with this mentor — same as web MessageMentorButton. */
+  const openChat = async () => {
+    if (!mentorId || openingChat) return;
+    if (!user?.id) {
+      Toast.show('Please log in to message this creator.', Toast.SHORT);
+      return;
+    }
+    setOpeningChat(true);
+    try {
+      const conversationId = await messagesApi.getOrCreateConversation({ mentorId, learnerId: user.id });
+      navigation.navigate(SCREEN_NAMES.MessageThread, { conversationId });
+    } catch (err) {
+      Toast.show(err?.message || 'Could not open chat', Toast.SHORT);
+    } finally {
+      setOpeningChat(false);
+    }
   };
 
   const openLearnerVideoFeed = useCallback(({ videoId } = {}) => {
@@ -1405,7 +1447,7 @@ export default function MentorProfileScreen({ navigation, route }) {
     if (!mentorId) return;
     navigation.navigate(SCREEN_NAMES.MentorReviews, {
       mentorId,
-      mentorName: mentor?.profiles?.name || paramMentorName || 'Mentor',
+      mentorName: mentor?.profiles?.name || paramMentorName || 'Creator',
     });
   };
 
@@ -1430,7 +1472,7 @@ export default function MentorProfileScreen({ navigation, route }) {
       await loadData(true);
       openAvatarPreview({
         uri: url,
-        name: mentor?.profiles?.name || paramMentorName || 'Mentor',
+        name: mentor?.profiles?.name || paramMentorName || 'Creator',
         isOwnProfile: true,
         onChangePhoto: handleChangeAvatar,
       });
@@ -1443,15 +1485,25 @@ export default function MentorProfileScreen({ navigation, route }) {
   }, [avatarUploading, isOwnProfile, loadData, mentorId, refreshProfile, openAvatarPreview, mentor?.profiles?.name, paramMentorName]);
 
   const avatarUrl = mentor?.profiles?.avatar_url;
-  const name = mentor?.profiles?.name || paramMentorName || 'Mentor';
+  const name = mentor?.profiles?.name || paramMentorName || 'Creator';
   const username = mentor?.profiles?.username || null;
   const specialization = mentor?.specialization || 'Not specified';
   const bio = mentor?.bio || 'No bio provided yet.';
   const rating = mentor?.rating ?? 0;
   const totalSessions = mentor?.total_sessions ?? 0;
-  const unlockPrice = mentor?.unlock_price || 299;
   const showSubscribeCta = hasLockedVideos && !libraryUnlocked && !isOwnProfile;
   const heroCoverUri = (coverFromParams || mentor?.cover_image_url || '').trim() || null;
+
+  const handleShareProfile = useCallback(() => {
+    if (!mentorId) return;
+    navigation.navigate(SCREEN_NAMES.ScanMentorQr, {
+      mentorId,
+      mentorName: name,
+      username,
+      specialization: mentor?.specialization || null,
+      avatarUrl: avatarUrl || null,
+    });
+  }, [mentorId, navigation, name, username, mentor?.specialization, avatarUrl]);
 
   const handleAvatarPress = useCallback(() => {
     if (isOwnProfile && !avatarUrl) {
@@ -1469,7 +1521,7 @@ export default function MentorProfileScreen({ navigation, route }) {
     }
   }, [avatarUrl, avatarUploading, handleChangeAvatar, isOwnProfile, name, openAvatarPreview]);
 
-  if (!mentorId) {
+  if (!routeIdentifier) {
     return (
       <SafeScreen scrollable={false} {...safeScreenProps}>
         <View style={[styles.root, styles.centerFill]}>
@@ -1594,6 +1646,47 @@ export default function MentorProfileScreen({ navigation, route }) {
                     />
                   </PressableScale>
                 )}
+              </View>
+              <View style={styles.heroBarActions}>
+                <PressableScale
+                  onPress={handleShareProfile}
+                  scaleTo={0.9}
+                  showGlow={false}
+                  disabled={!mentorId}
+                  style={[
+                    styles.heroCircleBtn,
+                    isLightTheme && styles.heroCircleBtnLight,
+                  ]}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <MaterialIcons
+                    name={Platform.OS === 'ios' ? 'ios-share' : 'share'}
+                    size={20}
+                    color={liveTheme.colors.text.primary}
+                  />
+                </PressableScale>
+                {!isOwnProfile ? (
+                  <PressableScale
+                    onPress={openChat}
+                    scaleTo={0.9}
+                    showGlow={false}
+                    disabled={!mentorId || openingChat}
+                    style={[
+                      styles.heroCircleBtn,
+                      isLightTheme && styles.heroCircleBtnLight,
+                      // Solid accent fill so the chat action stands out on any cover image.
+                      { backgroundColor: PURPLE_LINK, borderColor: '#fff', borderWidth: 1.5 },
+                    ]}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityLabel="Message creator"
+                  >
+                    <MaterialIcons
+                      name="chat"
+                      size={20}
+                      color="#fff"
+                    />
+                  </PressableScale>
+                ) : null}
                 {!isOwnProfile ? (
                   <PressableScale
                     onPress={() => setShowReportSheet(true)}
@@ -1696,36 +1789,35 @@ export default function MentorProfileScreen({ navigation, route }) {
               <ProfileFadeIn delayIndex={3} style={styles.dualCtas}>
                 {showSubscribeCta ? (
                   <CosmicButton
-                    label={`Unlock Videos · ₹${unlockPrice}`}
+                    label="Library access"
                     variant="nebula"
                     size="compact"
-                    icon="lock-open"
+                    icon="video-library"
                     onPress={() => setShowSubSheet(true)}
-                    loading={unlocking}
                     pill
-                    numberOfLines={2}
+                    numberOfLines={1}
                     style={styles.ctaHalf}
                   />
                 ) : libraryUnlocked && hasLockedVideos && !isOwnProfile ? (
                   <CosmicButton
-                    label="Unlocked"
+                    label="Library unlocked"
                     variant="success"
                     size="compact"
                     icon="check-circle"
-                    onPress={() => Toast.show('Videos already unlocked.', Toast.SHORT)}
+                    onPress={() => Toast.show('You already have access to this library.', Toast.SHORT)}
                     pill
                     numberOfLines={1}
                     style={styles.ctaHalf}
                   />
                 ) : (
                   <CosmicButton
-                    label={isOwnProfile ? 'Your channel' : 'Unlock Videos'}
+                    label={isOwnProfile ? 'Your channel' : 'Video library'}
                     variant="secondary"
                     size="compact"
                     icon="lock-open"
                     onPress={() =>
                       Toast.show(
-                        isOwnProfile ? 'This is your channel.' : 'Nothing to unlock here.',
+                        isOwnProfile ? 'This is your channel.' : 'Nothing locked here.',
                         Toast.SHORT,
                       )
                     }
@@ -1748,9 +1840,31 @@ export default function MentorProfileScreen({ navigation, route }) {
                 />
               </ProfileFadeIn>
 
+              {showSubscribeCta ? (
+                <ProfileFadeIn delayIndex={3}>
+                  <Pressable
+                    onPress={() => setShowSubSheet(true)}
+                    style={({ pressed }) => [styles.accessCard, pressed && styles.accessCardPressed]}
+                  >
+                    <View style={styles.accessIconWrap}>
+                      <MaterialIcons name="lock-outline" size={22} color={TEAL} />
+                    </View>
+                    <View style={styles.accessCopy}>
+                      <Text style={styles.accessTitle}>Some videos need library access</Text>
+                      <Text style={styles.accessBody}>
+                        Free previews stay open. For members-only videos, use the account that
+                        already has access, then tap refresh.
+                      </Text>
+                      <Text style={styles.accessHint}>Tap for details</Text>
+                    </View>
+                    <MaterialIcons name="chevron-right" size={22} color={C.text.muted} />
+                  </Pressable>
+                </ProfileFadeIn>
+              ) : null}
+
               {memberVideos.length > 0 && (
                 <View style={styles.videoRailSection}>
-                  <SectionHeaderRow title="Members Only" onSeeAll={seeAll} delayIndex={4} />
+                  <SectionHeaderRow title="Members library" onSeeAll={seeAll} delayIndex={4} />
                   <ScrollView
                     horizontal
                     nestedScrollEnabled
@@ -1772,6 +1886,8 @@ export default function MentorProfileScreen({ navigation, route }) {
                           cardWidth={compactRailW}
                           thumbAspect={0.82}
                           animDelay={Math.min(4 + idx, 9)}
+                          likeCount={reactionCounts.get(String(v.id))?.likeCount ?? 0}
+                          dislikeCount={reactionCounts.get(String(v.id))?.dislikeCount ?? 0}
                         />
                       );
                     })}
@@ -1803,6 +1919,8 @@ export default function MentorProfileScreen({ navigation, route }) {
                           cardWidth={compactRailW}
                           thumbAspect={0.82}
                           animDelay={Math.min(5 + idx, 10)}
+                          likeCount={reactionCounts.get(String(v.id))?.likeCount ?? 0}
+                          dislikeCount={reactionCounts.get(String(v.id))?.dislikeCount ?? 0}
                         />
                       );
                     })}
@@ -1821,7 +1939,7 @@ export default function MentorProfileScreen({ navigation, route }) {
               {libraryUnlocked && hasLockedVideos && !isOwnProfile && (
                 <View style={styles.subNote}>
                   <MaterialIcons name="check-circle" size={14} color={C.accent.success} />
-                  <Text style={styles.subNoteTxt}>Unlocked — watch all locked videos.</Text>
+                  <Text style={styles.subNoteTxt}>Library unlocked — you can watch all videos here.</Text>
                 </View>
               )}
 
@@ -1848,22 +1966,34 @@ export default function MentorProfileScreen({ navigation, route }) {
       </View>
     </SafeScreen>
 
-      {/* ── Subscribe Bottom Sheet ── */}
+      {/* Membership access sheet — store-safe: no purchase CTA / no external buy link */}
       <Modal
         visible={showSubSheet}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowSubSheet(false)}
+        onRequestClose={() => !membershipRefreshing && setShowSubSheet(false)}
       >
         <TouchableOpacity
           style={sheet.backdrop}
           activeOpacity={1}
-          onPress={() => setShowSubSheet(false)}
+          disabled={membershipRefreshing}
+          onPress={() => !membershipRefreshing && setShowSubSheet(false)}
         />
         <View style={sheet.container}>
           <View style={sheet.handle} />
 
-          {/* Mentor row */}
+          <View style={sheet.heroIconWrap}>
+            <LinearGradient colors={['rgba(45,212,191,0.22)', 'rgba(167,139,250,0.18)']} style={sheet.heroIconGrad}>
+              <MaterialIcons name="video-library" size={28} color={TEAL} />
+            </LinearGradient>
+          </View>
+
+          <Text style={sheet.title}>How library access works</Text>
+          <Text style={sheet.sub}>
+            {name}’s members library opens when this signed-in account already has access. Free
+            preview videos stay available either way, and you can still book a live session below.
+          </Text>
+
           <View style={sheet.mentorRow}>
             {avatarUrl ? (
               <Image source={{ uri: avatarUrl }} style={sheet.avatar} />
@@ -1874,45 +2004,66 @@ export default function MentorProfileScreen({ navigation, route }) {
             )}
             <View style={{ flex: 1 }}>
               <Text style={sheet.mentorName}>{name}</Text>
-              <Text style={sheet.mentorSpec} numberOfLines={1}>{mentor?.specialization || ''}</Text>
+              <Text style={sheet.mentorSpec} numberOfLines={1}>
+                {mentor?.specialization || 'Creator library'}
+              </Text>
             </View>
-            <View style={sheet.pricePill}>
-              <Text style={sheet.priceText}>₹{unlockPrice}/mo</Text>
+            <View style={sheet.statusPill}>
+              <MaterialIcons name="lock-outline" size={14} color={TEAL} />
+              <Text style={sheet.statusPillText}>Locked</Text>
             </View>
           </View>
 
-          <View style={sheet.divider} />
-
-          <Text style={sheet.title}>Unlock video library</Text>
-          <Text style={sheet.sub}>Monthly access · Unlock all of {name}'s videos</Text>
-
-          <View style={sheet.perks}>
-            {['All current videos', 'All future uploads', 'Cancel anytime'].map(p => (
-              <View key={p} style={sheet.perkRow}>
-                <MaterialIcons name="check-circle" size={16} color={C.accent.success} />
-                <Text style={sheet.perkText}>{p}</Text>
+          <View style={sheet.steps}>
+            {[
+              {
+                icon: 'person-outline',
+                title: 'Use the right account',
+                body: 'Sign in with the Connectiqo account that already has library access.',
+              },
+              {
+                icon: 'refresh',
+                title: 'Refresh access here',
+                body: 'Tap Refresh access so we can check this account and unlock the library.',
+              },
+              {
+                icon: 'event-available',
+                title: 'Sessions stay in the app',
+                body: 'Booking a live 1:1 session works normally from this profile.',
+              },
+            ].map((step, index) => (
+              <View key={step.title} style={sheet.stepRow}>
+                <View style={sheet.stepBadge}>
+                  <Text style={sheet.stepBadgeText}>{index + 1}</Text>
+                </View>
+                <View style={sheet.stepCopy}>
+                  <View style={sheet.stepTitleRow}>
+                    <MaterialIcons name={step.icon} size={16} color={PURPLE_LINK} />
+                    <Text style={sheet.stepTitle}>{step.title}</Text>
+                  </View>
+                  <Text style={sheet.stepBody}>{step.body}</Text>
+                </View>
               </View>
             ))}
           </View>
 
           <CosmicButton
-            label={`Unlock Videos · ₹${unlockPrice}/mo`}
+            label="Refresh access"
             variant="nebula"
-            onPress={() => {
-              setShowSubSheet(false);
-              handleUnlock();
-            }}
-            loading={unlocking}
-            disabled={unlocking}
+            icon="refresh"
+            onPress={refreshMembershipAccess}
+            loading={membershipRefreshing}
+            disabled={membershipRefreshing}
             pill
             style={sheet.payBtn}
           />
 
           <CosmicButton
-            label="Maybe later"
+            label="Close"
             variant="goldOutline"
             size="compact"
             pill
+            disabled={membershipRefreshing}
             onPress={() => setShowSubSheet(false)}
             style={sheet.cancelBtnWrap}
           />
@@ -1928,6 +2079,9 @@ export default function MentorProfileScreen({ navigation, route }) {
         onClose={() => setShowReportSheet(false)}
       />
 
+      {!isOwnProfile ? (
+        <FirstTimeGuide storageKey={MENTOR_PROFILE_KEY} steps={MENTOR_PROFILE_STEPS} />
+      ) : null}
     </>
   );
 }
@@ -1951,25 +2105,95 @@ function createMentorSheetStyles(theme) {
     backgroundColor: C.surface.sheet,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
+    paddingHorizontal: 22,
+    paddingTop: 12,
     paddingBottom: 36,
     borderTopWidth: 1,
     borderColor: C.border.light,
   },
-  handle: { width: 40, height: 4, backgroundColor: C.border.default, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  mentorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: C.border.default,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  heroIconWrap: { alignItems: 'center', marginBottom: 14 },
+  heroIconGrad: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.border.light,
+  },
+  mentorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 18,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: softFill(theme, 0.035),
+    borderWidth: 1,
+    borderColor: softBorder(theme),
+  },
   avatar: { width: 48, height: 48, borderRadius: 24 },
-  avatarFallback: { backgroundColor: C.surface.accentViolet, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border.light },
+  avatarFallback: {
+    backgroundColor: C.surface.accentViolet,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.border.light,
+  },
   mentorName: { color: C.text.primary, fontSize: 15, fontWeight: '700' },
   mentorSpec: { color: C.text.muted, fontSize: 12, marginTop: 2 },
-  pricePill: { backgroundColor: C.surface.accentTeal, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: C.border.default },
-  priceText: { color: C.accent.secondary, fontSize: 14, fontWeight: '800' },
-  divider: { height: 1, backgroundColor: C.border.light, marginBottom: 16 },
-  title: { color: C.text.primary, fontSize: 18, fontWeight: '800', marginBottom: 6 },
-  sub: { color: C.text.muted, fontSize: 13, lineHeight: 19, marginBottom: 16 },
-  perks: { gap: 10, marginBottom: 24 },
-  perkRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  perkText: { color: C.text.secondary, fontSize: 13 },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: C.surface.accentTeal,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: C.border.default,
+  },
+  statusPillText: { color: C.accent.secondary, fontSize: 12, fontWeight: '700' },
+  title: {
+    color: C.text.primary,
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  sub: {
+    color: C.text.muted,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  steps: { gap: 12, marginBottom: 22 },
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  stepBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(167,139,250,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.28)',
+    marginTop: 2,
+  },
+  stepBadgeText: { color: PURPLE_LINK, fontSize: 13, fontWeight: '800' },
+  stepCopy: { flex: 1, minWidth: 0 },
+  stepTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  stepTitle: { color: C.text.primary, fontSize: 14, fontWeight: '700' },
+  stepBody: { color: C.text.muted, fontSize: 13, lineHeight: 19 },
   payBtn: { marginBottom: 8, marginVertical: 0 },
   cancelBtnWrap: { marginVertical: 0 },
 });
@@ -2356,6 +2580,48 @@ function createMentorProfileStyles(theme) {
     gap: T.spacing.xs,
   },
   emptyVideosTxt: { color: C.text.muted, fontSize: 12 },
+  accessCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: T.spacing.lg,
+    marginTop: T.spacing.sm,
+    marginBottom: T.spacing.xs,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: softFill(theme, 0.04),
+    borderWidth: 1,
+    borderColor: softBorder(theme),
+  },
+  accessCardPressed: { opacity: 0.88 },
+  accessIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(45,212,191,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(45,212,191,0.28)',
+  },
+  accessCopy: { flex: 1, minWidth: 0 },
+  accessTitle: {
+    color: C.text.primary,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  accessBody: {
+    color: C.text.muted,
+    fontSize: 12.5,
+    lineHeight: 18,
+  },
+  accessHint: {
+    color: TEAL,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 8,
+  },
   subNote: {
     flexDirection: 'row',
     gap: 6,

@@ -205,7 +205,7 @@ serve(async (req) => {
     if (!booking) throw new Error('Booking not found');
 
     const learnerName =
-      (booking.learner as { name?: string } | null)?.name || 'A learner';
+      (booking.learner as { name?: string } | null)?.name || 'A creator';
 
     let when = '';
     if (booking.slot_id) {

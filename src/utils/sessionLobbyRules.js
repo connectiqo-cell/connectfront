@@ -3,18 +3,18 @@
 export function resolveLobbyPartner({ booking, isMentor, otherUser }) {
   if (otherUser?.name || otherUser?.avatar_url) {
     return {
-      name: otherUser.name || (isMentor ? 'Learner' : 'Mentor'),
+      name: otherUser.name || 'Creator',
       avatar_url: otherUser.avatar_url,
     };
   }
   if (isMentor) {
     return {
-      name: booking?.profiles?.name || 'Learner',
+      name: booking?.profiles?.name || 'Creator',
       avatar_url: booking?.profiles?.avatar_url,
     };
   }
   return {
-    name: booking?.mentor_profile?.name || 'Mentor',
+    name: booking?.mentor_profile?.name || 'Creator',
     avatar_url: booking?.mentor_profile?.avatar_url,
   };
 }

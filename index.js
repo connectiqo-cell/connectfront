@@ -9,6 +9,8 @@ import { register } from "@videosdk.live/react-native-sdk";
 import notifee, { EventType } from "@notifee/react-native";
 import colors from "./src/styles/colors";
 import { displayFromRemoteMessage } from "./src/utils/displayPushNotification";
+import { openFromPush } from "./src/utils/pushNavigation";
+import { registerUploadService } from "./src/utils/uploadNotification";
 
 StatusBar.setBackgroundColor(colors.primary[900]);
 
@@ -18,6 +20,15 @@ notifee.onBackgroundEvent(async ({ type, detail }) => {
     if (detail.notification?.id) {
       await notifee.cancelNotification(detail.notification.id);
     }
+    return;
+  }
+  // Tapped while the app was in the background: remember where to go; the app
+  // navigates as soon as it is back in front (see pushNavigation.js).
+  if (
+    type === EventType.PRESS ||
+    (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'view')
+  ) {
+    openFromPush(detail.notification?.data);
   }
 });
 
@@ -37,5 +48,9 @@ try {
 
 // Register the service
 register();
+
+// Must run before the app mounts: notifee resolves the foreground-service runner
+// at startup, and a video upload needs it to survive backgrounding.
+registerUploadService();
 
 AppRegistry.registerComponent(appName, () => App);

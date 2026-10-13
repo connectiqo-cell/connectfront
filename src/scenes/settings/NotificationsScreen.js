@@ -37,6 +37,7 @@ const TEAL = C.accent.secondary;
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'sessions', label: 'Sessions' },
+  { id: 'messages', label: 'Messages' },
 ];
 
 const ACCENT_COLORS = {
@@ -335,7 +336,7 @@ function EmptyState() {
       </Animated.View>
       <Text style={styles.emptyTitle}>All caught up</Text>
       <Text style={styles.emptySub}>
-        Session updates and booking alerts will show up here.
+        Session updates, booking alerts and new messages will show up here.
       </Text>
     </Animated.View>
   );
@@ -429,6 +430,11 @@ export default function NotificationsScreen({ navigation }) {
 
   const handlePress = (item) => {
     markAsRead(item.id);
+
+    if (item.type === 'new_message') {
+      navigation.navigate(SCREEN_NAMES.MessageThread, { conversationId: item.conversationId });
+      return;
+    }
 
     if (item.status === 'completed' && item.role === 'learner') {
       navigation.navigate(SCREEN_NAMES.Review, { bookingId: item.bookingId });

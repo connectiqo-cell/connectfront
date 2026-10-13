@@ -24,7 +24,13 @@ import { useTheme } from "./src/hooks/useTheme";
 import { RootNavigator } from "./src/navigators/RootNavigator";
 import { SCREEN_NAMES } from "./src/navigators/screenNames";
 import { linking } from "./src/navigators/linkingConfig";
+import notifee, { EventType } from "@notifee/react-native";
 import { loadRemoteConfig } from "./src/utils/remoteConfig";
+import {
+  flushPushNavigation,
+  openFromPush,
+  setPushNavigationRef,
+} from "./src/utils/pushNavigation";
 import {
   displayFromRemoteMessage,
   ensureNotificationChannel,
@@ -69,14 +75,53 @@ function AppNavigation({ navigationRef }) {
     loadRemoteConfig();
     ensureNotificationChannel();
 
+    setPushNavigationRef(navigationRef);
+
+    // Tray notification shown by Notifee (app was open when the push arrived) → tapped.
+    const unsubscribeNotifee = notifee.onForegroundEvent(({ type, detail }) => {
+      const isTap =
+        type === EventType.PRESS ||
+        (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'view');
+      if (isTap) openFromPush(detail.notification?.data);
+    });
+    // App was KILLED and opened by tapping a Notifee notification.
+    notifee.getInitialNotification()
+      .then(initial => { if (initial) openFromPush(initial.notification?.data); })
+      .catch(() => {});
+
     let unsubscribeForeground;
+    let unsubscribeOpened;
     try {
-      const { getMessaging, onMessage } = require('@react-native-firebase/messaging');
+      const {
+        getMessaging,
+        onMessage,
+        onNotificationOpenedApp,
+        getInitialNotification,
+      } = require('@react-native-firebase/messaging');
       const messaging = getMessaging();
+      // App in BACKGROUND, user taps the system (FCM) notification.
+      unsubscribeOpened = onNotificationOpenedApp(messaging, remoteMessage => {
+        openFromPush(remoteMessage?.data);
+      });
+      // App was KILLED and opened by tapping the system (FCM) notification.
+      getInitialNotification(messaging)
+        .then(remoteMessage => { if (remoteMessage) openFromPush(remoteMessage.data); })
+        .catch(() => {});
       // App OPEN: show WhatsApp-style in-app banner + tray entry via Notifee.
       unsubscribeForeground = onMessage(messaging, async remoteMessage => {
         try {
           const data = remoteMessage?.data || {};
+
+          // Already reading this chat — the thread's realtime feed shows it; no banner/tray.
+          const route = navigationRef.current?.getCurrentRoute?.();
+          if (
+            data.type === 'new_message' &&
+            route?.name === SCREEN_NAMES.MessageThread &&
+            route?.params?.conversationId === data.conversationId
+          ) {
+            return;
+          }
+
           const title =
             data.title ||
             remoteMessage?.notification?.title ||
@@ -100,7 +145,7 @@ function AppNavigation({ navigationRef }) {
       console.warn('FCM onMessage setup failed:', err?.message || err);
     }
 
-    return () => { unsubscribeForeground?.(); };
+    return () => { unsubscribeForeground?.(); unsubscribeOpened?.(); unsubscribeNotifee(); };
   }, [showBanner]);
 
   return (
@@ -116,6 +161,9 @@ function AppNavigation({ navigationRef }) {
               ref={navigationRef}
               theme={navigationTheme}
               linking={linking}
+              // A tapped push waits here until the signed-in screens exist (splash/auth done).
+              onReady={flushPushNavigation}
+              onStateChange={flushPushNavigation}
             >
               <RootNavigator />
             </NavigationContainer>

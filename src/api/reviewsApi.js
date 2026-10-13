@@ -1,6 +1,23 @@
 import { supabase } from '../lib/supabase';
 import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
 
+/** Recalc mentor avg rating via shared edge function (web + mobile). */
+async function recalculateMentorRating(mentorId) {
+  if (!mentorId) return null;
+  const { data, error } = await supabase.functions.invoke('recalculate-mentor-rating', {
+    body: { mentorId },
+  });
+  if (error) {
+    let detail = error.message;
+    try {
+      const body = await error.context?.json?.();
+      if (body?.error) detail = body.error;
+    } catch (_) { /* ignore */ }
+    throw new Error(detail);
+  }
+  return data;
+}
+
 export const reviewsApi = {
   submitReview: async ({ bookingId, mentorId, learnerId, rating, comment }) => {
     try {
@@ -10,7 +27,22 @@ export const reviewsApi = {
         .select()
         .single();
       if (error) throw error;
-      return data;
+
+      // Keep mentor_profiles.rating in sync with all reviews (shared with web).
+      try {
+        const recalc = await recalculateMentorRating(mentorId);
+        return {
+          ...data,
+          mentorRating: recalc?.rating,
+          reviewCount: recalc?.reviewCount,
+        };
+      } catch (recalcErr) {
+        console.warn(
+          'recalculate-mentor-rating failed:',
+          recalcErr?.message || recalcErr,
+        );
+        return data;
+      }
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }

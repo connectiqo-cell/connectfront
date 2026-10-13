@@ -288,7 +288,7 @@ function CategoryDropdown({ categories, open, onToggle, options, onToggleCategor
       >
         <Animated.View style={[styles.dropdownTrigger, { transform: [{ scale }] }]}>
           <Text style={summary ? styles.dropdownValue : styles.dropdownPlaceholder}>
-            {summary || 'Choose your mentoring categories'}
+            {summary || 'Choose your categories'}
           </Text>
           <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
             <MaterialIcons name="expand-more" size={22} color={C.text.muted} />
@@ -1073,7 +1073,7 @@ export default function EditProfileScreen({ navigation }) {
   };
 
   const handleRemoveCover = () => {
-    Alert.alert('Remove cover photo?', 'This will remove the cover from your mentor profile.', [
+    Alert.alert('Remove cover photo?', 'This will remove the cover from your creator profile.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -1389,7 +1389,7 @@ export default function EditProfileScreen({ navigation }) {
           <SectionBlock
             icon="person"
             title="Profile"
-            subtitle="One profile for mentoring and learning"
+            subtitle="Your creator profile"
             accent={TEAL}
             accentBg={S.accentTeal}
             delay={120}
@@ -1432,7 +1432,7 @@ export default function EditProfileScreen({ navigation }) {
               value={bio}
               onChangeText={setBio}
               placeholder="Tell people a bit about yourself."
-              hint="Shown on your public profile for both mentoring and learning"
+              hint="Shown on your public profile"
               multiline
               maxLength={BIO_MAX}
             />

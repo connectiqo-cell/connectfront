@@ -456,8 +456,8 @@ function RecordingPreferenceNotice({ isMentor }) {
       <MaterialIcons name="fiber-manual-record" size={16} color={GOLD} />
       <Text style={styles.recordingNoticeText}>
         {isMentor
-          ? 'The learner requested a recording. You will confirm when you tap Start Session — recording begins once you are both in the call if you agree.'
-          : 'You requested this session to be recorded. Your mentor will confirm before recording starts. Either of you can also request recording during the call.'}
+          ? 'The other creator requested a recording. You will confirm when you tap Start Session — recording begins once you are both in the call if you agree.'
+          : 'You requested this session to be recorded. The host will confirm before recording starts. Either of you can also request recording during the call.'}
       </Text>
     </View>
   );
@@ -641,7 +641,7 @@ export default function SessionLobbyView({
   const durationMin = slotDurationMinutes(slot.start_time, slot.end_time);
   const partner = resolveLobbyPartner({ booking, isMentor, otherUser });
   const otherName = partner.name;
-  const otherLabel = isMentor ? 'learner' : 'mentor';
+  const otherLabel = isMentor ? 'creator' : 'host';
 
   const [phase, setPhase] = useState('main');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
@@ -709,7 +709,7 @@ export default function SessionLobbyView({
         <View style={styles.rescheduleSlotPreview}>
           <MaterialIcons name="notifications-active" size={18} color={GOLD} />
           <Text style={styles.rescheduleSlotText}>
-            {otherName} will be notified to propose a new time within 48 hours. You can then accept or suggest another.
+            {otherName} will be notified to propose a new time within 7 days. You can then accept or suggest another.
           </Text>
         </View>
         <CosmicButton
@@ -767,7 +767,7 @@ export default function SessionLobbyView({
             <OptionRow
               icon="event-repeat"
               title="Request Reschedule"
-              subtitle="Mentor will propose a new time (free)"
+              subtitle="The host will propose a new time (free)"
               onPress={() => setPhase('reschedule')}
               accent
             />
@@ -839,7 +839,7 @@ export default function SessionLobbyView({
               <Text style={styles.heroName} numberOfLines={1}>
                 {otherName}
               </Text>
-              <Text style={styles.heroRole}>LEARNER</Text>
+              <Text style={styles.heroRole}>CREATOR</Text>
               <View style={[styles.statusChip, styles.statusChipReady]}>
                 <PulseLoop style={styles.chipDotWrap} color={SUCCESS} minOpacity={0.5} maxOpacity={1}>
                   <View style={styles.chipDot} />
@@ -952,7 +952,7 @@ export default function SessionLobbyView({
             <Text style={styles.joinCallHint}>
               {startingSession
                 ? 'Creating your session room…'
-                : 'Tap to start · Learner will be notified'}
+                : `Tap to start · ${otherName} will be notified`}
             </Text>
           </View>
         </FadeSlideIn>
@@ -1029,7 +1029,7 @@ export default function SessionLobbyView({
             ) : (
               <View style={styles.statusChip}>
                 <MaterialIcons name="hourglass-top" size={14} color={GOLD} />
-                <Text style={styles.statusChipText}>Waiting for mentor</Text>
+                <Text style={styles.statusChipText}>Waiting for the host</Text>
               </View>
             )}
           </FadeSlideIn>
@@ -1137,8 +1137,8 @@ export default function SessionLobbyView({
           </PressScale>
           <Text style={styles.joinCallHint}>
             {meetingReady
-              ? 'Mentor is ready · Tap to enter the session'
-              : 'Waiting for mentor to start the session…'}
+              ? 'Host is ready · Tap to enter the session'
+              : 'Waiting for the host to start the session…'}
           </Text>
         </View>
       </FadeSlideIn>
@@ -1159,9 +1159,9 @@ export default function SessionLobbyView({
               </View>
             </View>
 
-            <Text style={styles.notReadyTitle}>Mentor Hasn't Joined Yet</Text>
+            <Text style={styles.notReadyTitle}>Host Hasn't Joined Yet</Text>
             <Text style={styles.notReadySub}>
-              Your session will begin as soon as the mentor starts. Hang tight — they're on their way!
+              Your session will begin as soon as the host starts. Hang tight — they're on their way!
             </Text>
 
             <View style={styles.notReadyDivider} />

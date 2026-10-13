@@ -72,7 +72,7 @@ describe('sessionLobbyRules', () => {
       isSessionLive: false,
       untilStartSec: 600,
       remainingSec: 1200,
-      otherLabel: 'mentor',
+      otherLabel: 'host',
       formatCountdown,
     };
 
@@ -95,7 +95,7 @@ describe('sessionLobbyRules', () => {
     });
 
     it('shows generic wait when neither upcoming nor live', () => {
-      expect(getParticipantStatusText(base)).toBe('Waiting for your mentor to join');
+      expect(getParticipantStatusText(base)).toBe('Waiting for your host to join');
     });
   });
 });

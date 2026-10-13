@@ -1,25 +1,32 @@
 /**
  * Deep linking configuration for Connectiqo.
  *
- * URL scheme:  connectiqo://
+ * Custom scheme: connectiqo://
+ * App / Universal Links: https://app.connectiqo.com (and connectiqo.com)
  *
- * Supported links:
- *   connectiqo://mentor/:mentorId       → Mentor profile modal
- *   connectiqo://booking/:mentorId      → Book a session with a mentor
- *   connectiqo://call/:bookingId        → Join a live video call
- *   connectiqo://review/:bookingId      → Leave a review
- *   connectiqo://wallet                 → Wallet screen
- *   connectiqo://transactions           → Transaction history
- *   connectiqo://discover               → Learner discover tab
- *   connectiqo://bookings               → Learner bookings tab
- *   connectiqo://sessions               → Mentor sessions tab
- *   connectiqo://earnings               → Mentor earnings tab
+ * Supported paths:
+ *   /mentor/:mentorId       → Mentor profile (UUID or username)
+ *   /scan                   → Profile QR share screen
+ *   /booking/:mentorId      → Book a session with a mentor
+ *   /call/:bookingId        → Join a live video call
+ *   /review/:bookingId      → Leave a review
+ *   /wallet                 → Wallet screen
+ *   /transactions           → Transaction history
+ *   /discover               → Learner discover tab
+ *   /bookings               → Learner bookings tab
+ *   /mentor/sessions        → Mentor sessions tab
+ *   /mentor/earnings        → Mentor earnings tab
  */
 
 import { SCREEN_NAMES } from './screenNames';
 
 export const linking = {
-  prefixes: ['connectiqo://'],
+  prefixes: [
+    'connectiqo://',
+    'https://app.connectiqo.com',
+    'https://connectiqo.com',
+    'https://www.connectiqo.com',
+  ],
 
   config: {
     screens: {
@@ -59,6 +66,7 @@ export const linking = {
 
       // ── Modal overlays (root stack) ──
       [SCREEN_NAMES.MentorProfile]:      'mentor/:mentorId',
+      [SCREEN_NAMES.ScanMentorQr]:       'scan',
       [SCREEN_NAMES.Booking]:            'booking/:mentorId',
       [SCREEN_NAMES.VideoCall]:          'call/:bookingId',
       [SCREEN_NAMES.Review]:             'review/:bookingId',

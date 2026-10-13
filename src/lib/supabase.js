@@ -25,3 +25,21 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: false,
   },
 });
+
+/** Default supabase-js storage key: sb-<project ref>-auth-token */
+const SESSION_STORAGE_KEY = `sb-${SUPABASE_URL.replace(/^https?:\/\//, '').split('.')[0]}-auth-token`;
+
+/**
+ * The persisted session, read straight from AsyncStorage — no network.
+ * Used when getSession() stalls on a token refresh over a bad connection:
+ * a stale session is still a signed-in user, and autoRefreshToken keeps trying.
+ */
+export async function readStoredSession() {
+  try {
+    const raw = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed?.user ? parsed : null;
+  } catch {
+    return null;
+  }
+}

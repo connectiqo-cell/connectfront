@@ -9,6 +9,7 @@ import { createAndroidOverlayBackListeners } from '../hooks/useSystemBack';
 import { AuthNavigator } from './AuthNavigator';
 import { UnifiedTabNavigator } from './UnifiedTabNavigator';
 import SharedMentorProfileScreen from '../scenes/shared/MentorProfileScreen';
+import ScanMentorQrScreen from '../scenes/shared/ScanMentorQrScreen';
 import BookingScreen from '../scenes/shared/BookingScreen';
 import VideoCallScreen from '../scenes/shared/VideoCallScreen';
 import RecordingPlayerScreen from '../scenes/shared/RecordingPlayerScreen';
@@ -24,17 +25,18 @@ import MentorVideosScreen from '../scenes/mentor/MentorVideosScreen';
 import PayoutSetupScreen from '../scenes/settings/PayoutSetupScreen';
 import ConnectivityScreen from '../scenes/settings/ConnectivityScreen';
 import NotificationsScreen from '../scenes/settings/NotificationsScreen';
+import { MessagesScreen, MessageThreadScreen } from '../scenes/shared/MessagesScreen';
 import RescheduleRequestScreen from '../scenes/shared/RescheduleRequestScreen';
 import RescheduleResponseScreen from '../scenes/shared/RescheduleResponseScreen';
 import InterestsOnboardingScreen from '../scenes/auth/InterestsOnboardingScreen';
 import { profileApi } from '../api/profileApi';
-import { fetchActiveCategoryNames } from '../api/contentApi';
-import { MENTOR_CATEGORIES } from '../constants/mentorCategories';
 import { needsCategoryInterestOnboarding } from '../utils/mentorCategories';
 
 const RootStack = createStackNavigator();
 
 const androidOverlayBackListeners = createAndroidOverlayBackListeners();
+
+const TIMED_OUT = Symbol('timed out');
 
 /** Full-screen push — iOS: card + no swipe dismiss; Android: modal (unchanged). */
 const LOCKED_SCREEN_OPTIONS = Platform.select({
@@ -88,12 +90,18 @@ export const RootNavigator = () => {
       return;
     }
     try {
-      const [learner, categoryNames] = await Promise.all([
+      // Fail open on a slow/offline network — never hold the splash on this query.
+      const learner = await Promise.race([
         profileApi.getLearnerProfile(session.user.id).catch(() => null),
-        fetchActiveCategoryNames(),
+        new Promise(resolve => setTimeout(() => resolve(TIMED_OUT), 4000)),
       ]);
-      const known = categoryNames?.length ? categoryNames : MENTOR_CATEGORIES;
-      setNeedsInterests(needsCategoryInterestOnboarding(learner?.interests, known));
+      // A missing row still means "onboard"; only a timeout skips the gate.
+      if (learner === TIMED_OUT) {
+        setNeedsInterests(false);
+        return;
+      }
+      // Gate only when interests were never set — admin category edits must not re-block.
+      setNeedsInterests(needsCategoryInterestOnboarding(learner?.interests));
     } catch {
       // Fail open so a profile blip doesn't block the app.
       setNeedsInterests(false);
@@ -182,6 +190,10 @@ export const RootNavigator = () => {
                 component={SharedMentorProfileScreen}
               />
               <RootStack.Screen
+                name={SCREEN_NAMES.ScanMentorQr}
+                component={ScanMentorQrScreen}
+              />
+              <RootStack.Screen
                 name={SCREEN_NAMES.MentorAvailability}
                 component={MentorAvailabilityScreen}
               />
@@ -204,6 +216,14 @@ export const RootNavigator = () => {
               <RootStack.Screen
                 name={SCREEN_NAMES.Notifications}
                 component={NotificationsScreen}
+              />
+              <RootStack.Screen
+                name={SCREEN_NAMES.Messages}
+                component={MessagesScreen}
+              />
+              <RootStack.Screen
+                name={SCREEN_NAMES.MessageThread}
+                component={MessageThreadScreen}
               />
             </RootStack.Group>
             <RootStack.Group screenOptions={LOCKED_SCREEN_OPTIONS}>

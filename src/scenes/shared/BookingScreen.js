@@ -812,7 +812,7 @@ export default function BookingScreen({ navigation, route }) {
   const TEAL = C.accent.secondary;
   const scheduleStyles = useScheduleStyles();
   const mentorId = route.params?.mentorId;
-  const mentorName = route.params?.mentorName ?? 'Mentor';
+  const mentorName = route.params?.mentorName ?? 'Creator';
   const { profile, user, refreshProfile } = useAuth();
   const learnerId = profile?.id ?? user?.id ?? null;
   const insets = useSafeAreaInsets();
@@ -905,7 +905,7 @@ export default function BookingScreen({ navigation, route }) {
         setMentorAvailability(byDate);
       } catch (err) {
         if (!active) return;
-        Toast.show('Failed to load mentor data: ' + err.message);
+        Toast.show('Failed to load creator data: ' + err.message);
         setMentorAvailability({});
       } finally {
         if (active) {
@@ -1105,7 +1105,7 @@ export default function BookingScreen({ navigation, route }) {
     }
   }, [readyToPay, fees, totalPop]);
 
-  const mentorInitial = (mentorName || 'M').charAt(0).toUpperCase();
+  const mentorInitial = (mentorName || 'C').charAt(0).toUpperCase();
 
   const handlePay = async () => {
     if (!selectedDate || !selectedTimes.length) {
@@ -1358,7 +1358,7 @@ export default function BookingScreen({ navigation, route }) {
             <ScheduleHeroBanner
               initial={mentorInitial}
               name={displayName}
-              label="Your mentor"
+              label="Creator"
               avatarUrl={avatarUrl}
               style={styles.mentorHeroInCard}
             >
@@ -1512,7 +1512,7 @@ export default function BookingScreen({ navigation, route }) {
           <View style={styles.emptyCard}>
             <MaterialIcons name="sentiment-dissatisfied" size={36} color={TEAL} />
             <Text style={styles.emptyTitle}>No availability yet</Text>
-            <Text style={styles.emptySub}>This mentor hasn't opened booking slots</Text>
+            <Text style={styles.emptySub}>This creator hasn't opened booking slots</Text>
           </View>
         )}
 
@@ -1549,7 +1549,7 @@ export default function BookingScreen({ navigation, route }) {
                     value: true,
                     icon: 'videocam',
                     title: 'Yes, record it',
-                    subtitle: 'Recording starts after mentor agrees and runs until the meeting ends.',
+                    subtitle: 'Recording starts after the creator agrees and runs until the meeting ends.',
                   },
                   {
                     value: false,
@@ -1653,7 +1653,7 @@ export default function BookingScreen({ navigation, route }) {
               />
               <View style={styles.charRow}>
                 <MaterialIcons name="tips-and-updates" size={14} color={T.colors.text.muted} />
-                <Text style={styles.charHint}>Clear goals help mentors prepare better</Text>
+                <Text style={styles.charHint}>Clear goals help creators prepare better</Text>
                 <Text style={styles.charCount}>{message.length}/500</Text>
               </View>
             </ScheduleSectionBlock>

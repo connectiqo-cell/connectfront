@@ -3,9 +3,9 @@ import { Alert } from 'react-native';
 /** Plain-language copy for in-call recording prompts. */
 export const RECORDING_ALERTS = {
   mentorAtBooking: {
-    title: 'Learner asked to record',
+    title: 'Creator asked to record',
     message:
-      'This learner chose "Yes, record it" when booking.\n\n' +
+      'This creator chose "Yes, record it" when booking.\n\n' +
       'If you agree, recording starts automatically once you are both in the call.\n\n' +
       'You can also start later from the menu (⋯) → Start Recording.',
     skip: 'Start without recording',
@@ -42,7 +42,7 @@ export const RECORDING_ALERTS = {
   },
   mentorOnlyStop: {
     title: 'Can\'t stop recording',
-    message: 'Only the mentor can stop the recording. Please ask them to tap ⋯ → Stop Recording.',
+    message: 'Only the host can stop the recording. Please ask them to tap ⋯ → Stop Recording.',
     ok: 'OK',
   },
   waitForPeer: {

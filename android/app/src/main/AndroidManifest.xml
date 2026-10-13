@@ -9,13 +9,22 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Play Photo & Video policy: pickers use the system photo picker and gallery
+         saves go through MediaStore (no permission on API 29+), so strip these if
+         any library merges them in. -->
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_VIDEO"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_IMAGES"
+        tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
     <!-- Foreground Service Permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Keeps a video upload running while the app is backgrounded. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     
@@ -27,7 +36,10 @@
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
 
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Not used (PiP doesn't need it); sensitive permission in Play review. -->
+    <uses-permission
+        android:name="android.permission.SYSTEM_ALERT_WINDOW"
+        tools:node="remove" />
 
     <!-- Needed to communicate with already-paired Bluetooth devices. (Android 12 upwards)-->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -37,20 +49,35 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Do NOT request exact-alarm permissions. tools:node="remove" strips them
+         if any library tries to merge them in (required for Play compliance). -->
+    <uses-permission
+        android:name="android.permission.USE_EXACT_ALARM"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        tools:node="remove" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Not used; restricted permission that Play rejects without a core-use exemption. -->
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:node="remove" />
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
       android:icon="@mipmap/ic_launcher"
       android:roundIcon="@mipmap/ic_launcher_round"
       android:allowBackup="false"
+      tools:replace="android:allowBackup"
       android:theme="@style/AppTheme"
       android:supportsRtl="true"
       android:usesCleartextTraffic="false">
+      <!-- Notifee registers this for exact-alarm permission changes; remove so Play
+           does not treat the app as using exact alarms. -->
+      <receiver
+          android:name="app.notifee.core.AlarmPermissionBroadcastReceiver"
+          tools:node="remove" />
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"
@@ -70,6 +97,15 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="connectiqo" />
         </intent-filter>
+        <!-- https App Links — requires /.well-known/assetlinks.json on each host -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" android:host="app.connectiqo.com" android:pathPrefix="/mentor" />
+            <data android:scheme="https" android:host="connectiqo.com" android:pathPrefix="/mentor" />
+            <data android:scheme="https" android:host="www.connectiqo.com" android:pathPrefix="/mentor" />
+        </intent-filter>
       </activity>
     <!-- Foreground Service Metadata -->
         <meta-data
@@ -88,6 +124,14 @@
             android:foregroundServiceType="mediaProjection" />
         <service
             android:name="live.videosdk.rnwebrtc.MediaProjectionServiceTask" />
+
+        <!-- notifee ships this as foregroundServiceType="shortService", which Android 14+
+             terminates after ~3 minutes. A video upload on a weak network takes far
+             longer, so it runs as dataSync instead. -->
+        <service
+            android:name="app.notifee.core.ForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:replace="android:foregroundServiceType" />
 
         <service android:name=".MyForegroundService"
         android:foregroundServiceType="camera|microphone"

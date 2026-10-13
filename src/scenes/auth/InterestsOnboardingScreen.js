@@ -248,7 +248,7 @@ export default function InterestsOnboardingScreen({ onComplete }) {
             <Text style={styles.titleAccent}>{MIN_LEARNER_INTERESTS} categories</Text>
           </Text>
           <Text style={styles.subtitle}>
-            Select {MIN_LEARNER_INTERESTS} categories you're most interested in mentors.
+            Select {MIN_LEARNER_INTERESTS} categories you're most interested in.
           </Text>
         </View>
 

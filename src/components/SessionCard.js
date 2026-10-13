@@ -6,7 +6,7 @@ import { UNIFIED_THEME } from '../unifiedTheme';
 import { formatDate, formatTime } from '../utils/dateHelpers';
 
 export const SessionCard = ({ session, onJoinPress, onMorePress }) => {
-  const learnerName = session.learner_profile?.name || 'Unknown Learner';
+  const learnerName = session.learner_profile?.name || 'Unknown Creator';
   const date = session.availability_slots?.date;
   const time = session.availability_slots?.start_time;
 

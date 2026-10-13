@@ -8,8 +8,38 @@ import {
   normalizeCategoryBucket,
   OTHER_CATEGORY_LABEL,
 } from '../utils/mentorCategories';
+import { isMentorShareUuid } from '../utils/shareProfile';
+import { isMentorFreezeActive, mentorNotFrozenOrFilter } from '../utils/mentorFreeze';
+
+function escapeLikePattern(value) {
+  return String(value).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+function withoutFrozenMentors(rows) {
+  return (rows || []).filter((row) => !isMentorFreezeActive(row));
+}
+
+const MENTOR_FREEZE_FIELDS = 'mentor_frozen, mentor_frozen_until, mentor_freeze_reason';
 
 export const mentorApi = {
+  /** UUID as-is; otherwise case-insensitive mentor username → id. */
+  resolveMentorId: async (identifier) => {
+    const raw = String(identifier || '').trim();
+    if (!raw) return null;
+    if (isMentorShareUuid(raw)) return raw;
+    try {
+      const { data, error } = await supabase
+        .from('mentor_profiles')
+        .select('id, profiles!inner(username)')
+        .ilike('profiles.username', escapeLikePattern(raw))
+        .maybeSingle();
+      if (error) throw error;
+      return data?.id ?? null;
+    } catch {
+      return null;
+    }
+  },
+
   getMentorWithProfile: async (mentorId) => {
     try {
       const { data, error } = await supabase
@@ -22,6 +52,7 @@ export const mentorApi = {
           price_per_hour,
           rating,
           total_sessions,
+          ${MENTOR_FREEZE_FIELDS},
           profiles:id (
             id,
             name,
@@ -51,20 +82,37 @@ export const mentorApi = {
           price_per_hour,
           rating,
           total_sessions,
+          ${MENTOR_FREEZE_FIELDS},
           profiles:id (
             id,
             name,
             avatar_url
           )
         `)
+        .or(mentorNotFrozenOrFilter())
         .order('rating', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
-      return data || [];
+      return withoutFrozenMentors(data);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
+  },
+
+  /** Ranked by recent bookings/reviews (see get_trending_mentors RPC); falls back to top-rated. */
+  getTrendingMentors: async (limit = 8) => {
+    const { data, error } = await supabase.rpc('get_trending_mentors', { p_limit: limit });
+    if (error) {
+      if (__DEV__) {
+        console.warn('[mentorApi] get_trending_mentors failed, using top-rated:', error.message);
+      }
+      return mentorApi.getTopMentors(limit);
+    }
+    return (data || []).map(({ name, avatar_url, ...row }) => ({
+      ...row,
+      profiles: { id: row.id, name, avatar_url },
+    }));
   },
 
   getMentorsBySpecialization: async (specialization, limit = 20) => {
@@ -79,6 +127,7 @@ export const mentorApi = {
           price_per_hour,
           rating,
           total_sessions,
+          ${MENTOR_FREEZE_FIELDS},
           profiles:id (
             id,
             name,
@@ -87,11 +136,12 @@ export const mentorApi = {
           )
         `)
         .ilike('specialization', `%${specialization}%`)
+        .or(mentorNotFrozenOrFilter())
         .order('rating', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
-      return data || [];
+      return withoutFrozenMentors(data);
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
@@ -110,6 +160,7 @@ export const mentorApi = {
           price_per_hour,
           rating,
           total_sessions,
+          ${MENTOR_FREEZE_FIELDS},
           profiles:id (
             id,
             name,
@@ -117,6 +168,7 @@ export const mentorApi = {
             avatar_url
           )
         `)
+        .or(mentorNotFrozenOrFilter())
         .order('category', { ascending: true })
         .order('rating', { ascending: false })
         .limit(300);
@@ -126,7 +178,7 @@ export const mentorApi = {
       const grouped = {};
       const keyByLower = {};
 
-      (data || []).forEach(mentor => {
+      withoutFrozenMentors(data).forEach(mentor => {
         const categories = parseMentorCategories(mentor.category);
         const bucketNames = categories.length ? categories : [normalizeCategoryBucket('')];
 
@@ -165,6 +217,7 @@ export const mentorApi = {
         price_per_hour,
         rating,
         total_sessions,
+        ${MENTOR_FREEZE_FIELDS},
         profiles:id (
           id,
           name,
@@ -190,7 +243,7 @@ export const mentorApi = {
 
       if (fieldRes.error) throw fieldRes.error;
 
-      let results = fieldRes.data || [];
+      let results = withoutFrozenMentors(fieldRes.data);
 
       // Fetch mentor profiles for any name matches not already in results
       if (nameRes.data?.length > 0) {
@@ -205,7 +258,7 @@ export const mentorApi = {
             .order('rating', { ascending: false });
 
           if (byName?.length) {
-            results = [...results, ...byName];
+            results = [...results, ...withoutFrozenMentors(byName)];
           }
         }
       }
@@ -227,6 +280,7 @@ export const mentorApi = {
         price_per_hour,
         rating,
         total_sessions,
+        ${MENTOR_FREEZE_FIELDS},
         profiles:id (id, name, email, avatar_url)
       `;
 
@@ -242,7 +296,7 @@ export const mentorApi = {
 
         if (error) throw error;
 
-        const matched = (data || []).filter(mentor =>
+        const matched = withoutFrozenMentors(data).filter(mentor =>
           mentorHasCategory(mentor.category, OTHER_CATEGORY_LABEL),
         );
         const from = page * pageSize;
@@ -259,7 +313,7 @@ export const mentorApi = {
         .range(from, to);
 
       if (error) throw error;
-      return (data || []).filter(mentor => mentorHasCategory(mentor.category, category));
+      return withoutFrozenMentors(data).filter(mentor => mentorHasCategory(mentor.category, category));
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }

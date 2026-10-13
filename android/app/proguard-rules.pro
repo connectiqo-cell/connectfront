@@ -33,3 +33,7 @@
 # Google Play Services / Firebase (R8 stack-map warnings on auth libs)
 -keep class com.google.android.gms.** { *; }
 -dontwarn com.google.android.gms.**
+
+# react-native-svg (QR codes)
+-keep public class com.horcrux.svg.** { *; }
+-keep class com.facebook.react.views.** { *; }

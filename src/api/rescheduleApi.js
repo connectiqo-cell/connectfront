@@ -1,52 +1,85 @@
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
 
+const PROPOSAL_SELECT = `
+  *,
+  bookings (
+    id, mentor_id, learner_id, reschedule_reason, status,
+    profiles:mentor_id ( id, name, avatar_url ),
+    availability_slots ( date, start_time, end_time )
+  )
+`;
+
 function notifyReschedule(payload) {
   fetch(`${SUPABASE_URL}/functions/v1/notify-reschedule`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'apikey': SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      apikey: SUPABASE_ANON_KEY,
     },
     body: JSON.stringify(payload),
   }).catch(err => console.warn('notify-reschedule fire-and-forget failed:', err));
 }
 
+/** Matches connectiqo_web-portal reschedule flow (RPC-enforced statuses). */
 export const rescheduleApi = {
   /**
-   * Mark a booking as needing reschedule. Called after failed/missed session.
-   * reason: 'mentor_noshow' | 'technical'
+   * Learner: mark a booking as needing reschedule after mentor no-show / technical.
+   * Enforced by request_reschedule (session must have ended).
    */
   markForReschedule: async (bookingId, reason) => {
     try {
-      const deadline = new Date();
-      deadline.setDate(deadline.getDate() + 7); // 7-day window to propose
-
-      const { data, error } = await supabase
-        .from('bookings')
-        .update({
-          status: 'reschedule_pending',
-          reschedule_reason: reason,
-          reschedule_deadline: deadline.toISOString(),
-        })
-        .eq('id', bookingId)
-        .select()
-        .single();
-
+      const { error } = await supabase.rpc('request_reschedule', {
+        p_booking_id: bookingId,
+        p_reason: reason,
+      });
       if (error) throw error;
-      // Fire-and-forget: notify mentor that learner requested a reschedule
       notifyReschedule({ type: 'reschedule_requested', bookingId });
-      return data;
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
   },
 
   /**
-   * Mentor: get bookings waiting for a reschedule proposal.
+   * Mentor: propose a new time. Duration/conflict/attempt checks are server-side.
    */
-  getPendingReschedulesForMentor: async (mentorId) => {
+  proposeSlot: async ({ bookingId, date, startTime, endTime }) => {
+    try {
+      const { data, error } = await supabase.rpc('propose_reschedule_slot', {
+        p_booking_id: bookingId,
+        p_date: date,
+        p_start_time: startTime,
+        p_end_time: endTime,
+      });
+      if (error) throw error;
+      notifyReschedule({
+        type: 'reschedule_proposed',
+        bookingId,
+        requestId: data.request_id,
+      });
+      return { requestId: data.request_id, expiresAt: data.expires_at };
+    } catch (error) {
+      throw new Error(getSupabaseErrorMessage(error));
+    }
+  },
+
+  /** "Attempt X of 3" UI — count declined proposals for this booking. */
+  getDeclinedCount: async bookingId => {
+    try {
+      const { count, error } = await supabase
+        .from('reschedule_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('booking_id', bookingId)
+        .eq('status', 'declined');
+      if (error) throw error;
+      return count ?? 0;
+    } catch (error) {
+      throw new Error(getSupabaseErrorMessage(error));
+    }
+  },
+
+  getPendingReschedulesForMentor: async mentorId => {
     try {
       const { data, error } = await supabase
         .from('bookings')
@@ -56,7 +89,7 @@ export const rescheduleApi = {
           availability_slots ( date, start_time, end_time )
         `)
         .eq('mentor_id', mentorId)
-        .eq('status', 'reschedule_pending')
+        .in('status', ['reschedule_needed', 'reschedule_proposed'])
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -66,10 +99,7 @@ export const rescheduleApi = {
     }
   },
 
-  /**
-   * Learner: get bookings in reschedule_pending state (waiting for mentor's proposal).
-   */
-  getPendingReschedulesForLearner: async (learnerId) => {
+  getPendingReschedulesForLearner: async learnerId => {
     try {
       const { data, error } = await supabase
         .from('bookings')
@@ -79,7 +109,7 @@ export const rescheduleApi = {
           availability_slots ( date, start_time, end_time )
         `)
         .eq('learner_id', learnerId)
-        .eq('status', 'reschedule_pending')
+        .in('status', ['reschedule_needed', 'reschedule_proposed'])
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -89,45 +119,7 @@ export const rescheduleApi = {
     }
   },
 
-  /**
-   * Mentor: propose a new dedicated time for this booking.
-   */
-  proposeSlot: async ({ bookingId, mentorId, learnerId, date, startTime, endTime, reason }) => {
-    try {
-      // Expire any previous pending proposals for this booking
-      await supabase
-        .from('reschedule_requests')
-        .update({ status: 'expired', updated_at: new Date().toISOString() })
-        .eq('booking_id', bookingId)
-        .eq('status', 'pending');
-
-      const { data, error } = await supabase
-        .from('reschedule_requests')
-        .insert({
-          booking_id: bookingId,
-          mentor_id: mentorId,
-          learner_id: learnerId,
-          reason,
-          proposed_date: date,           // 'YYYY-MM-DD'
-          proposed_start_time: startTime, // 'HH:MM:SS'
-          proposed_end_time: endTime,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      // Fire-and-forget: notify learner that mentor proposed a new time
-      notifyReschedule({ type: 'reschedule_proposed', bookingId, requestId: data.id });
-      return data;
-    } catch (error) {
-      throw new Error(getSupabaseErrorMessage(error));
-    }
-  },
-
-  /**
-   * Get the active (pending) proposal for a booking.
-   */
-  getActiveProposal: async (bookingId) => {
+  getActiveProposal: async bookingId => {
     try {
       const { data, error } = await supabase
         .from('reschedule_requests')
@@ -145,21 +137,11 @@ export const rescheduleApi = {
     }
   },
 
-  /**
-   * Learner: get all proposals waiting for their response (across all bookings).
-   */
-  getProposalsForLearner: async (learnerId) => {
+  getProposalsForLearner: async learnerId => {
     try {
       const { data, error } = await supabase
         .from('reschedule_requests')
-        .select(`
-          *,
-          bookings (
-            id, mentor_id, learner_id, reschedule_reason,
-            profiles:mentor_id ( id, name, avatar_url ),
-            availability_slots ( date, start_time, end_time )
-          )
-        `)
+        .select(PROPOSAL_SELECT)
         .eq('learner_id', learnerId)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
@@ -171,14 +153,13 @@ export const rescheduleApi = {
     }
   },
 
-  /**
-   * Learner: accept a proposal. Atomically creates new booking via DB RPC.
-   */
-  acceptProposal: async (requestId) => {
+  getProposalById: async requestId => {
     try {
-      const { data, error } = await supabase.rpc('accept_reschedule_proposal', {
-        p_request_id: requestId,
-      });
+      const { data, error } = await supabase
+        .from('reschedule_requests')
+        .select(PROPOSAL_SELECT)
+        .eq('id', requestId)
+        .single();
       if (error) throw error;
       return data;
     } catch (error) {
@@ -186,18 +167,56 @@ export const rescheduleApi = {
     }
   },
 
-  /**
-   * Learner: decline a proposal. Mentor can submit another one.
-   */
-  declineProposal: async (requestId) => {
+  acceptProposal: async (requestId, bookingId) => {
     try {
-      const { error } = await supabase
-        .from('reschedule_requests')
-        .update({ status: 'declined', updated_at: new Date().toISOString() })
-        .eq('id', requestId);
+      const { data, error } = await supabase.rpc('accept_reschedule_proposal', {
+        p_request_id: requestId,
+      });
       if (error) throw error;
+      if (bookingId) {
+        notifyReschedule({ type: 'reschedule_accepted', bookingId, requestId });
+      }
+      return data;
+    } catch (error) {
+      throw new Error(getSupabaseErrorMessage(error));
+    }
+  },
+
+  /**
+   * Decline a proposal. On the 3rd decline, booking becomes reschedule_unresolved.
+   * @returns {{ unresolved: boolean }}
+   */
+  declineProposal: async (requestId, bookingId) => {
+    try {
+      const { data, error } = await supabase.rpc('decline_reschedule_proposal', {
+        p_request_id: requestId,
+      });
+      if (error) throw error;
+      if (bookingId) {
+        notifyReschedule({
+          type: data?.unresolved ? 'reschedule_unresolved' : 'reschedule_declined',
+          bookingId,
+          requestId,
+        });
+      }
+      return { unresolved: !!data?.unresolved };
     } catch (error) {
       throw new Error(getSupabaseErrorMessage(error));
     }
   },
 };
+
+export function rescheduleReasonLabel(reason, viewer) {
+  if (reason === 'mentor_noshow') {
+    return viewer === 'mentor'
+      ? "You didn't join the session"
+      : "Host didn't join the session";
+  }
+  if (reason === 'technical') {
+    return 'Session ended too early (technical issue)';
+  }
+  return 'Session could not be completed';
+}
+
+export const RESCHEDULE_ACTIVE_STATUSES = ['reschedule_needed', 'reschedule_proposed'];
+export const MAX_RESCHEDULE_ATTEMPTS = 3;

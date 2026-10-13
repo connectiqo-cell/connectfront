@@ -24,6 +24,8 @@ import { notificationApi } from '../../api/notificationApi';
 import { useAuth } from '../../hooks/useAuth';
 import { homeApi } from '../../api/homeApi';
 import { videoApi } from '../../api/videoApi';
+import { profileApi } from '../../api/profileApi';
+import { rankVideosByInterests } from '../../utils/mentorCategories';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeScreen } from '../../components/SafeScreen';
 import { ThunderTransition } from '../../components/ThunderTransition';
@@ -462,18 +464,18 @@ const AUTO_PLAY_MS = 5000;
 const FALLBACK_SLIDE_META = [
   {
     id: 'fallback-1',
-    title: 'Expert mentors',
+    title: 'Expert creators',
     subtitle: 'Live 1-on-1 video sessions',
   },
   {
     id: 'fallback-2',
     title: 'Learn & grow',
-    subtitle: 'Verified mentors · Secure payments',
+    subtitle: 'Verified creators · Secure payments',
   },
   {
     id: 'fallback-3',
     title: 'Connectiqo',
-    subtitle: 'Connect · Learn · Grow',
+    subtitle: 'Connect · Create · Collab',
   },
 ];
 
@@ -727,7 +729,7 @@ function HeroSlider({ screenWidth, slides }) {
               <Image source={getBrandLogo(isDark)} style={styles.heroSlideLogo} resizeMode="contain" />
             </View>
             <View style={styles.heroSlideCaption} pointerEvents="none">
-              <Text style={styles.heroSlideTitle}>Discover mentors</Text>
+              <Text style={styles.heroSlideTitle}>Discover creators</Text>
               <Text style={styles.heroSlideSub}>Live 1-on-1 sessions on Connectiqo</Text>
             </View>
           </View>
@@ -795,7 +797,7 @@ function HeroSlider({ screenWidth, slides }) {
 
 
 const TRUST = [
-  { icon: 'verified-user', label: 'Verified Mentors' },
+  { icon: 'verified-user', label: 'Verified Creators' },
   { icon: 'lock', label: 'Secure Payments' },
   { icon: 'videocam', label: 'Live HD Video' },
   { icon: 'star', label: 'Rated & Reviewed' },
@@ -947,26 +949,25 @@ export default function HomeScreen() {
     if (isRefresh) setRefreshing(true);
     Promise.allSettled([
       homeApi.getVideos(),
-      videoApi.getFreeVideos(),
+      // All public videos (promoted first); pool is wider than the row so interest
+      // matches further down the feed can still be ranked up.
+      videoApi.getAllPublicVideos({ page: 0, pageSize: 50 }),
       homeApi.getHeroSlides(),
-    ]).then(([homeResult, freeResult, slidesResult]) => {
+      profile?.id
+        ? profileApi.getLearnerProfile(profile.id).catch(() => null)
+        : Promise.resolve(null),
+    ]).then(([homeResult, publicResult, slidesResult, learnerResult]) => {
       if (cancelled) return;
-      const sessions = homeResult.status === 'fulfilled' ? homeResult.value.sessions : [];
-      const freeVideos = freeResult.status === 'fulfilled' ? freeResult.value : [];
       if (homeResult.status === 'fulfilled' && homeResult.value.intro) {
         setIntroVideo(homeResult.value.intro);
       }
-      if (sessions.length || freeVideos.length) {
-        const seen = new Set();
-        const merged = [...sessions, ...freeVideos]
-          .filter(v => {
-            if (seen.has(v.id)) return false;
-            seen.add(v.id);
-            return true;
-          })
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        setSessionVideos(merged.slice(0, 10));
-      }
+
+      const videos = publicResult.status === 'fulfilled' ? publicResult.value : [];
+      const learner = learnerResult.status === 'fulfilled' ? learnerResult.value : null;
+      const interests = Array.isArray(learner?.interests) ? learner.interests : [];
+      // Website shows 4; keep a few more for the mobile horizontal row.
+      setSessionVideos(rankVideosByInterests(videos, interests).slice(0, 8));
+
       if (slidesResult.status === 'fulfilled') {
         const slides = slidesResult.value?.length
           ? slidesResult.value
@@ -980,7 +981,7 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [isDark]);
+  }, [isDark, profile?.id]);
 
   // Keep local fallback hero slides in sync with theme when API has no slides.
   useEffect(() => {
@@ -1092,7 +1093,7 @@ export default function HomeScreen() {
               Connectiqo
             </Text>
             <Text style={styles.appTagline} numberOfLines={1}>
-              Connect · Learn · Grow
+              Connect · Create · Collab
             </Text>
           </View>
           <View ref={thunderBtnRef} collapsable={false}>
@@ -1141,8 +1142,8 @@ export default function HomeScreen() {
         {sessionVideos.length > 0 && (
         <Animated.View style={[styles.catSection, s2b.style]}>
           <SectionHeaderRow
-            title="Recent Sessions"
-            icon="history"
+            title="Recommended For You"
+            icon="video-library"
             onSeeAll={() =>
               navigation.navigate(SCREEN_NAMES.LearnerSection, {
                 screen: SCREEN_NAMES.LearnerVideos,

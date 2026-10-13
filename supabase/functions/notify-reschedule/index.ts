@@ -151,8 +151,8 @@ serve(async (req) => {
     if (error) throw new Error(error.message);
     if (!booking) throw new Error('Booking not found');
 
-    const mentorName = (booking.mentor as { name?: string } | null)?.name ?? 'Your mentor';
-    const learnerName = (booking.learner as { name?: string } | null)?.name ?? 'Your learner';
+    const mentorName = (booking.mentor as { name?: string } | null)?.name ?? 'Your creator';
+    const learnerName = (booking.learner as { name?: string } | null)?.name ?? 'Your creator';
 
     if (type === 'reschedule_requested') {
       const token = await getFcmToken(supabase, booking.mentor_id);

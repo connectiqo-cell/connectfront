@@ -140,7 +140,7 @@ function ReviewCard({ review, index }) {
   const TEAL = C.accent.secondary;
   const PANEL_BG = C.surface.panel;
   const learner = firstRow(review.profiles);
-  const name = learner?.name || 'Learner';
+  const name = learner?.name || 'Creator';
   const avatar = learner?.avatar_url || null;
   const rating = Number(review.rating) || 0;
   const comment = (review.comment && String(review.comment).trim()) || null;
@@ -233,7 +233,7 @@ export default function MentorReviewsScreen({ navigation, route }) {
   const isOwnReviews = Boolean(profile?.id && paramMentorId === profile.id);
 
   const [reviews, setReviews] = useState([]);
-  const [mentorName, setMentorName] = useState(paramMentorName || 'Mentor');
+  const [mentorName, setMentorName] = useState(paramMentorName || 'Creator');
   const [avgRating, setAvgRating] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -315,7 +315,7 @@ export default function MentorReviewsScreen({ navigation, route }) {
       <FadeInBlock delay={60} style={styles.sectionHead}>
         <MaterialIcons name="forum" size={16} color={TEAL} />
         <Text style={styles.sectionTitle}>
-          {isOwnReviews ? 'Feedback from learners' : `Reviews for ${mentorName}`}
+          {isOwnReviews ? 'Feedback from creators' : `Reviews for ${mentorName}`}
         </Text>
       </FadeInBlock>
     </>
@@ -330,8 +330,8 @@ export default function MentorReviewsScreen({ navigation, route }) {
         <Text style={styles.emptyTitle}>No reviews yet</Text>
         <Text style={styles.emptySub}>
           {isOwnReviews
-            ? 'When learners rate their sessions, feedback will appear here.'
-            : 'This mentor has not received any reviews yet.'}
+            ? 'When creators rate their sessions, feedback will appear here.'
+            : 'This creator has not received any reviews yet.'}
         </Text>
       </FadeInBlock>
     ) : null
@@ -352,7 +352,7 @@ export default function MentorReviewsScreen({ navigation, route }) {
 
         <Text style={styles.intro}>
           {isOwnReviews
-            ? 'Feedback from learners on your sessions.'
+            ? 'Feedback from creators on your sessions.'
             : `Reviews for ${mentorName}.`}
         </Text>
 

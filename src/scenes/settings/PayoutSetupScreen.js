@@ -61,7 +61,7 @@ function getStatusConfig(theme) {
 }
 
 const PAYOUT_STEPS = [
-  { icon: 'payments', text: 'Learner pays when they book your session.' },
+  { icon: 'payments', text: 'Creator pays when they book your session.' },
   { icon: 'call-split', text: 'Your share is credited after the session completes.' },
   { icon: 'account-balance-wallet', text: 'Request withdrawal from My Wallet (min ₹5,000).' },
   { icon: 'send', text: 'We settle it to your UPI within 1–2 business days.' },

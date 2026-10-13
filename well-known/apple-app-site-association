@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "5RRX9T7F39.com.connectiqo.app",
+        "paths": ["/mentor/*", "/mentor"]
+      }
+    ]
+  }
+}

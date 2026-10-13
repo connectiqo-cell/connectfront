@@ -135,7 +135,7 @@ serve(async (req) => {
       });
     }
 
-    const mentorName = (booking.mentor as { name?: string } | null)?.name || 'Your mentor';
+    const mentorName = (booking.mentor as { name?: string } | null)?.name || 'Your creator';
     const learnerToken = await getFcmToken(supabase, booking.learner_id);
 
     if (learnerToken) {

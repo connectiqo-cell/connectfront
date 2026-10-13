@@ -38,15 +38,10 @@ export async function requestBatteryOptimizationExemption() {
 }
 
 /**
- * Schedule a 15-min reminder for both mentor and learner.
- * bookingId is used as the notification ID so it can be cancelled later.
+ * Schedule a 15-min reminder.
  *
- * @param {object} params
- * @param {string} params.bookingId
- * @param {string} params.sessionDate  — "YYYY-MM-DD"
- * @param {string} params.sessionTime  — "HH:MM:SS"
- * @param {string} params.mentorName
- * @param {boolean} params.isMentor
+ * Android: no-op — Play-safe server FCM (`notify-session-reminders`) owns reminders.
+ * iOS: local Notifee trigger remains as a soft fallback alongside FCM.
  */
 export async function scheduleSessionReminder({
   bookingId,
@@ -55,6 +50,11 @@ export async function scheduleSessionReminder({
   mentorName,
   isMentor,
 }) {
+  // Android reminders are sent by the notify-session-reminders edge function.
+  if (Platform.OS === 'android') {
+    return;
+  }
+
   try {
     await ensureNotificationChannel();
     await requestBatteryOptimizationExemption();
@@ -69,7 +69,7 @@ export async function scheduleSessionReminder({
 
     const sender = isMentor ? 'Session reminder' : (mentorName || 'Connectiqo');
     const body = isMentor
-      ? `You have a mentoring session in ${REMINDER_MINUTES} minutes.`
+      ? `You have a live session in ${REMINDER_MINUTES} minutes.`
       : `Your session with ${mentorName} starts in ${REMINDER_MINUTES} minutes.`;
 
     await notifee.createTriggerNotification(

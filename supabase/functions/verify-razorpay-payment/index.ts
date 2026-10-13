@@ -287,7 +287,7 @@ serve(async (req) => {
         getFcmToken(supabase, mentorId),
         supabase.from('profiles').select('name').eq('id', learnerId).single(),
       ]);
-      const learnerName = (learnerProfile.data as { name?: string } | null)?.name || 'A learner';
+      const learnerName = (learnerProfile.data as { name?: string } | null)?.name || 'A creator';
       if (mentorToken) {
         const bodyText = slotCount > 1
           ? `${learnerName} booked a continuous ${slotCount}-block session with you.`

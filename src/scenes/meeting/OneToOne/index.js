@@ -71,6 +71,9 @@ import { pressScreenShare } from "../../../utils/screenShareActions";
 import { getMeetingParticipantSnapshot } from "../../../utils/meetingParticipants";
 import { isRecordingRequestedForBooking, areBothCallParticipantsPresent } from "../../../utils/recordingConsent";
 import { bookingApi } from "../../../api/bookingApi";
+import { useAuth } from "../../../hooks/useAuth";
+import ReportUserSheet from "../../../components/ReportUserSheet";
+import { resolveMeetingReportTarget } from "../../../utils/meetingReport";
 import {
   showIncomingRecordingConsentAlert,
   showMentorOnlyStopAlert,
@@ -130,6 +133,8 @@ const CHROME_ANIM_MS = 260;
 export default function OneToOneMeetingViewer({
   isHost,
   booking,
+  isMentor = null,
+  otherUser = null,
   recordingRequested: recordingRequestedProp = false,
   autoStartRecording = false,
   onRequestLeave,
@@ -137,8 +142,10 @@ export default function OneToOneMeetingViewer({
 }) {
   const styles = useThemedStyles(createOneToOneStyles);
   const { isDark } = useTheme();
+  const { profile, user } = useAuth();
   const insets = useSafeAreaInsets();
   const [chromeVisible, setChromeVisible] = useState(true);
+  const [reportOpen, setReportOpen] = useState(false);
   const chromeAnim = useRef(new Animated.Value(1)).current;
   const chromeHideTimerRef = useRef(null);
   const chromeVisibleRef = useRef(true);
@@ -240,7 +247,7 @@ export default function OneToOneMeetingViewer({
     ) {
       showIncomingRecordingConsentRef.current?.(
         payload.requestId,
-        payload.requesterRole || (isHostRef.current ? 'Learner' : 'Mentor'),
+        payload.requesterRole || (isHostRef.current ? 'Guest' : 'Host'),
       );
       return;
     }
@@ -299,6 +306,16 @@ export default function OneToOneMeetingViewer({
     localParticipantId,
     remoteParticipantCount,
   );
+
+  const meetingReport = resolveMeetingReportTarget({
+    booking,
+    user,
+    profile,
+    isMentor: isMentor ?? isHost,
+    otherUser,
+  });
+  const reportOtherUserId = meetingReport.userId;
+  const reportOtherName = meetingReport.name;
 
   const localDisplayName = (localParticipant?.displayName || '').split(' ')[0];
   const remoteDisplayName = (
@@ -662,7 +679,7 @@ export default function OneToOneMeetingViewer({
           type: "RECORDING_CONSENT_REQUEST",
           requestId,
           requesterId: localParticipantId,
-          requesterRole: isHost ? "Mentor" : "Learner",
+          requesterRole: isHost ? "Host" : "Guest",
           ts: Date.now(),
         });
         Toast.show('Request sent — waiting for their response');
@@ -900,7 +917,7 @@ export default function OneToOneMeetingViewer({
     );
   }
 
-  const peerLabel = isHost ? 'learner' : 'mentor';
+  const peerLabel = isHost ? 'the other creator' : 'the host';
   const waitingForPeer = participantCount < 2 && !presenterId;
   const miniViewHeight = isLandscape ? 120 : Platform.OS === 'ios' ? 148 : 160;
   const pipReserve =
@@ -1192,6 +1209,24 @@ export default function OneToOneMeetingViewer({
             backgroundColor: colors.primary["600"],
           }}
         />
+        {reportOtherUserId && booking?.id ? (
+          <>
+            <MenuItem
+              title={"Report user"}
+              icon={<MaterialIcons name="flag" size={22} color={colors.primary[100]} />}
+              onPress={() => {
+                moreOptionsMenu.current?.close?.();
+                runAfterMenuDismiss(() => setReportOpen(true));
+              }}
+            />
+            <View
+              style={{
+                height: 1,
+                backgroundColor: colors.primary["600"],
+              }}
+            />
+          </>
+        ) : null}
         <MenuItem
           title={"Participants"}
           icon={<Participants width={22} height={22} fill={colors.primary[100]} />}
@@ -1332,6 +1367,14 @@ export default function OneToOneMeetingViewer({
         message={chatPopup?.message}
         onPress={openChatFromPopup}
         onDismiss={dismissPopup}
+      />
+      <ReportUserSheet
+        visible={reportOpen}
+        reportedUserId={reportOtherUserId}
+        reportedUserName={reportOtherName}
+        contextType="call"
+        contextId={booking?.id || meetingReport.contextId || null}
+        onClose={() => setReportOpen(false)}
       />
     </View>
   );

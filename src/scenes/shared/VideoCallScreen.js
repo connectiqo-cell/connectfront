@@ -292,7 +292,7 @@ export default function VideoCallScreen({ navigation, route }) {
       // so the learner (still in the old room) doesn't end up in a different session.
       const freshBooking = await bookingApi.getBooking(bookingId);
       if (profile?.id !== freshBooking?.mentor_id) {
-        Toast.show('Only the mentor can start this session');
+        Toast.show('Only the host can start this session');
         return;
       }
 
@@ -387,7 +387,7 @@ export default function VideoCallScreen({ navigation, route }) {
     if (!meetingReady || !pendingCallParams) {
       Alert.alert(
         'Session Not Started',
-        'The mentor hasn\'t started the session yet. Please wait a moment and try again.',
+        'The host hasn\'t started the session yet. Please wait a moment and try again.',
         [{ text: 'OK' }]
       );
       return;
@@ -570,7 +570,7 @@ export default function VideoCallScreen({ navigation, route }) {
       name: profile?.name || 'Guest',
       notification: {
         title: 'Session in Progress',
-        message: 'Your mentoring session is active',
+        message: 'Your 1-on-1 session is active',
       },
       defaultCamera: 'front',
     }),

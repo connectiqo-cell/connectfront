@@ -18,7 +18,7 @@ import CosmicButton from '../../components/CosmicButton';
 import { UNIFIED_THEME } from '../../unifiedTheme';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { softBorder, softFill, softFillStrong } from '../../theme/surfaceStyles';
-import { rescheduleApi } from '../../api/rescheduleApi';
+import { rescheduleApi, rescheduleReasonLabel, MAX_RESCHEDULE_ATTEMPTS } from '../../api/rescheduleApi';
 import { formatDateForDisplay, formatTime } from '../../utils/dateHelpers';
 
 const T = UNIFIED_THEME;
@@ -52,17 +52,13 @@ export default function RescheduleResponseScreen({ navigation, route }) {
   const reason = booking?.reschedule_reason;
 
   const [loading, setLoading] = useState(null); // 'accept' | 'decline' | null
-  const [done, setDone] = useState(null); // 'accepted' | 'declined'
+  const [done, setDone] = useState(null); // 'accepted' | 'declined' | 'unresolved'
 
   const expiresAt = proposal?.expires_at ? new Date(proposal.expires_at) : null;
   const isExpired = expiresAt && expiresAt < new Date();
+  const bookingId = booking?.id || proposal?.booking_id;
 
-  const reasonLabel =
-    reason === 'mentor_noshow'
-      ? 'Mentor did not join the session'
-      : reason === 'technical'
-        ? 'Session ended too early (technical issue)'
-        : 'Session could not be completed';
+  const reasonLabel = rescheduleReasonLabel(reason, 'learner');
 
   const handleAccept = useCallback(async () => {
     Alert.alert(
@@ -75,7 +71,7 @@ export default function RescheduleResponseScreen({ navigation, route }) {
           onPress: async () => {
             setLoading('accept');
             try {
-              await rescheduleApi.acceptProposal(proposal.id);
+              await rescheduleApi.acceptProposal(proposal.id, bookingId);
               setDone('accepted');
               Toast.show('Session rescheduled!');
             } catch (e) {
@@ -87,12 +83,12 @@ export default function RescheduleResponseScreen({ navigation, route }) {
         },
       ],
     );
-  }, [proposal]);
+  }, [proposal, bookingId]);
 
   const handleDecline = useCallback(async () => {
     Alert.alert(
       'Decline Proposal?',
-      'The mentor will be notified and can propose another time.',
+      'The creator will be notified and can propose another time (up to 3 attempts).',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -101,9 +97,13 @@ export default function RescheduleResponseScreen({ navigation, route }) {
           onPress: async () => {
             setLoading('decline');
             try {
-              await rescheduleApi.declineProposal(proposal.id);
-              setDone('declined');
-              Toast.show('Proposal declined. Mentor will suggest another time.');
+              const result = await rescheduleApi.declineProposal(proposal.id, bookingId);
+              setDone(result?.unresolved ? 'unresolved' : 'declined');
+              Toast.show(
+                result?.unresolved
+                  ? 'Reschedule unresolved after 3 attempts.'
+                  : 'Proposal declined. The creator will suggest another time.',
+              );
             } catch (e) {
               Alert.alert('Error', e.message || 'Failed to decline proposal');
             } finally {
@@ -113,7 +113,7 @@ export default function RescheduleResponseScreen({ navigation, route }) {
         },
       ],
     );
-  }, [proposal]);
+  }, [proposal, bookingId]);
 
   if (done === 'accepted') {
     return (
@@ -124,7 +124,7 @@ export default function RescheduleResponseScreen({ navigation, route }) {
           </View>
           <Text style={styles.resultTitle}>Session Rescheduled!</Text>
           <Text style={styles.resultSub}>
-            Your new session with {mentor?.name || 'your mentor'} is confirmed on{' '}
+            Your new session with {mentor?.name || 'the creator'} is confirmed on{' '}
             {formatDateForDisplay(proposal.proposed_date)} at {formatTime(proposal.proposed_start_time)}.
           </Text>
           <CosmicButton
@@ -147,8 +147,31 @@ export default function RescheduleResponseScreen({ navigation, route }) {
           </View>
           <Text style={styles.resultTitle}>Proposal Declined</Text>
           <Text style={styles.resultSub}>
-            {mentor?.name || 'Your mentor'} will be notified and can propose another time.
+            {mentor?.name || 'The creator'} will be notified and can propose another time.
             Check back in your bookings soon.
+          </Text>
+          <CosmicButton
+            label="Go to Bookings"
+            variant="primary"
+            onPress={() => navigation.goBack()}
+            style={{ marginTop: T.spacing.xl, width: '80%' }}
+          />
+        </View>
+      </CosmicBackground>
+    );
+  }
+
+  if (done === 'unresolved') {
+    return (
+      <CosmicBackground style={{ flex: 1 }}>
+        <View style={[styles.centeredFull, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+          <View style={[styles.resultIcon, { backgroundColor: B.dangerBg, borderColor: B.dangerBorder }]}>
+            <MaterialIcons name="cancel" size={48} color={ERROR} />
+          </View>
+          <Text style={styles.resultTitle}>Reschedule Unresolved</Text>
+          <Text style={styles.resultSub}>
+            After {MAX_RESCHEDULE_ATTEMPTS} declined proposals, this booking is closed.
+            Unable to reach an agreement on a new time.
           </Text>
           <CosmicButton
             label="Go to Bookings"
@@ -170,7 +193,7 @@ export default function RescheduleResponseScreen({ navigation, route }) {
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Reschedule Proposal</Text>
-            <Text style={styles.headerSub}>From {mentor?.name || 'your mentor'}</Text>
+            <Text style={styles.headerSub}>From {mentor?.name || 'the creator'}</Text>
           </View>
           <View style={styles.headerSide} />
         </View>
@@ -191,14 +214,14 @@ export default function RescheduleResponseScreen({ navigation, route }) {
             ) : (
               <View style={styles.avatarFallback}>
                 <Text style={styles.avatarInitial}>
-                  {(mentor?.name || 'M').charAt(0).toUpperCase()}
+                  {(mentor?.name || 'C').charAt(0).toUpperCase()}
                 </Text>
               </View>
             )}
           </View>
           <View style={styles.mentorInfo}>
-            <Text style={styles.mentorName}>{mentor?.name || 'Mentor'}</Text>
-            <Text style={styles.mentorRole}>Your Mentor</Text>
+            <Text style={styles.mentorName}>{mentor?.name || 'Creator'}</Text>
+            <Text style={styles.mentorRole}>Creator</Text>
           </View>
         </View>
 
@@ -224,7 +247,7 @@ export default function RescheduleResponseScreen({ navigation, route }) {
             <MaterialIcons name="timer-off" size={28} color={ERROR} />
             <Text style={styles.proposalTitle}>Proposal Expired</Text>
             <Text style={styles.proposalSub}>
-              This proposal expired on {expiresAt.toLocaleDateString()}. The mentor can submit a new one.
+              This proposal expired on {expiresAt.toLocaleDateString()}. The creator can submit a new one.
             </Text>
           </View>
         ) : proposal.proposed_date ? (
@@ -255,9 +278,9 @@ export default function RescheduleResponseScreen({ navigation, route }) {
         ) : (
           <View style={[styles.proposalCard, styles.proposalWaiting]}>
             <MaterialIcons name="hourglass-empty" size={28} color={GOLD} />
-            <Text style={styles.proposalTitle}>Waiting for mentor's proposal</Text>
+            <Text style={styles.proposalTitle}>Waiting for the creator's proposal</Text>
             <Text style={styles.proposalSub}>
-              {mentor?.name || 'Your mentor'} will propose a new time. Check back soon.
+              {mentor?.name || 'The creator'} will propose a new time. Check back soon.
             </Text>
           </View>
         )}

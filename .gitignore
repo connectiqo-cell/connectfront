@@ -59,3 +59,6 @@ android/local.properties
 connectback/
 admin/
 .vercel
+
+# Transcoding worker — lives in its own repo (connectiqo-cell/transcoder)
+/transcoder/

@@ -75,7 +75,7 @@ export const CATEGORY_INTEREST_META = {
   },
   education: {
     icon: 'school',
-    description: 'Learning, teaching & mentoring',
+    description: 'Learning, teaching & coaching',
   },
   legal: {
     icon: 'gavel',
@@ -126,6 +126,6 @@ export function getCategoryInterestMeta(categoryName = '', dbIcon) {
   // Prefer curated icons so onboarding never shows "?" from bad DB icon names.
   return {
     icon: resolveMaterialIconName(meta?.icon || dbIcon, 'category'),
-    description: meta?.description || 'Mentors in this space',
+    description: meta?.description || 'Creators in this space',
   };
 }

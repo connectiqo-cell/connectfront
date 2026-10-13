@@ -318,7 +318,7 @@ export function MentorDetailSheet({ mentor, visible, onClose, onBook, onViewProf
               ) : null}
               <View style={styles.verifiedRow}>
                 <MaterialIcons name="verified" size={14} color={TEAL} />
-                <Text style={styles.verifiedTxt}>Verified Mentor</Text>
+                <Text style={styles.verifiedTxt}>Verified Creator</Text>
               </View>
             </SheetReveal>
           </View>

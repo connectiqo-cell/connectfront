@@ -251,8 +251,8 @@ function AnimatedPageHeader({ isSearching }) {
       </Text>
       <Text style={styles.pageSubtitle}>
         {isSearching
-          ? 'Mentors matching your search'
-          : 'Mentors in your interested categories first'}
+          ? 'Creators matching your search'
+          : 'Creators in your interested categories first'}
       </Text>
     </Animated.View>
   );
@@ -353,7 +353,7 @@ export default function LearnerHomeScreen({ navigation }) {
       });
       setMentorsByCategory(filtered);
     } catch {
-      Toast.show('Failed to load mentors');
+      Toast.show('Failed to load creators');
     } finally {
       setLoading(false);
     }
@@ -401,7 +401,7 @@ export default function LearnerHomeScreen({ navigation }) {
         name: SCREEN_NAMES.Booking,
         params: {
           mentorId: mentor.id,
-          mentorName: mentor.profiles?.name || 'Mentor',
+          mentorName: mentor.profiles?.name || 'Creator',
         },
       });
       // Always wait for MentorDetailSheet Modal teardown — Android Booking is also modal
@@ -470,12 +470,26 @@ export default function LearnerHomeScreen({ navigation }) {
     >
       <AnimatedPageHeader isSearching={isSearching} />
 
-      <SearchBar
-        value={searchQuery}
-        onChangeText={handleSearchChange}
-        placeholder="Search by name, @username or skill"
-        containerStyle={styles.searchBar}
-      />
+      <View style={styles.searchRow}>
+        <SearchBar
+          value={searchQuery}
+          onChangeText={handleSearchChange}
+          placeholder="Search by name, @username or skill"
+          containerStyle={styles.searchBarFlex}
+        />
+        <Pressable
+          onPress={() => navigation.navigate(SCREEN_NAMES.ScanMentorQr)}
+          style={({ pressed }) => [
+            styles.scanBtn,
+            pressed && { opacity: 0.82 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="My QR code"
+          hitSlop={6}
+        >
+          <MaterialIcons name="qr-code-2" size={22} color={PURPLE_LINK} />
+        </Pressable>
+      </View>
 
       {loading ? (
         <HomeScreenSkeleton />
@@ -491,7 +505,7 @@ export default function LearnerHomeScreen({ navigation }) {
             <View style={styles.emptyIconRing}>
               <MaterialIcons name="travel-explore" size={40} color={PURPLE_LINK} />
             </View>
-            <Text style={styles.emptyTitle}>No mentors found</Text>
+            <Text style={styles.emptyTitle}>No creators found</Text>
             <Text style={styles.emptySubtitle}>
               Try a different keyword or clear the search to browse all categories.
             </Text>
@@ -508,7 +522,7 @@ export default function LearnerHomeScreen({ navigation }) {
           <View style={styles.emptyIconRing}>
             <MaterialIcons name="travel-explore" size={40} color={PURPLE_LINK} />
           </View>
-          <Text style={styles.emptyTitle}>No mentors available</Text>
+          <Text style={styles.emptyTitle}>No creators available</Text>
           <Text style={styles.emptySubtitle}>
             Pull down to refresh or check back later.
           </Text>
@@ -562,6 +576,26 @@ function createThemedStyles(theme) {
   },
   searchBar: {
     marginBottom: T.spacing.lg,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: T.spacing.lg,
+  },
+  searchBarFlex: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  scanBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: softFillStrong(theme),
+    borderWidth: 1,
+    borderColor: C.border.light,
   },
 
   content: {

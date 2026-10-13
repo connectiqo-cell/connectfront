@@ -28,18 +28,10 @@ async function ensureGallerySavePermission() {
     return true;
   }
 
+  // API 29+ saves via MediaStore, which needs no permission for the app's own files.
   const apiLevel = Platform.Version;
-  if (apiLevel >= 33) {
-    const video = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
-    );
-    if (video === PermissionsAndroid.RESULTS.GRANTED) {
-      return true;
-    }
-    const images = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
-    );
-    return images === PermissionsAndroid.RESULTS.GRANTED;
+  if (apiLevel >= 29) {
+    return true;
   }
 
   if (apiLevel >= 23) {

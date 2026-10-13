@@ -53,8 +53,8 @@ serve(async (req: Request) => {
       .eq('id', mentorId)
       .single();
 
-    if (mpErr || !mp) throw new Error('Mentor profile not found');
-    if (!mp.unlock_price) throw new Error('Mentor has not set a subscription price');
+    if (mpErr || !mp) throw new Error('Creator profile not found');
+    if (!mp.unlock_price) throw new Error('Creator has not set a subscription price');
 
     // ── 3. Fetch fee rules server-side ────────────────────────────────────────
     const { data: feeRule } = await supabase

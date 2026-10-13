@@ -4,6 +4,7 @@ import { cancelSessionReminder } from '../utils/sessionReminder';
 import { resolveRecordingRequestedFromRows } from '../utils/recordingConsent';
 import { recordingsApi } from './recordingsApi';
 import { normalizeSlotTime } from '../utils/contiguousSlots';
+import { isMentorFreezeActive } from '../utils/mentorFreeze';
 
 /** Fire-and-forget: tell the learner the mentor started the video room. */
 function notifyMeetingStarted(bookingId) {
@@ -104,6 +105,17 @@ export const bookingApi = {
       if (typeof recordingRequested !== 'boolean') {
         throw new Error('Choose whether you want the session to be recorded.');
       }
+
+      const { data: mentorRow, error: mentorFreezeError } = await supabase
+        .from('mentor_profiles')
+        .select('mentor_frozen, mentor_frozen_until')
+        .eq('id', mentorId)
+        .maybeSingle();
+      if (mentorFreezeError) throw mentorFreezeError;
+      if (!mentorRow || isMentorFreezeActive(mentorRow)) {
+        throw new Error('This creator is temporarily unavailable and cannot accept bookings.');
+      }
+
       // Verify slot is still available before booking
       const { data: slot, error: slotCheckError } = await supabase
         .from('availability_slots')
@@ -257,7 +269,7 @@ export const bookingApi = {
           availability_slots (date, start_time, end_time)
         `)
         .eq('learner_id', learnerId)
-        .in('status', ['pending', 'confirmed', 'reschedule_pending']);
+        .in('status', ['pending', 'confirmed', 'reschedule_needed', 'reschedule_proposed']);
 
       if (error) throw error;
       const sorted = (data || []).sort((a, b) => {
@@ -283,7 +295,7 @@ export const bookingApi = {
           availability_slots (date, start_time, end_time)
         `)
         .eq('learner_id', learnerId)
-        .in('status', ['completed', 'cancelled', 'rejected', 'rescheduled'])
+        .in('status', ['completed', 'cancelled', 'rejected', 'rescheduled', 'reschedule_unresolved'])
         .order('date', { referencedTable: 'availability_slots', ascending: false })
         .order('start_time', { referencedTable: 'availability_slots', ascending: false })
         .range(from, to);
@@ -324,7 +336,7 @@ export const bookingApi = {
           availability_slots (date, start_time, end_time)
         `)
         .eq('mentor_id', mentorId)
-        .in('status', ['pending', 'confirmed', 'reschedule_pending']);
+        .in('status', ['pending', 'confirmed', 'reschedule_needed', 'reschedule_proposed']);
 
       if (error) throw error;
       const sorted = (data || []).sort((a, b) => {
@@ -350,7 +362,7 @@ export const bookingApi = {
           availability_slots (date, start_time, end_time)
         `)
         .eq('mentor_id', mentorId)
-        .in('status', ['completed', 'cancelled', 'rejected', 'rescheduled'])
+        .in('status', ['completed', 'cancelled', 'rejected', 'rescheduled', 'reschedule_unresolved'])
         .order('date', { referencedTable: 'availability_slots', ascending: false })
         .order('start_time', { referencedTable: 'availability_slots', ascending: false })
         .range(from, to);

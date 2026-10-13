@@ -1,11 +1,14 @@
-﻿import { createContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { createContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Alert } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { supabase, readStoredSession } from '../lib/supabase';
 import { registerFcmToken } from '../utils/fcmToken';
+import { isMentorFreezeActive } from '../utils/mentorFreeze';
 
 export const AuthContext = createContext();
 
-const SESSION_BOOTSTRAP_TIMEOUT_MS = 10000;
+// Short, because a timeout now falls back to the persisted session instead of
+// dumping the user on Welcome — no reason to stare at the splash for 10s.
+const SESSION_BOOTSTRAP_TIMEOUT_MS = 4000;
 
 function withTimeout(promise, ms, label = 'Operation') {
   return Promise.race([
@@ -20,6 +23,7 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [mentorFreeze, setMentorFreeze] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pendingPasswordReset, setPendingPasswordReset] = useState(false);
 
@@ -30,8 +34,19 @@ export const AuthProvider = ({ children }) => {
       if (!cancelled) setLoading(false);
     };
 
-    // Always unblock the UI even if getSession() never settles (common after reload).
-    const safetyTimer = setTimeout(clearLoading, SESSION_BOOTSTRAP_TIMEOUT_MS);
+    const adoptSession = (next) => {
+      if (cancelled) return;
+      if (next?.user) {
+        setSession(next);
+        setUser(next.user);
+        // Do not block app startup on profile query.
+        fetchProfile(next.user.id);
+      } else {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      }
+    };
 
     const bootstrapSession = async () => {
       try {
@@ -41,27 +56,14 @@ export const AuthProvider = ({ children }) => {
           'Session bootstrap',
         );
         if (error) throw error;
-        if (cancelled) return;
-
-        if (initialSession?.user) {
-          setSession(initialSession);
-          setUser(initialSession.user);
-          // Do not block app startup on profile query.
-          fetchProfile(initialSession.user.id);
-        } else {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-        }
+        adoptSession(initialSession);
       } catch (error) {
-        console.error('❌ Session bootstrap failed:', error?.message || error);
-        if (!cancelled) {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-        }
+        // Slow/offline network: getSession() stalls refreshing an expired token.
+        // Treating that as signed-out flashed Welcome, then jumped to Home once
+        // the refresh landed. The stored session is the truth; keep the user in.
+        console.warn('⚠️ Session bootstrap failed, using stored session:', error?.message || error);
+        adoptSession(await readStoredSession());
       } finally {
-        clearTimeout(safetyTimer);
         clearLoading();
       }
     };
@@ -80,14 +82,12 @@ export const AuthProvider = ({ children }) => {
           setUser(null);
           setProfile(null);
         }
-        clearTimeout(safetyTimer);
         clearLoading();
       },
     );
 
     return () => {
       cancelled = true;
-      clearTimeout(safetyTimer);
       listener?.subscription?.unsubscribe();
     };
   }, []);
@@ -102,11 +102,14 @@ export const AuthProvider = ({ children }) => {
         id: userId,
         email: authUser.email,
         name: authUser.user_metadata?.full_name || authUser.email.split('@')[0],
-        role: 'learner',
+        // Signup stores role in metadata; the row may be recovered here before
+        // SignupScreen's own createProfile() runs after OTP verification.
+        role: authUser.user_metadata?.role || 'learner',
         username,
         created_at: new Date().toISOString(),
       });
-      return !error;
+      // 23505 = row already exists (signup's createProfile got there first).
+      return !error || error.code === '23505';
     } catch {
       return false;
     }
@@ -143,6 +146,7 @@ export const AuthProvider = ({ children }) => {
           setSession(null);
           setUser(null);
           setProfile(null);
+          setMentorFreeze(null);
           setLoading(false);
           return;
         }
@@ -153,6 +157,7 @@ export const AuthProvider = ({ children }) => {
       if (!data) {
         console.warn('⚠️ No profile data returned for userId:', userId);
         setProfile(null);
+        setMentorFreeze(null);
       } else {
         if (data.is_frozen === true) {
           console.warn('🧊 Profile is frozen — signing out');
@@ -160,6 +165,7 @@ export const AuthProvider = ({ children }) => {
           setSession(null);
           setUser(null);
           setProfile(null);
+          setMentorFreeze(null);
           Alert.alert(
             'Account suspended',
             'This account has been frozen by an administrator. Contact support if you believe this is a mistake.'
@@ -169,6 +175,27 @@ export const AuthProvider = ({ children }) => {
         }
         setProfile(data);
         registerFcmToken(userId);
+
+        // Mentor-side freeze (does not sign out — learner features stay available).
+        try {
+          const { data: mentorRow } = await supabase
+            .from('mentor_profiles')
+            .select('mentor_frozen, mentor_frozen_until, mentor_freeze_reason')
+            .eq('id', userId)
+            .maybeSingle();
+          if (mentorRow && isMentorFreezeActive(mentorRow)) {
+            setMentorFreeze({
+              active: true,
+              until: mentorRow.mentor_frozen_until,
+              reason: mentorRow.mentor_freeze_reason,
+            });
+          } else {
+            setMentorFreeze(null);
+          }
+        } catch (freezeErr) {
+          console.warn('⚠️ Mentor freeze status fetch failed:', freezeErr?.message || freezeErr);
+          setMentorFreeze(null);
+        }
       }
       setLoading(false);
     } catch (error) {
@@ -190,6 +217,7 @@ export const AuthProvider = ({ children }) => {
       setSession(null);
       setUser(null);
       setProfile(null);
+      setMentorFreeze(null);
     } catch (error) {
       console.error('Sign out error:', error);
       throw error;
@@ -205,6 +233,8 @@ export const AuthProvider = ({ children }) => {
       session,
       user,
       profile,
+      mentorFreeze,
+      isMentorSideFrozen: Boolean(mentorFreeze?.active),
       loading,
       signOut,
       refreshProfile,
@@ -215,6 +245,7 @@ export const AuthProvider = ({ children }) => {
       session,
       user,
       profile,
+      mentorFreeze,
       loading,
       signOut,
       refreshProfile,

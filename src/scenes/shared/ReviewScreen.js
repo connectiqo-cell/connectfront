@@ -680,7 +680,7 @@ export default function ReviewScreen({ navigation, route }) {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mentorId, setMentorId] = useState(paramMentorId || null);
-  const [mentorName, setMentorName] = useState(paramMentorName || 'Mentor');
+  const [mentorName, setMentorName] = useState(paramMentorName || 'Creator');
   const [mentorAvatar, setMentorAvatar] = useState(null);
   const [sessionDate, setSessionDate] = useState(null);
   const [sessionTopic, setSessionTopic] = useState('');
@@ -798,7 +798,7 @@ export default function ReviewScreen({ navigation, route }) {
           subtitle={
             isReadOnly
               ? 'Already submitted for this session'
-              : 'Help others choose great mentors'
+              : 'Help others choose great creators'
           }
           onBack={() => navigation.goBack()}
         />
@@ -865,7 +865,7 @@ export default function ReviewScreen({ navigation, route }) {
               <SectionHeader icon="rate-review" title="Written feedback" accent={TEAL} accentBg="rgba(94,234,212,0.12)" />
               <Text style={styles.fieldHint}>
                 {isReadOnly
-                  ? 'This is what you shared with the mentor.'
+                  ? 'This is what you shared with the creator.'
                   : 'Optional — describe what went well or what could improve.'}
               </Text>
               <AnimatedInputShell focused={inputFocused} readOnly={isReadOnly}>
@@ -908,7 +908,7 @@ export default function ReviewScreen({ navigation, route }) {
             <View style={styles.noteRow}>
               <MaterialIcons name="info-outline" size={16} color={C.text.muted} />
               <Text style={styles.noteTxt}>
-                Reviews are shared publicly to help the community find quality mentors.
+                Reviews are shared publicly to help the community find quality creators.
               </Text>
             </View>
 

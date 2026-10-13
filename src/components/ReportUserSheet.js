@@ -49,6 +49,14 @@ export default function ReportUserSheet({
 
   const submit = async () => {
     if (!reason || submitting) return;
+    if (!reportedUserId) {
+      Toast.show("Could not identify who to report. Please try again.", Toast.LONG);
+      return;
+    }
+    if (contextType !== "profile" && !contextId) {
+      Toast.show("Missing session details for this report.", Toast.LONG);
+      return;
+    }
     setSubmitting(true);
     try {
       await reportApi.submitUserReport({
@@ -60,10 +68,11 @@ export default function ReportUserSheet({
       });
       onClose?.();
       Toast.show(
-        "Report submitted. Thank you for helping keep the community safe."
+        "Report submitted. Thank you for helping keep the community safe.",
+        Toast.LONG
       );
     } catch (error) {
-      Toast.show(error?.message || "Could not submit report");
+      Toast.show(error?.message || "Could not submit report", Toast.LONG);
     } finally {
       setSubmitting(false);
     }
@@ -75,6 +84,7 @@ export default function ReportUserSheet({
       transparent
       animationType="slide"
       statusBarTranslucent
+      presentationStyle={Platform.OS === "ios" ? "overFullScreen" : undefined}
       onRequestClose={close}
     >
       <KeyboardAvoidingView
@@ -100,10 +110,17 @@ export default function ReportUserSheet({
               />
             </View>
             <View style={styles.headerCopy}>
-              <Text style={styles.title}>Report {reportedUserName}</Text>
+              <Text style={styles.title}>
+                {contextType === "video"
+                  ? "Report this video"
+                  : `Report ${reportedUserName}`}
+              </Text>
               <Text style={styles.subtitle}>
-                Your report is private. The person you report will not be told
-                who submitted it.
+                {contextType === "video"
+                  ? `This sends a private report about ${reportedUserName}'s video. They will not see who reported it.`
+                  : contextType === "call"
+                    ? "This sends a private report about this call participant. The call continues, and they will not see who reported them."
+                    : "Your report is private. The person you report will not be told who submitted it."}
               </Text>
             </View>
             <Pressable
@@ -128,7 +145,11 @@ export default function ReportUserSheet({
             showsVerticalScrollIndicator={false}
           >
             <Text style={styles.sectionLabel}>
-              Why are you reporting this user?
+              {contextType === "video"
+                ? "Why are you reporting this video?"
+                : contextType === "call"
+                  ? "Why are you reporting this participant?"
+                  : "Why are you reporting this user?"}
             </Text>
             <View style={styles.reasons}>
               {USER_REPORT_REASONS.map((item) => {

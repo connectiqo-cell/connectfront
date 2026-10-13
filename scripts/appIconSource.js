@@ -11,6 +11,9 @@ const SOURCE = path.join(__dirname, '../src/assets/images/connectiqo_logo.png');
 /** Opaque fill for launcher + App Store icons (Apple rejects alpha). */
 const IOS_ICON_BACKGROUND = '#000000';
 
+/** Fraction cropped from each edge of the trimmed tile to cut its rounded corners. */
+const INSET = 0.06;
+
 /**
  * @param {number} size
  * @param {{ flattenBackground?: string }} [options]
@@ -20,11 +23,19 @@ const IOS_ICON_BACKGROUND = '#000000';
 async function renderAppIcon(size, options = {}) {
   const background = options.flattenBackground || IOS_ICON_BACKGROUND;
 
-  const logo = await sharp(SOURCE)
-    .resize(size, size, {
-      fit: 'contain',
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
+  // Logo is a glossy rounded-square tile with a transparent glow margin: trim the
+  // margin, then shave the tile's own rounded corners (INSET) so the purple fills
+  // the whole icon and the OS mask supplies the corners — no black frame.
+  const { data, info } = await sharp(SOURCE).trim({ threshold: 80 }).toBuffer({ resolveWithObject: true });
+  const inset = Math.round(Math.min(info.width, info.height) * INSET);
+  const logo = await sharp(data)
+    .extract({
+      left: inset,
+      top: inset,
+      width: info.width - inset * 2,
+      height: info.height - inset * 2,
     })
+    .resize(size, size, { fit: 'cover' })
     .png()
     .toBuffer();
 

@@ -719,8 +719,8 @@ export default function MentorAvailabilityScreen() {
   const needsReloadRef = useRef(false);
   const fetchGenRef = useRef(0);
 
-  const mentorInitial = (profile?.name || user?.user_metadata?.full_name || 'M').charAt(0).toUpperCase();
-  const mentorName = profile?.name || user?.user_metadata?.full_name || 'Mentor';
+  const mentorInitial = (profile?.name || user?.user_metadata?.full_name || 'C').charAt(0).toUpperCase();
+  const mentorName = profile?.name || user?.user_metadata?.full_name || 'Creator';
 
   selectedDateRef.current = selectedDate;
   selectedSlotsRef.current = selectedSlots;
@@ -1074,14 +1074,14 @@ export default function MentorAvailabilityScreen() {
             <View style={scheduleStyles.topBarSide} />
             <View style={scheduleStyles.topBarCenter}>
               <Text style={scheduleStyles.topBarTitle}>Your schedule</Text>
-              <Text style={scheduleStyles.topBarSub}>Set when learners can book you</Text>
+              <Text style={scheduleStyles.topBarSub}>Set when creators can book you</Text>
             </View>
             <View style={scheduleStyles.topBarSide} />
           </View>
         </FadeSlideIn>
 
         <FadeSlideIn delay={nextDelay()}>
-          <ScheduleHeroBanner initial={mentorInitial} name={mentorName} label="Mentor schedule">
+          <ScheduleHeroBanner initial={mentorInitial} name={mentorName} label="Creator schedule">
             <View style={scheduleStyles.metaRow}>
               <View style={scheduleStyles.metaItem}>
                 <MaterialIcons name="date-range" size={12} color={accentSuccess} />
@@ -1291,7 +1291,7 @@ export default function MentorAvailabilityScreen() {
                   <View style={styles.hintRow}>
                     <MaterialIcons name="tips-and-updates" size={14} color={accentPrimary} />
                     <Text style={styles.hintText}>
-                      Select slots, then tap Publish schedule so learners can book them
+                      Select slots, then tap Publish schedule so creators can book them
                     </Text>
                   </View>
                 </FadeSlideIn>

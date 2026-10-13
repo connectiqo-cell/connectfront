@@ -1351,14 +1351,14 @@ export default function WalletScreen({ navigation }) {
         <SectionBlock
           icon="help-outline"
           title="How earnings work"
-          subtitle="Quick guide for mentors"
+          subtitle="Quick guide for creators"
           accent={PURPLE_LINK}
           accentBg={S.accentViolet}
           delay={440}
         >
           <View style={styles.guideList}>
             {[
-              { icon: 'event-available', text: 'Learners pay when they book your session.' },
+              { icon: 'event-available', text: 'Creators pay when they book your session.' },
               { icon: 'hourglass-empty', text: 'Earnings stay pending until the session is completed.' },
               { icon: 'account-balance-wallet', text: 'Available balance can be withdrawn to your UPI.' },
               { icon: 'info-outline', text: `Minimum withdrawal amount is ${fmtCompact(MIN_WITHDRAWAL)}.` },

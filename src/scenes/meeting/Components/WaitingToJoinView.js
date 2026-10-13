@@ -17,7 +17,7 @@ export default function WaitingToJoinView({
   const styles = useThemedStyles(createWaitingStyles);
   const { theme } = useTheme();
   const TEAL = theme.colors.accent.secondary;
-  const otherName = otherUser?.name || (isMentor ? 'your learner' : 'your mentor');
+  const otherName = otherUser?.name || (isMentor ? 'the other creator' : 'your host');
 
   return (
     <View style={styles.container}>

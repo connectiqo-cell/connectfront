@@ -32,6 +32,7 @@ import { useNotification } from '../../hooks/useNotification';
 import { profileApi } from '../../api/profileApi';
 import { videoApi } from '../../api/videoApi';
 import { paymentApi } from '../../api/paymentApi';
+import { messagesApi } from '../../api/messagesApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { formatDate } from '../../utils/dateHelpers';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
@@ -483,7 +484,7 @@ function SubsRow({ row, onPress, index, replayToken = 0 }) {
   const styles = useThemedStyles(createSettingsStyles);
   const { B, C, PURPLE_LINK, TEAL } = useSettingsPalette();
   const m = row.profiles;
-  const name = m?.name || 'Mentor';
+  const name = m?.name || 'Creator';
   const expLabel = row.expires_at
     ? `Access until ${formatDate(row.expires_at)}`
     : 'Full access active';
@@ -671,11 +672,16 @@ export default function UnifiedSettingsScreen({ navigation }) {
     }
   }, [profile?.id, loadSubscriptions, loadWallet]);
 
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
   useFocusEffect(
     useCallback(() => {
       loadSubscriptions();
       loadWallet();
-    }, [loadSubscriptions, loadWallet])
+      if (profile?.id) {
+        messagesApi.getUnreadConversationCount(profile.id).then(setUnreadMessages).catch(() => {});
+      }
+    }, [loadSubscriptions, loadWallet, profile?.id])
   );
 
   const handleRefresh = async () => {
@@ -738,8 +744,8 @@ export default function UnifiedSettingsScreen({ navigation }) {
     try {
       await Share.share({
         message: Platform.select({
-          ios: 'Join me on Connectiqo — connect with mentors, book sessions, and learn together.',
-          default: 'Join me on Connectiqo — connect with mentors, book sessions, and learn together.\nconnectiqo://home',
+          ios: 'Join me on Connectiqo — connect with creators, book sessions, and learn together.',
+          default: 'Join me on Connectiqo — connect with creators, book sessions, and learn together.\nconnectiqo://home',
         }),
         title: 'Connectiqo',
       });
@@ -769,7 +775,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
   const handleTerms = () => {
     Alert.alert(
       'Terms of Service',
-      'By using Connectiqo you agree to our community guidelines, booking policies, and mentor–learner conduct standards.',
+      'By using Connectiqo you agree to our community guidelines, booking policies, and creator conduct standards.',
       [
         { text: 'Close', style: 'cancel' },
         { text: 'Read full terms', onPress: () => openExternal(TERMS_URL, 'Terms link unavailable') },
@@ -889,7 +895,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
                 <View style={styles.badgeRow}>
                   <View style={styles.badge}>
                     <MaterialIcons name="workspace-premium" size={12} color={GOLD} />
-                    <Text style={styles.badgeText}>Mentor & Learner</Text>
+                    <Text style={styles.badgeText}>Creator</Text>
                   </View>
                   {profile?.phone ? (
                     <View style={[styles.badge, styles.badgeMuted]}>
@@ -925,7 +931,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
         <SectionHeaderRow
           title="Video subscriptions"
           count={subscriptions.length || null}
-          subtitle="Mentors whose video libraries you can access"
+          subtitle="Creators whose video libraries you can access"
           replayToken={replayToken}
           delay={160}
         />
@@ -941,8 +947,8 @@ export default function UnifiedSettingsScreen({ navigation }) {
                 <FloatingEmptyIcon />
                 <Text style={styles.subsEmptyTitle}>No active subscriptions</Text>
                 <Text style={styles.subsEmpty}>
-                  Subscribe from a mentor’s profile or browse the{' '}
-                  <Text style={styles.subsEmptyEm}>Videos</Text> tab to unlock libraries.
+                  No active video memberships on this account yet. If you already have one, sign
+                  in with that account and pull to refresh.
                 </Text>
               </View>
             ) : (
@@ -991,7 +997,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
               icon="account-balance"
               accent="teal"
               label="Payout Setup"
-              subtitle="Configure UPI for mentor withdrawals"
+              subtitle="Configure UPI for creator withdrawals"
               onPress={() => navigation.navigate(SCREEN_NAMES.PayoutSetup)}
               index={1}
               replayToken={replayToken}
@@ -1030,7 +1036,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
               icon="video-camera-back"
               accent="teal"
               label="My Videos"
-              subtitle="Manage your mentor video library"
+              subtitle="Manage your creator video library"
               onPress={() => navigation.navigate(SCREEN_NAMES.MentorVideos)}
               noBorder
               index={1}
@@ -1059,13 +1065,23 @@ export default function UnifiedSettingsScreen({ navigation }) {
             replayToken={replayToken}
           />
           <MenuRow
+            icon="chat"
+            accent="teal"
+            label="Messages"
+            subtitle="Conversations with other creators"
+            badge={unreadMessages}
+            onPress={() => navigation.navigate(SCREEN_NAMES.Messages)}
+            index={1}
+            replayToken={replayToken}
+          />
+          <MenuRow
             icon="event"
             accent="gold"
             label="My Bookings"
             subtitle="Upcoming and past sessions"
             onPress={goToBookings}
             noBorder
-            index={1}
+            index={2}
             replayToken={replayToken}
           />
         </View>
@@ -1106,13 +1122,22 @@ export default function UnifiedSettingsScreen({ navigation }) {
               replayToken={replayToken}
             />
             <MenuRow
+              icon="qr-code-2"
+              accent="purple"
+              label="My QR code"
+              subtitle="Show your profile QR like Instagram"
+              onPress={() => navigation.navigate(SCREEN_NAMES.ScanMentorQr)}
+              index={3}
+              replayToken={replayToken}
+            />
+            <MenuRow
               icon="share"
               accent="gold"
               label="Share Connectiqo"
               subtitle="Invite friends to join the platform"
               onPress={handleShareApp}
               noBorder
-              index={3}
+              index={4}
               replayToken={replayToken}
             />
           </View>
@@ -1133,7 +1158,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
             <Text style={styles.footerVersion}>
               Version {APP_VERSION} · {Platform.OS === 'ios' ? 'iOS' : 'Android'}
             </Text>
-            <Text style={styles.footerTagline}>Connect · Learn · Grow</Text>
+            <Text style={styles.footerTagline}>Connect · Create · Collab</Text>
           </View>
         </FadeSlideIn>
       </ScrollView>

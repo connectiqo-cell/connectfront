@@ -29,20 +29,18 @@ import CosmicButton from '../../components/CosmicButton';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 import { videoApi } from '../../api/videoApi';
-import { homeApi } from '../../api/homeApi';
 import { useAuth } from '../../hooks/useAuth';
 import { isSameUserId } from '../../utils/mentorOwnership';
-import { openRazorpayCheckout } from '../../utils/razorpayCheckout';
-import { purchaseAndroidProduct, finishAndroidPurchase, getPlayProductIdForPrice } from '../../utils/playBilling';
-import { purchaseIosProduct, finishIosPurchase, getAppleProductIdForPrice } from '../../utils/appleBilling';
+import ReportUserSheet from '../../components/ReportUserSheet';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { consumePendingLearnerVideo } from '../../navigators/pendingVideoNavigation';
 import {
   CONTENT_VIDEO_AUDIO_PROPS,
+  FEED_BUFFER_CONFIG,
   isAppForegroundForMedia,
 } from '../../utils/videoPlayback';
-
+const PAGE_SIZE = 20;
 const T = UNIFIED_THEME;
 const C = T.colors;
 const B = C.buttons;
@@ -95,65 +93,65 @@ function VideosSkeleton() {
   );
 }
 
-function ReelProfileRail({ item, onViewProfile }) {
+function ReelProfileRail({
+  item,
+  likeCount = 0,
+  dislikeCount = 0,
+  myReaction = null,
+  onReact,
+  onReport,
+}) {
   const s = useThemedStyles(createVideosStyles);
-  const { theme } = useTheme();
-  const T = theme;
-  const C = theme.colors;
-  const B = C.buttons;
-  const S = C.surface;
-  const PURPLE_LINK = B.nebulaGradient[0];
-  const GOLD = C.accent.primary;
-  const TEAL = C.accent.secondary;
-  const PANEL_BG = C.surface.panel;
-  const INPUT_BG = C.surface.sheet;
-  const SHEET_BG = C.surface.sheet;
-  const GLASS_BORDER = C.border.light;
-  const SCREEN_BG = C.primary.void;
-  const { showAvatarPreview } = useAvatarPreview();
-  const name = item.profiles?.name || 'Connectiqo';
-  const canPress = !!item.mentor_id && onViewProfile;
-
-  const avatar = (
-    <CircularProfileImage
-      size={56}
-      ringWidth={2}
-      colors={B.premiumGradient}
-      innerBg={C.primary.void}
-      borderColor="#fff"
-      style={s.railAvatarFrame}
-      uri={item.profiles?.avatar_url}
-      previewName={name}
-      onPress={() => showAvatarPreview({
-        uri: item.profiles?.avatar_url,
-        name,
-      })}
-      pressable={false}
-      fallback={
-        <View style={s.railAvatarFallback}>
-          <MaterialIcons name="person" size={22} color="#fff" />
-        </View>
-      }
-    />
-  );
+  const liked = myReaction === 'like';
+  const disliked = myReaction === 'dislike';
 
   return (
     <View style={s.actionRail}>
-      {canPress ? (
+      <TouchableOpacity
+        style={s.reactBtn}
+        onPress={() => onReact?.(item.id, 'like')}
+        activeOpacity={0.85}
+        accessibilityLabel={liked ? 'Remove like' : 'Like'}
+      >
+        <View style={[s.reactIconWrap, liked && s.reactIconWrapLike]}>
+          <MaterialIcons
+            name={liked ? 'thumb-up' : 'thumb-up-off-alt'}
+            size={22}
+            color="#fff"
+          />
+        </View>
+        <Text style={s.reactCount}>{likeCount}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={s.reactBtn}
+        onPress={() => onReact?.(item.id, 'dislike')}
+        activeOpacity={0.85}
+        accessibilityLabel={disliked ? 'Remove dislike' : 'Dislike'}
+      >
+        <View style={[s.reactIconWrap, disliked && s.reactIconWrapDislike]}>
+          <MaterialIcons
+            name={disliked ? 'thumb-down' : 'thumb-down-off-alt'}
+            size={22}
+            color="#fff"
+          />
+        </View>
+        <Text style={s.reactCount}>{dislikeCount}</Text>
+      </TouchableOpacity>
+
+      {onReport ? (
         <TouchableOpacity
-          style={s.railBtn}
-          onPress={() => showAvatarPreview({
-            uri: item.profiles?.avatar_url,
-            name,
-          })}
+          style={s.reactBtn}
+          onPress={onReport}
           activeOpacity={0.85}
-          accessibilityLabel={`View ${name}'s profile photo`}
+          accessibilityLabel="Report video"
         >
-          {avatar}
+          <View style={s.reactIconWrap}>
+            <MaterialIcons name="flag" size={22} color="#fff" />
+          </View>
+          <Text style={s.reactCount}>Report</Text>
         </TouchableOpacity>
-      ) : (
-        <View style={s.railBtn}>{avatar}</View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -230,9 +228,10 @@ function ReelInfoDock({
 
   return (
     <View
+      pointerEvents="box-none"
       style={[
         s.infoDock,
-        { paddingRight: REEL_RAIL_RESERVE },
+        { right: REEL_RAIL_RESERVE },
       ]}
     >
       <View style={s.reelMetaRow}>
@@ -310,101 +309,41 @@ function ReelInfoDock({
   );
 }
 
-// ─── Unlock bottom sheet ──────────────────────────────────────────────────────
-function UnlockSheet({ video, onClose, onUnlocked }) {
+// ─── Membership gate (no in-app purchase; no external checkout links) ─────────
+// Store-safe reader pattern: honour website memberships, do not sell or steer
+// users to buy outside the app from this sheet.
+function UnlockSheet({ video, onClose, onRefreshAccess }) {
   const u = useThemedStyles(createUnlockStyles);
   const { theme } = useTheme();
-  const T = theme;
   const C = theme.colors;
   const B = C.buttons;
-  const S = C.surface;
   const PURPLE_LINK = B.nebulaGradient[0];
-  const GOLD = C.accent.primary;
-  const TEAL = C.accent.secondary;
-  const PANEL_BG = C.surface.panel;
-  const INPUT_BG = C.surface.sheet;
-  const SHEET_BG = C.surface.sheet;
-  const GLASS_BORDER = C.border.light;
-  const SCREEN_BG = C.primary.void;
-  const { user, profile } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const price = video?.mentor_profiles?.unlock_price || 299;
-  const mentorName = video?.profiles?.name || 'this mentor';
+  const { user } = useAuth();
+  const [refreshing, setRefreshing] = useState(false);
+  const mentorName = video?.profiles?.name || 'this creator';
 
-  const handleUnlock = async () => {
-    if (!user) { Toast.show('Please log in'); return; }
-    if (isSameUserId(video?.mentor_id, user, profile)) {
-      onUnlocked(video.mentor_id);
+  const handleRefreshAccess = async () => {
+    if (!user?.id || !video?.mentor_id) {
       onClose();
       return;
     }
-    setLoading(true);
+    setRefreshing(true);
     try {
-      if (Platform.OS === 'android') {
-        const productId = getPlayProductIdForPrice(price);
-        const purchase = await purchaseAndroidProduct(productId);
-
-        await videoApi.verifyPlayPurchase({
-          mentorId:      video.mentor_id,
-          learnerId:     user.id,
-          productId:     purchase.productId,
-          purchaseToken: purchase.purchaseToken,
-        });
-
-        // Only consume after the server has confirmed + credited the purchase —
-        // otherwise a crash between verify and consume would leave the token
-        // consumable-but-uncredited.
-        await finishAndroidPurchase(purchase);
-      } else if (Platform.OS === 'ios') {
-        const productId = getAppleProductIdForPrice(price);
-        const purchase = await purchaseIosProduct(productId);
-
-        await videoApi.verifyApplePurchase({
-          mentorId:      video.mentor_id,
-          learnerId:     user.id,
-          productId:     purchase.productId,
-          transactionId: purchase.transactionId,
-        });
-
-        // Only finish after the server has confirmed + credited the purchase —
-        // same ordering rule as Android's consume-after-verify.
-        await finishIosPurchase(purchase);
+      const unlocked = await videoApi.checkUnlocked({
+        mentorId: video.mentor_id,
+        learnerId: user.id,
+      });
+      if (unlocked) {
+        onRefreshAccess?.(video.mentor_id);
+        Toast.show('Access updated. You can watch this library.', Toast.SHORT);
+        onClose();
       } else {
-        const order = await videoApi.createVideoOrder({
-          mentorId:  video.mentor_id,
-          learnerId: user.id,
-        });
-
-        const paymentData = await openRazorpayCheckout({
-          key:         order.keyId,
-          amount:      order.amount,
-          currency:    order.currency || 'INR',
-          name:        'Connectiqo',
-          description: `Subscribe to ${mentorName}'s video library`,
-          order_id:    order.orderId,
-          prefill:     { email: user.email || '' },
-          theme:       { color: '#5eead4' },
-          upi:         { flow: 'intent' },
-        });
-
-        await videoApi.verifyVideoSubscription({
-          razorpayOrderId:   order.orderId,
-          razorpayPaymentId: paymentData.razorpay_payment_id,
-          razorpaySignature: paymentData.razorpay_signature,
-          mentorId:          video.mentor_id,
-          learnerId:         user.id,
-        });
+        Toast.show('No active membership found for this account yet.', Toast.SHORT);
       }
-
-      onUnlocked(video.mentor_id);
-      onClose();
-      Toast.show('Subscribed! Watch all videos this month.', Toast.SHORT);
-    } catch (e) {
-      if (e?.code !== 'PAYMENT_CANCELLED') {
-        Toast.show(e?.message || 'Payment failed', Toast.LONG);
-      }
+    } catch {
+      Toast.show('Could not refresh access. Try again later.', Toast.SHORT);
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -434,18 +373,21 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
             <Text style={u.mentorName}>{mentorName}</Text>
             <Text style={u.mentorSpec}>{video.mentor_profiles?.specialization || ''}</Text>
           </View>
-          <View style={u.pricePill}>
-            <Text style={u.priceText}>₹{price}</Text>
-          </View>
         </View>
 
         <View style={u.divider} />
 
-        <Text style={u.title}>Subscribe to video library</Text>
-        <Text style={u.sub}>Monthly subscription · Access all of {mentorName}'s videos</Text>
+        <Text style={u.title}>Membership required</Text>
+        <Text style={u.sub}>
+          This video is included with an active Connectiqo membership for this creator. If you
+          already have access, sign in with that account, then refresh below.
+        </Text>
 
         <View style={u.perks}>
-          {['All current videos', 'All future uploads', 'Cancel anytime'].map(p => (
+          {[
+            'No purchase is available in the app',
+            'Live 1:1 session booking remains available here',
+          ].map(p => (
             <View key={p} style={u.perkRow}>
               <MaterialIcons name="check-circle" size={16} color={C.accent.success} />
               <Text style={u.perkText}>{p}</Text>
@@ -454,16 +396,16 @@ function UnlockSheet({ video, onClose, onUnlocked }) {
         </View>
 
         <CosmicButton
-          label={`Subscribe · ₹${price}/mo`}
+          label="Refresh access"
           variant="nebula"
-          onPress={handleUnlock}
-          loading={loading}
-          disabled={loading}
+          onPress={handleRefreshAccess}
+          loading={refreshing}
+          disabled={refreshing}
           style={u.payBtn}
         />
 
         <CosmicButton
-          label="Maybe later"
+          label="Got it"
           variant="goldOutline"
           size="compact"
           onPress={onClose}
@@ -560,12 +502,18 @@ function createUnlockStyles(theme) {
 function ShortCard({
   item,
   isActive,
+  isPreload = false,
   height,
   isUnlocked,
   onLockPress,
   onViewProfile,
   forcePaused,
   allowPlayback,
+  likeCount = 0,
+  dislikeCount = 0,
+  myReaction = null,
+  onReact,
+  onReport,
 }) {
   const s = useThemedStyles(createVideosStyles);
   const { theme } = useTheme();
@@ -581,6 +529,7 @@ function ShortCard({
   const SHEET_BG = C.surface.sheet;
   const GLASS_BORDER = C.border.light;
   const SCREEN_BG = C.primary.void;
+  const videoRef = useRef(null);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -590,6 +539,11 @@ function ShortCard({
   const effectivePaused = !allowPlayback || !isActive || paused || forcePaused;
   const showOverlays = canPlay && allowPlayback;
   const tapBottomReserve = REEL_DOCK_RESERVE + REEL_META_BOTTOM + REEL_PROGRESS_HEIGHT;
+
+  // The card stays mounted while preloading, so rewind when it takes focus.
+  useEffect(() => {
+    if (isActive) videoRef.current?.seek(0);
+  }, [isActive]);
 
   useEffect(() => {
     if (!isActive) {
@@ -608,6 +562,15 @@ function ShortCard({
     setPaused(p => !p);
   };
 
+  const railProps = {
+    item,
+    likeCount,
+    dislikeCount,
+    myReaction,
+    onReact,
+    onReport,
+  };
+
   return (
     <View style={{ height, width: '100%', backgroundColor: '#000' }}>
       <View style={s.mediaLayer} pointerEvents="none">
@@ -624,15 +587,16 @@ function ShortCard({
           />
         )}
 
-        {isActive && canPlay && item.video_url ? (
+        {(isActive || isPreload) && canPlay && (item.hls_url || item.video_url) ? (
           <Video
-            key={`${item.id}-${isActive}`}
-            source={{ uri: item.video_url }}
+            ref={videoRef}
+            source={{ uri: item.hls_url || item.video_url }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
             paused={effectivePaused}
             repeat
             controls={false}
+            bufferConfig={FEED_BUFFER_CONFIG}
             onLoad={data => {
               setDuration(data.duration || 0);
               setBuffering(false);
@@ -656,10 +620,11 @@ function ShortCard({
       )}
 
       {!canPlay && (
-        <View style={s.lockOverlay}>
+        <View style={s.lockOverlay} pointerEvents="box-none">
           <LinearGradient
             colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.92)']}
             style={StyleSheet.absoluteFill}
+            pointerEvents="none"
           />
           <LinearGradient
             colors={['rgba(0,0,0,0.35)', 'transparent', 'transparent', 'rgba(0,0,0,0.88)']}
@@ -667,45 +632,39 @@ function ShortCard({
             style={s.reelGradient}
             pointerEvents="none"
           />
-          <ReelProfileRail
-            item={item}
-            onViewProfile={onViewProfile}
-          />
           <ReelInfoDock
             item={item}
             onViewProfile={onViewProfile}
           />
-          <View style={s.lockCard}>
+          <View style={s.lockCard} pointerEvents="box-none">
             <View style={s.lockIconWrap}>
               <MaterialIcons name="lock" size={28} color="#fff" />
             </View>
-            <Text style={s.lockTitle}>Premium content</Text>
+            <Text style={s.lockTitle}>Membership required</Text>
             <Text style={s.lockSub}>
-              Subscribe to {item.profiles?.name || 'this mentor'}'s library
+              Sign in with an account that already has access to{' '}
+              {item.profiles?.name || 'this creator'}'s library
             </Text>
             <CosmicButton
-              label={`Unlock · ₹${item.mentor_profiles?.unlock_price || 299}/mo`}
+              label="Check access"
               variant="nebula"
               size="compact"
               onPress={() => onLockPress(item)}
               style={s.lockBtn}
             />
           </View>
+          {/* Rail last so Report / reactions stay tappable above dock + lock card */}
+          <ReelProfileRail {...railProps} />
         </View>
       )}
 
       {showOverlays && (
-        <>
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <LinearGradient
             colors={['rgba(0,0,0,0.35)', 'transparent', 'transparent', 'rgba(0,0,0,0.88)']}
             locations={[0, 0.18, 0.55, 1]}
             style={s.reelGradient}
             pointerEvents="none"
-          />
-
-          <ReelProfileRail
-            item={item}
-            onViewProfile={onViewProfile}
           />
 
           <ReelInfoDock
@@ -719,7 +678,10 @@ function ShortCard({
               duration={duration}
             />
           ) : null}
-        </>
+
+          {/* Rail last: must stay above info dock so flag/like taps are not stolen */}
+          <ReelProfileRail {...railProps} />
+        </View>
       )}
 
       {canPlay && isActive && buffering && (
@@ -763,10 +725,17 @@ export default function VideosScreen({ navigation, route }) {
 
   const [videos, setVideos]         = useState([]);
   const [unlocksMap, setUnlocksMap] = useState(new Map());
+  const [reactionCounts, setReactionCounts] = useState(new Map());
+  const [myReactions, setMyReactions] = useState(new Map());
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [lockSheetVideo, setLockSheetVideo] = useState(null);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [feedPage, setFeedPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const loadingMoreRef = useRef(false);
+  const loadSeqRef = useRef(0);
 
   const flatListRef = useRef(null);
   const pendingScrollIdRef = useRef(null);
@@ -799,8 +768,9 @@ export default function VideosScreen({ navigation, route }) {
   const allowPlayback = (isFocused || tabFocused) && appActive && lockSheetVideo === null;
 
   useEffect(() => {
-    if (filterMentorId != null && filterMentorId !== '') {
-      setEffectiveFilterMentorId(String(filterMentorId));
+    // undefined = param not passed (keep current); null/'' = caller cleared the mentor filter (Home).
+    if (filterMentorId !== undefined) {
+      setEffectiveFilterMentorId(filterMentorId ? String(filterMentorId) : null);
     }
   }, [filterMentorId]);
 
@@ -856,7 +826,7 @@ export default function VideosScreen({ navigation, route }) {
     {
       viewabilityConfig: {
         itemVisiblePercentThreshold: 51,
-        minimumViewTime: 0,
+        minimumViewTime: 250,
       },
       onViewableItemsChanged: info => onViewableItemsChangedRef.current(info),
     },
@@ -869,9 +839,15 @@ export default function VideosScreen({ navigation, route }) {
     setActiveIndex(clamped);
   }, [reelPageHeight, videos.length]);
 
+  const prevStartVideoIdRef = useRef(startVideoId);
   useEffect(() => {
+    // finishScroll clears startVideoId once the tapped video is on screen. Reloading on that
+    // clear rebuilt the feed in default order and replaced the tapped video with the top one.
+    const cleared = !!prevStartVideoIdRef.current && !startVideoId;
+    prevStartVideoIdRef.current = startVideoId;
+    if (cleared) return;
     loadFeed(false, user?.id);
-  }, [user?.id, effectiveFilterMentorId]);
+  }, [user?.id, effectiveFilterMentorId, startVideoId]);
 
   useEffect(() => {
     const targetId = scrollTargetId || pendingScrollIdRef.current;
@@ -907,65 +883,206 @@ export default function VideosScreen({ navigation, route }) {
     };
   }, [scrollTargetId, loading, videos, reelPageHeight, scrollToVideoIndex, navigation]);
 
+  const loadReactions = useCallback(async (videoIds, userId = user?.id) => {
+    const ids = [...new Set((videoIds || []).map(id => String(id)).filter(Boolean))];
+    if (!ids.length) return;
+    try {
+      const [counts, mine] = await Promise.all([
+        videoApi.getVideoReactionCounts(ids).catch(() => new Map()),
+        userId
+          ? videoApi.getMyVideoReactions(String(userId), ids).catch(() => new Map())
+          : Promise.resolve(new Map()),
+      ]);
+      setReactionCounts(prev => {
+        const next = new Map(prev);
+        counts.forEach((value, key) => next.set(String(key), value));
+        return next;
+      });
+      setMyReactions(prev => {
+        const next = new Map(prev);
+        mine.forEach((value, key) => next.set(String(key), value));
+        return next;
+      });
+    } catch (_) {
+      // non-fatal — feed still works without counts
+    }
+  }, [user?.id]);
+
+  const syncReactionForVideo = useCallback(async (videoId, userId = user?.id) => {
+    const id = String(videoId);
+    try {
+      const [counts, mine] = await Promise.all([
+        videoApi.getVideoReactionCounts([id]).catch(() => new Map()),
+        userId
+          ? videoApi.getMyVideoReactions(String(userId), [id]).catch(() => new Map())
+          : Promise.resolve(new Map()),
+      ]);
+      setReactionCounts(prev => {
+        const next = new Map(prev);
+        const server = counts.get(id);
+        if (server) next.set(id, server);
+        return next;
+      });
+      setMyReactions(prev => {
+        const next = new Map(prev);
+        if (mine.has(id)) next.set(id, mine.get(id));
+        else next.delete(id);
+        return next;
+      });
+    } catch (_) {
+      // ignore
+    }
+  }, [user?.id]);
+
   const loadFeed = async (isRefresh = false, userId = user?.id) => {
+    // Overlapping loads (filter + deep link change together): only the latest may apply.
+    const seq = ++loadSeqRef.current;
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
       const mentorFilterId = effectiveFilterMentorId ? String(effectiveFilterMentorId) : null;
+      const deepLinkId = startVideoId != null && startVideoId !== ''
+        ? String(startVideoId)
+        : (pendingScrollIdRef.current ? String(pendingScrollIdRef.current) : null);
 
-      const [vids, unlocks, homeResult, mentorVidsRaw] = await Promise.all([
-        videoApi.getAllPublicVideos({ excludeMentorId: null }),
+      // Same algorithm as website /videos: mentor_videos only,
+      // ordered is_promoted → promoted_at → created_at (server-side).
+      const [vids, unlocks, mentorVidsRaw, deepLinkVideo] = await Promise.all([
+        videoApi.getAllPublicVideos({ page: 0, pageSize: PAGE_SIZE }),
         userId ? videoApi.getLearnerUnlocks(userId) : Promise.resolve(new Map()),
-        homeApi.getVideos().catch(() => ({ sessions: [] })),
         mentorFilterId ? videoApi.getMentorVideos(mentorFilterId).catch(() => []) : Promise.resolve([]),
+        deepLinkId
+          ? videoApi.getPublicVideoById(deepLinkId).catch(() => null)
+          : Promise.resolve(null),
       ]);
+      if (seq !== loadSeqRef.current) return;
 
-      // Normalize admin videos to match ShortCard's expected shape
-      const adminVids = (homeResult.sessions || []).map(v => ({
-        ...v,
-        is_free: true,
-        mentor_id: null,
-        profiles: { name: 'Connectiqo', avatar_url: null },
-        mentor_profiles: { unlock_price: 0, specialization: 'Featured' },
-      }));
+      let ordered = [...vids];
 
-      let allVids = [...adminVids, ...vids];
+      if (deepLinkId) {
+        const already = ordered.find(v => String(v.id) === deepLinkId);
+        const target = already || deepLinkVideo;
+        if (target) {
+          ordered = [target, ...ordered.filter(v => String(v.id) !== String(target.id))];
+        }
+      }
 
       if (mentorFilterId && Array.isArray(mentorVidsRaw) && mentorVidsRaw.length > 0) {
-        const template = allVids.find(v => v.mentor_id != null && String(v.mentor_id) === mentorFilterId);
+        const template = ordered.find(v => v.mentor_id != null && String(v.mentor_id) === mentorFilterId);
         const mentorVidsEnriched = mentorVidsRaw.map(v => ({
           ...v,
           mentor_id: mentorFilterId,
-          profiles: template?.profiles || { name: 'Mentor', avatar_url: null },
-          mentor_profiles: template?.mentor_profiles || { specialization: '', unlock_price: 299 },
+          profiles: template?.profiles || { name: 'Creator', avatar_url: null },
+          mentor_profiles: template?.mentor_profiles || { specialization: '', unlock_price: 299, category: null },
         }));
-        const seen = new Set(allVids.map(v => String(v.id)));
+        const seen = new Set(ordered.map(v => String(v.id)));
         mentorVidsEnriched.forEach(v => {
           if (!seen.has(String(v.id))) {
-            allVids.push(v);
+            ordered.push(v);
             seen.add(String(v.id));
           }
         });
+        ordered = [
+          ...ordered.filter(v => v.mentor_id != null && String(v.mentor_id) === mentorFilterId),
+          ...ordered.filter(v => v.mentor_id == null || String(v.mentor_id) !== mentorFilterId),
+        ];
       }
 
-      const filterId = mentorFilterId;
-
-      setVideos(filterId
-        ? [
-          ...allVids.filter(v => v.mentor_id != null && String(v.mentor_id) === filterId),
-          ...allVids.filter(v => v.mentor_id == null || String(v.mentor_id) !== filterId),
-        ]
-        : allVids);
+      setVideos(ordered);
       setUnlocksMap(unlocks);
+      setFeedPage(1);
+      setHasMore(vids.length === PAGE_SIZE);
+      setActiveIndex(0);
+      setReactionCounts(new Map());
+      setMyReactions(new Map());
+      void loadReactions(ordered.map(v => v.id), userId);
     } catch (e) {
-      Toast.show('Failed to load videos');
+      if (seq === loadSeqRef.current) Toast.show('Failed to load videos');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (seq === loadSeqRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
-  const handleUnlocked = useCallback((mentorId) => {
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMore || loading || refreshing) return;
+    if (effectiveFilterMentorId) return;
+    loadingMoreRef.current = true;
+    try {
+      const rows = await videoApi.getAllPublicVideos({ page: feedPage, pageSize: PAGE_SIZE });
+      let freshIds = [];
+      setVideos(prev => {
+        const seen = new Set(prev.map(v => String(v.id)));
+        const fresh = rows.filter(v => !seen.has(String(v.id)));
+        freshIds = fresh.map(v => v.id);
+        return [...prev, ...fresh];
+      });
+      setFeedPage(p => p + 1);
+      setHasMore(rows.length === PAGE_SIZE);
+      if (freshIds.length) void loadReactions(freshIds);
+    } catch (e) {
+      // keep existing feed; user can pull to refresh
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  }, [feedPage, hasMore, loading, refreshing, effectiveFilterMentorId, loadReactions]);
+
+  const handleReact = useCallback((videoId, reaction) => {
+    if (!user?.id) {
+      Toast.show('Sign in to react');
+      return;
+    }
+
+    const id = String(videoId);
+    const current = myReactions.get(id) ?? null;
+    const next = current === reaction ? null : reaction;
+
+    setMyReactions(prev => {
+      const copy = new Map(prev);
+      if (next) copy.set(id, next);
+      else copy.delete(id);
+      return copy;
+    });
+    setReactionCounts(prev => {
+      const copy = new Map(prev);
+      const counts = copy.get(id) ?? { likeCount: 0, dislikeCount: 0 };
+      const adjusted = { ...counts };
+      if (current === 'like') adjusted.likeCount = Math.max(0, adjusted.likeCount - 1);
+      if (current === 'dislike') adjusted.dislikeCount = Math.max(0, adjusted.dislikeCount - 1);
+      if (next === 'like') adjusted.likeCount += 1;
+      if (next === 'dislike') adjusted.dislikeCount += 1;
+      copy.set(id, adjusted);
+      return copy;
+    });
+
+    videoApi
+      .setVideoReaction({ videoId: id, userId: user.id, reaction: next })
+      .then(() => syncReactionForVideo(id, user.id))
+      .catch(() => {
+        setMyReactions(prev => {
+          const copy = new Map(prev);
+          if (current) copy.set(id, current);
+          else copy.delete(id);
+          return copy;
+        });
+        setReactionCounts(prev => {
+          const copy = new Map(prev);
+          const counts = copy.get(id) ?? { likeCount: 0, dislikeCount: 0 };
+          const reverted = { ...counts };
+          if (next === 'like') reverted.likeCount = Math.max(0, reverted.likeCount - 1);
+          if (next === 'dislike') reverted.dislikeCount = Math.max(0, reverted.dislikeCount - 1);
+          if (current === 'like') reverted.likeCount += 1;
+          if (current === 'dislike') reverted.dislikeCount += 1;
+          copy.set(id, reverted);
+          return copy;
+        });
+        Toast.show('Could not save reaction');
+      });
+  }, [user?.id, myReactions, syncReactionForVideo]);
+
+  const handleAccessGranted = useCallback((mentorId) => {
     setUnlocksMap(prev => {
       const next = new Map(prev);
       next.set(mentorId, { expiresAt: null });
@@ -995,7 +1112,7 @@ export default function VideosScreen({ navigation, route }) {
               <MaterialIcons name="videocam-off" size={40} color={PURPLE_LINK} />
             </View>
             <Text style={s.emptyTitle}>No videos here</Text>
-            <Text style={s.emptySubtitle}>Mentors will post short videos here</Text>
+            <Text style={s.emptySubtitle}>Creators will post short videos here</Text>
           </View>
         </View>
       ) : reelPageHeight > 0 ? (
@@ -1011,10 +1128,10 @@ export default function VideosScreen({ navigation, route }) {
             disableIntervalMomentum
             showsVerticalScrollIndicator={false}
             decelerationRate="fast"
-            windowSize={3}
-            maxToRenderPerBatch={2}
+            windowSize={5}
+            maxToRenderPerBatch={3}
             initialNumToRender={1}
-            removeClippedSubviews={Platform.OS === 'android'}
+            removeClippedSubviews={false}
             onMomentumScrollEnd={e => syncActiveIndexFromOffset(e.nativeEvent.contentOffset.y)}
             onScrollEndDrag={e => syncActiveIndexFromOffset(e.nativeEvent.contentOffset.y)}
             onScrollToIndexFailed={({ index }) => scrollToVideoIndex(index)}
@@ -1023,14 +1140,29 @@ export default function VideosScreen({ navigation, route }) {
                 item={item}
                 height={reelPageHeight}
                 isActive={index === activeIndex}
+                isPreload={index === activeIndex + 1 || index === activeIndex + 2}
                 isUnlocked={unlocksMap.has(item.mentor_id) || isOwnMentorVideo(item.mentor_id)}
                 onLockPress={item => {
                   if (isOwnMentorVideo(item.mentor_id)) return;
                   setLockSheetVideo(item);
                 }}
                 onViewProfile={handleViewProfile}
-                forcePaused={lockSheetVideo !== null}
-                allowPlayback={allowPlayback}
+                forcePaused={lockSheetVideo !== null || reportTarget !== null}
+                allowPlayback={allowPlayback && reportTarget === null}
+                likeCount={reactionCounts.get(String(item.id))?.likeCount ?? 0}
+                dislikeCount={reactionCounts.get(String(item.id))?.dislikeCount ?? 0}
+                myReaction={myReactions.get(String(item.id)) ?? null}
+                onReact={handleReact}
+                onReport={
+                  !isOwnMentorVideo(item.mentor_id) && item.mentor_id && item.id
+                    ? () =>
+                        setReportTarget({
+                          userId: item.mentor_id,
+                          name: item.profiles?.name || 'Creator',
+                          videoId: item.id,
+                        })
+                    : null
+                }
               />
             )}
             viewabilityConfigCallbackPairs={viewabilityPairsRef.current}
@@ -1046,6 +1178,8 @@ export default function VideosScreen({ navigation, route }) {
                 tintColor={TEAL}
               />
             }
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.6}
           />
         </View>
       ) : (
@@ -1055,7 +1189,15 @@ export default function VideosScreen({ navigation, route }) {
       <UnlockSheet
         video={lockSheetVideo}
         onClose={() => setLockSheetVideo(null)}
-        onUnlocked={handleUnlocked}
+        onRefreshAccess={handleAccessGranted}
+      />
+      <ReportUserSheet
+        visible={!!reportTarget}
+        reportedUserId={reportTarget?.userId}
+        reportedUserName={reportTarget?.name || 'this user'}
+        contextType="video"
+        contextId={reportTarget?.videoId || null}
+        onClose={() => setReportTarget(null)}
       />
     </View>
   );
@@ -1237,11 +1379,37 @@ function createVideosStyles(theme) {
     bottom: REEL_META_BOTTOM + REEL_PROGRESS_HEIGHT + 4,
     alignItems: 'center',
     gap: 16,
-    zIndex: 8,
-    elevation: 8,
+    zIndex: 12,
+    elevation: 12,
   },
   railBtn: {
     alignItems: 'center',
+  },
+  reactBtn: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  reactIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reactIconWrapLike: {
+    backgroundColor: PURPLE_LINK,
+  },
+  reactIconWrapDislike: {
+    backgroundColor: C.accent?.error || '#ef4444',
+  },
+  reactCount: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   railAvatarFrame: {
     borderWidth: 2,
@@ -1258,7 +1426,6 @@ function createVideosStyles(theme) {
     position: 'absolute',
     bottom: 0,
     left: 0,
-    right: 0,
     zIndex: 8,
     elevation: 8,
     paddingHorizontal: T.spacing.md,

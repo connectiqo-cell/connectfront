@@ -297,11 +297,11 @@ export default function WelcomeScreen({ navigation }) {
     let cancelled = false;
     (async () => {
       try {
-        const data = await mentorApi.getTopMentors(8);
+        const data = await mentorApi.getTrendingMentors(8);
         if (!cancelled) setMentors(Array.isArray(data) ? data : []);
       } catch (error) {
         if (__DEV__) {
-          console.warn('[Welcome] getTopMentors failed:', error?.message || error);
+          console.warn('[Welcome] getTrendingMentors failed:', error?.message || error);
         }
         if (!cancelled) setMentors([]);
       } finally {
@@ -316,7 +316,7 @@ export default function WelcomeScreen({ navigation }) {
   const displayMentors = mentors.length > 0 ? mentors : SHOWCASE_CREATORS;
 
   const renderCreatorCard = mentor => {
-    const name = mentor.profiles?.name || 'Mentor';
+    const name = mentor.profiles?.name || 'Creator';
     const avatar = mentor.profiles?.avatar_url;
     const title = mentor.specialization || 'Creator';
     const rating = Number(mentor.rating) || 0;
@@ -407,7 +407,7 @@ export default function WelcomeScreen({ navigation }) {
               <View style={styles.badge}>
                 <MaterialIcons name="bolt" size={12} color={PURPLE_LINK} />
                 <Text style={styles.badgeText} maxFontSizeMultiplier={MAX_FONT}>
-                  1-ON-1 LIVE MENTORSHIP
+                  1-ON-1 LIVE SESSIONS
                 </Text>
               </View>
 
@@ -427,7 +427,7 @@ export default function WelcomeScreen({ navigation }) {
                 numberOfLines={isCompact ? 3 : 4}
                 maxFontSizeMultiplier={MAX_FONT}
               >
-                Meet top creators, mentors and experts in live 1-on-1 video sessions.
+                Meet top creators and experts in live 1-on-1 video sessions.
               </Text>
 
               {showChips ? (
@@ -441,7 +441,7 @@ export default function WelcomeScreen({ navigation }) {
                   <View style={styles.chip}>
                     <MaterialIcons name="verified" size={12} color={TEAL} />
                     <Text style={styles.chipText} maxFontSizeMultiplier={MAX_FONT}>
-                      Trusted mentors
+                      Trusted creators
                     </Text>
                   </View>
                 </View>

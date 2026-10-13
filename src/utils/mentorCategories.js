@@ -127,9 +127,31 @@ export function matchCategoryInterests(interests, knownCategories = []) {
   return matched;
 }
 
-/** True when the learner still needs first-run category interest selection. */
-export function needsCategoryInterestOnboarding(interests, knownCategories = []) {
-  return matchCategoryInterests(interests, knownCategories).length < MIN_LEARNER_INTERESTS;
+/**
+ * Order videos for "Recommended For You": mentors in the learner's named interests first,
+ * then "Other"-interest matches, then the rest of the feed (feed order kept inside each group).
+ * Never drops videos, so the row stays full when few videos match.
+ */
+export function rankVideosByInterests(videos, interests) {
+  const list = parseMentorCategories(interests);
+  if (!list.length) return [...(videos || [])];
+  const named = list.filter(i => !isOtherCategoryLabel(i));
+  const tier = v => {
+    const category = v?.mentor_profiles?.category;
+    if (named.some(i => mentorHasCategory(category, i))) return 0;
+    if (list.some(i => mentorHasCategory(category, i))) return 1;
+    return 2;
+  };
+  return [0, 1, 2].flatMap(t => (videos || []).filter(v => tier(v) === t));
+}
+
+/**
+ * True when the learner still needs first-run category interest selection.
+ * First-run only: once any interests are saved, never block the app again
+ * (admin rename/remove must not force re-onboarding).
+ */
+export function needsCategoryInterestOnboarding(interests) {
+  return parseMentorCategories(interests).length === 0;
 }
 
 /**

@@ -273,7 +273,7 @@ export default function CategoryMentorsScreen({ route, navigation }) {
       setPage(1);
       setHasMore(data.length === PAGE_SIZE);
     } catch {
-      Toast.show('Failed to load mentors');
+      Toast.show('Failed to load creators');
     } finally {
       setLoading(false);
     }
@@ -307,7 +307,7 @@ export default function CategoryMentorsScreen({ route, navigation }) {
       runAfterSheetClose(() => {
         navigation.navigate(SCREEN_NAMES.Booking, {
           mentorId: mentor.id,
-          mentorName: mentor.profiles?.name || 'Mentor',
+          mentorName: mentor.profiles?.name || 'Creator',
         });
       });
     },
@@ -361,8 +361,8 @@ export default function CategoryMentorsScreen({ route, navigation }) {
       <FadeSlideIn delay={60}>
         <Text style={styles.pageSubtitle}>
           {isSearching
-            ? 'Mentors matching your search'
-            : 'Browse mentors in this category'}
+            ? 'Creators matching your search'
+            : 'Browse creators in this category'}
         </Text>
       </FadeSlideIn>
       <ScrollView
@@ -406,7 +406,7 @@ export default function CategoryMentorsScreen({ route, navigation }) {
       <PressScale
         onPress={loadMore}
         style={styles.loadMoreWrap}
-        accessibilityLabel="Load more mentors"
+        accessibilityLabel="Load more creators"
       >
         <View style={styles.loadMoreBtn}>{content}</View>
       </PressScale>
@@ -490,7 +490,7 @@ export default function CategoryMentorsScreen({ route, navigation }) {
                     />
                   </View>
                   <Text style={styles.emptyTitle}>
-                    {isSearching ? 'No mentors found' : 'No mentors in this category'}
+                    {isSearching ? 'No creators found' : 'No creators in this category'}
                   </Text>
                   <Text style={styles.emptySubtitle}>
                     {isSearching

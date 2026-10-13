@@ -6,6 +6,7 @@ import {
   normalizeCategoryBucket,
   orderCategoriesByInterests,
   quotePostgrestFilterValue,
+  rankVideosByInterests,
 } from '../mentorCategories';
 
 
@@ -79,25 +80,20 @@ describe('matchCategoryInterests', () => {
     ]);
   });
 
-  it('needs onboarding when fewer than 5 matched categories', () => {
-    expect(needsCategoryInterestOnboarding(['Technology', 'Business'], known)).toBe(true);
+  it('needs onboarding only when interests were never set', () => {
+    expect(needsCategoryInterestOnboarding(null)).toBe(true);
+    expect(needsCategoryInterestOnboarding('')).toBe(true);
+    expect(needsCategoryInterestOnboarding([])).toBe(true);
+    // Already picked once — do not re-block if admin renamed/removed categories.
+    expect(needsCategoryInterestOnboarding(['Technology', 'Business'])).toBe(false);
     expect(
-      needsCategoryInterestOnboarding(
-        ['Technology', 'Business', 'Design & UX', 'Sales'],
-        known,
-      ),
-    ).toBe(true);
-    expect(
-      needsCategoryInterestOnboarding(
-        ['Technology', 'Business', 'Design & UX', 'Sales', 'Technology'],
-        [...known, 'Legal'],
-      ),
-    ).toBe(true);
-    expect(
-      needsCategoryInterestOnboarding(
-        ['Technology', 'Business', 'Design & UX', 'Sales', 'Legal'],
-        [...known, 'Legal'],
-      ),
+      needsCategoryInterestOnboarding([
+        'Technology',
+        'Business',
+        'Design & UX',
+        'Sales',
+        'Legal',
+      ]),
     ).toBe(false);
   });
 });
@@ -110,5 +106,23 @@ describe('orderCategoriesByInterests', () => {
         ['Technology', 'Sales'],
       ),
     ).toEqual(['Technology', 'Sales', 'Business', 'Legal']);
+  });
+});
+
+describe('rankVideosByInterests', () => {
+  const v = (id, category) => ({ id, mentor_profiles: { category } });
+  const feed = [v(1, 'Other'), v(2, ''), v(3, 'Celebrities'), v(4, 'Content & Media, Technology & AI')];
+  const ids = list => list.map(x => x.id);
+
+  it('keeps feed order when there are no interests', () => {
+    expect(ids(rankVideosByInterests(feed, []))).toEqual([1, 2, 3, 4]);
+  });
+
+  it('puts named-interest matches first and keeps the rest', () => {
+    expect(ids(rankVideosByInterests(feed, ['Technology & AI']))).toEqual([4, 1, 2, 3]);
+  });
+
+  it('ranks named interests above Other matches', () => {
+    expect(ids(rankVideosByInterests(feed, ['Other', 'Celebrities']))).toEqual([3, 1, 2, 4]);
   });
 });

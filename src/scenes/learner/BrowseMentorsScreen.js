@@ -99,7 +99,7 @@ export default function BrowseMentorsScreen({ navigation }) {
       setMentorsByCategory(grouped);
     } catch (error) {
       console.error('Error loading mentors:', error);
-      Toast.show('Failed to load mentors');
+      Toast.show('Failed to load creators');
     } finally {
       setLoading(false);
     }
@@ -170,7 +170,7 @@ export default function BrowseMentorsScreen({ navigation }) {
           icon="groups"
           iconColor={PURPLE_LINK}
           value={String(totalMentors)}
-          label="Mentors"
+          label="Creators"
         />
         <View style={styles.statDivider} />
         <StatSegment
@@ -193,7 +193,7 @@ export default function BrowseMentorsScreen({ navigation }) {
             <View style={styles.emptyIconRing}>
               <MaterialIcons name="groups" size={36} color={PURPLE_LINK} />
             </View>
-            <Text style={styles.emptyTitle}>No mentors available</Text>
+            <Text style={styles.emptyTitle}>No creators available</Text>
             <Text style={styles.emptySubtitle}>Check back soon for new experts.</Text>
           </View>
         )
@@ -201,7 +201,7 @@ export default function BrowseMentorsScreen({ navigation }) {
 
       <LoadingOverlay
         visible={loading || refreshing}
-        message={refreshing ? 'Refreshing…' : 'Loading mentors…'}
+        message={refreshing ? 'Refreshing…' : 'Loading creators…'}
       />
     </SafeScreen>
   );

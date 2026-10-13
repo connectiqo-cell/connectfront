@@ -73,4 +73,16 @@ describe("reportApi.submitUserReport", () => {
       })
     ).rejects.toThrow("You already have an open report for this user.");
   });
+
+  it("requires contextId for booking reports", async () => {
+    await expect(
+      reportApi.submitUserReport({
+        reportedUserId: "target-id",
+        reason: "harassment",
+        contextType: "booking",
+      })
+    ).rejects.toThrow("Report context ID is required for this type of report.");
+
+    expect(mockGetUser).not.toHaveBeenCalled();
+  });
 });

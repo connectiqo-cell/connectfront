@@ -38,6 +38,10 @@ import Menu from "../../../components/Menu";
 import MenuItem from "../Components/MenuItem";
 import { ROBOTO_FONTS } from "../../../styles/fonts";
 import { showStopRecordingAlert } from "../../../utils/recordingAlerts";
+import { useAuth } from "../../../hooks/useAuth";
+import ReportUserSheet from "../../../components/ReportUserSheet";
+import { resolveMeetingReportTarget } from "../../../utils/meetingReport";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import Toast from "react-native-simple-toast";
 import BottomSheet from "../../../components/BottomSheet";
 import ParticipantListViewer from "../Components/ParticipantListViewer";
@@ -63,8 +67,15 @@ import { useBackgroundWebcamRestore } from "../../../hooks/useBackgroundWebcamRe
 import { useInCallChatPopup } from "../../../hooks/useInCallChatPopup";
 import { pressScreenShare } from "../../../utils/screenShareActions";
 
-export default function ConferenceMeetingViewer({ onRequestLeave }) {
+export default function ConferenceMeetingViewer({
+  onRequestLeave,
+  booking,
+  isMentor = null,
+  otherUser = null,
+}) {
   const { theme } = useTheme();
+  const { profile, user } = useAuth();
+  const [reportOpen, setReportOpen] = useState(false);
   const meetingCanvas = theme.colors.meeting[900];
   const chromeInk = theme.colors.meeting[100];
   const brand = theme.colors.component.button;
@@ -100,6 +111,16 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
   });
 
   const exitMeeting = onRequestLeave || leave;
+
+  const meetingReport = resolveMeetingReportTarget({
+    booking,
+    user,
+    profile,
+    isMentor,
+    otherUser,
+  });
+  const reportOtherUserId = meetingReport.userId;
+  const reportOtherName = meetingReport.name;
 
   const leaveMenu = useRef();
   const bottomSheetRef = useRef();
@@ -464,6 +485,27 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
             }}
           />
         )}
+        {reportOtherUserId && booking?.id ? (
+          <>
+            <View
+              style={{
+                height: 1,
+                backgroundColor: colors.primary["600"],
+              }}
+            />
+            <MenuItem
+              title={"Report user"}
+              icon={<MaterialIcons name="flag" size={22} color={chromeInk} />}
+              onPress={() => {
+                moreOptionsMenu.current?.close?.();
+                InteractionManager.runAfterInteractions(() => {
+                  const delay = Platform.OS === "ios" ? 350 : 120;
+                  setTimeout(() => setReportOpen(true), delay);
+                });
+              }}
+            />
+          </>
+        ) : null}
       </Menu>
       {/* Bottom */}
       <View
@@ -589,6 +631,14 @@ export default function ConferenceMeetingViewer({ onRequestLeave }) {
         message={chatPopup?.message}
         onPress={openChatFromPopup}
         onDismiss={dismissPopup}
+      />
+      <ReportUserSheet
+        visible={reportOpen}
+        reportedUserId={reportOtherUserId}
+        reportedUserName={reportOtherName}
+        contextType="call"
+        contextId={booking?.id || meetingReport.contextId || null}
+        onClose={() => setReportOpen(false)}
       />
     </View>
   );

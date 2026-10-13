@@ -99,7 +99,7 @@ serve(async (req) => {
     const sessionDate = slots[0].date;
     for (const slot of slots) {
       if (slot.mentor_id !== mentorId) {
-        throw new Error('Selected slot does not belong to this mentor');
+        throw new Error('Selected slot does not belong to this creator');
       }
       if (slot.is_booked) {
         throw new Error('One of the selected slots was just booked. Please choose again.');
@@ -132,8 +132,8 @@ serve(async (req) => {
       .eq('id', mentorId)
       .single();
 
-    if (mpErr || !mentorProfile) throw new Error('Mentor profile not found');
-    if (!mentorProfile.price_per_hour) throw new Error('Mentor has not set a price');
+    if (mpErr || !mentorProfile) throw new Error('Creator profile not found');
+    if (!mentorProfile.price_per_hour) throw new Error('Creator has not set a price');
 
     // ── 4. Fetch fee rules server-side ────────────────────────────────────────
     const { data: feeRule } = await supabase

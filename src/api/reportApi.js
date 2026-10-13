@@ -33,6 +33,9 @@ export const reportApi = {
     if (normalizedDetails.length > 1000) {
       throw new Error("Report details must be 1,000 characters or less.");
     }
+    if (contextType !== "profile" && !contextId) {
+      throw new Error("Report context ID is required for this type of report.");
+    }
 
     try {
       const {
@@ -54,11 +57,37 @@ export const reportApi = {
       });
       if (error) {
         if (error.code === "23505") {
-          throw new Error("You already have an open report for this user.");
+          throw new Error(
+            contextType === "video"
+              ? "You already have an open report for this video."
+              : contextType === "call"
+                ? "You already have an open report for this call."
+              : contextType === "booking"
+                ? "You already have an open report for this booking."
+                : "You already have an open report for this user."
+          );
         }
         throw error;
       }
     } catch (error) {
+      // Preserve intentional client messages; only map raw Supabase errors.
+      if (
+        error instanceof Error &&
+        !error.code &&
+        error.message &&
+        !error.message.startsWith("JSON")
+      ) {
+        const knownClient =
+          error.message.includes("already have an open report") ||
+          error.message.includes("must be signed in") ||
+          error.message.includes("cannot report") ||
+          error.message.includes("missing") ||
+          error.message.includes("required") ||
+          error.message.includes("valid report") ||
+          error.message.includes("Invalid report") ||
+          error.message.includes("1,000");
+        if (knownClient) throw error;
+      }
       throw new Error(getSupabaseErrorMessage(error));
     }
   },

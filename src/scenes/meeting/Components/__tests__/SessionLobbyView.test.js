@@ -84,7 +84,7 @@ describe('SessionLobbyView', () => {
     expect(text).toContain('Waiting Room');
     expect(text).toContain('until session starts');
     expect(text).toContain('Join Call');
-    expect(text).toContain('Waiting for mentor to start the session');
+    expect(text).toContain('Waiting for the host to start the session');
     expect(text).not.toContain('time remaining');
   });
 
@@ -100,7 +100,7 @@ describe('SessionLobbyView', () => {
     expect(text).toContain('Waiting Room');
     expect(text).toContain('time remaining');
     expect(text).toContain('Join Call');
-    expect(text).toContain('Waiting for mentor to start the session');
+    expect(text).toContain('Waiting for the host to start the session');
     expect(text).not.toContain('until session starts');
   });
 
@@ -141,7 +141,7 @@ describe('SessionLobbyView', () => {
     });
 
     const text = flattenText(tree.toJSON());
-    expect(text).toContain('learner requested a recording');
+    expect(text).toContain('other creator requested a recording');
     expect(text).toContain('Start Session');
   });
 

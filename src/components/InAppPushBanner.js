@@ -68,6 +68,15 @@ export default function InAppPushBanner({ navigationRef }) {
 
     const type = banner?.data?.type || '';
     try {
+      if (type === 'new_message') {
+        const conversationId = banner?.data?.conversationId;
+        if (conversationId) {
+          nav.navigate(SCREEN_NAMES.MessageThread, { conversationId });
+        } else {
+          nav.navigate(SCREEN_NAMES.Messages);
+        }
+        return;
+      }
       if (type === 'meeting_started') {
         const bookingId = banner?.data?.bookingId;
         if (bookingId) {

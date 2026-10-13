@@ -92,7 +92,7 @@ export function MentorImageCard({ mentor, onPress, style, entranceDelay }) {
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         accessibilityRole="button"
-        accessibilityLabel={`${name}, ${spec || 'mentor'}`}
+        accessibilityLabel={`${name}, ${spec || 'creator'}`}
       >
         {avatarUrl ? (
           <Image source={{ uri: avatarUrl }} style={styles.img} resizeMode="cover" />

@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { CosmicBottomTabBar } from '../components/CosmicBottomTabBar';
+import FirstTimeGuide from '../components/FirstTimeGuide';
 import { SCREEN_NAMES } from './screenNames';
 import HomeScreen from '../scenes/home/HomeScreen';
 import { MentorSectionNavigator } from './MentorSectionNavigator';
@@ -13,6 +14,7 @@ const BottomTab = createBottomTabNavigator();
 
 export const UnifiedTabNavigator = () => {
   return (
+    <>
     <BottomTab.Navigator
       tabBar={(props) => <CosmicBottomTabBar {...props} />}
       screenOptions={{
@@ -87,5 +89,7 @@ export const UnifiedTabNavigator = () => {
         }}
       />
     </BottomTab.Navigator>
+    <FirstTimeGuide />
+    </>
   );
 };

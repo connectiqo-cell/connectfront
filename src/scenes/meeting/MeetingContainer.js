@@ -337,7 +337,14 @@ export default function MeetingContainer({
   // inside OneToOneMeetingViewer. Gating on remoteParticipantCount kept both
   // sides stuck on a dead lobby after join.
   if (isJoined && meetingType === 'GROUP') {
-    return <ConferenceMeetingViewer onRequestLeave={requestLeave} />;
+    return (
+      <ConferenceMeetingViewer
+        onRequestLeave={requestLeave}
+        booking={booking}
+        isMentor={isMentor}
+        otherUser={otherUser}
+      />
+    );
   }
 
   if (isJoined) {
@@ -345,6 +352,8 @@ export default function MeetingContainer({
       <OneToOneMeetingViewer
         isHost={isHost}
         booking={booking}
+        isMentor={isMentor}
+        otherUser={otherUser}
         recordingRequested={recordingRequested}
         autoStartRecording={autoStartRecording}
         onRequestLeave={requestLeave}

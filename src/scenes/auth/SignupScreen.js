@@ -62,7 +62,32 @@ export default function SignupScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
+  // Set once signUp() comes back with no session — i.e. email confirmation is
+  // required (same flow as the web portal). If confirmation is disabled,
+  // signUp() returns a session immediately and this step is skipped.
+  const [step, setStep] = useState('form');
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+
   const clearError = field => errors[field] && setErrors(prev => ({ ...prev, [field]: null }));
+
+  // profiles row requires auth.uid() = id under RLS, so this only runs once a
+  // session exists. The session also flips RootNavigator to the authed stack,
+  // which sends new users (no interests yet) to interests onboarding.
+  const finishSignup = async userId => {
+    await authApi.createProfile({
+      userId,
+      email: email.trim(),
+      name: name.trim(),
+      role: 'both',
+    });
+    await Promise.all([
+      profileApi.createMentorProfile(userId),
+      profileApi.createLearnerProfile(userId),
+    ]);
+  };
 
   const handleSignup = async () => {
     const e = validateFields({ name, email, password, confirmPassword });
@@ -74,28 +99,134 @@ export default function SignupScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const { user } = await authApi.signUp({
+      const { user, needsVerification } = await authApi.signUp({
         email: email.trim(),
         password,
         name: name.trim(),
         role: 'both',
       });
+      if (!user?.id) throw new Error('Sign up did not return a user.');
 
-      if (user?.id) {
-        await Promise.all([
-          profileApi.createMentorProfile(user.id),
-          profileApi.createLearnerProfile(user.id),
-        ]);
+      if (needsVerification) {
+        setOtp('');
+        setOtpError('');
+        setStep('otp');
+        return;
       }
 
-      Toast.show('Account created! Please sign in.');
-      navigation.navigate('Login_Screen');
+      await finishSignup(user.id);
     } catch (error) {
-      Toast.show(error.message);
+      Toast.show(error.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleVerifyOtp = async () => {
+    if (!otp.trim()) {
+      setOtpError('Enter the code we sent you');
+      return;
+    }
+    setOtpError('');
+    setVerifying(true);
+    try {
+      const { user } = await authApi.verifySignupOtp(email, otp);
+      if (!user?.id) throw new Error('Verification did not return a user.');
+      await finishSignup(user.id);
+    } catch (error) {
+      setOtpError(error.message || 'Invalid or expired code. Please try again.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setOtpError('');
+    setResending(true);
+    try {
+      await authApi.resendSignupOtp(email);
+      Toast.show('Code resent — check your inbox.');
+    } catch (error) {
+      setOtpError(error.message || 'Could not resend the code. Please try again.');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  if (step === 'otp') {
+    return (
+      <CosmicBackground style={styles.background}>
+        <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.header}>
+              <Image source={brandLogo} style={styles.logoIcon} resizeMode="contain" />
+              <Text style={styles.title}>Verify your email</Text>
+              <Text style={styles.subtitle}>
+                We sent a 6-digit code to{' '}
+                <Text style={styles.subtitleEmail}>{email.trim()}</Text>.
+                Enter it below to finish creating your account.
+              </Text>
+            </View>
+
+            <View style={styles.formContainer}>
+              <View style={[styles.inputWrapper, otpError && styles.inputError]}>
+                <View style={styles.inputIconSlot}>
+                  <MaterialIcons name="lock" size={20} color={C.text.secondary} />
+                </View>
+                <TextInput
+                  placeholder="6-digit code"
+                  placeholderTextColor={C.text.muted}
+                  style={styles.input}
+                  value={otp}
+                  onChangeText={v => { setOtp(v.replace(/\D/g, '')); if (otpError) setOtpError(''); }}
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  autoComplete="sms-otp"
+                  maxLength={6}
+                  editable={!verifying}
+                  cursorColor={cursorColor}
+                  selectionColor={PURPLE_LINK}
+                  selectionHandleColor="transparent"
+                  underlineColorAndroid="transparent"
+                />
+              </View>
+              {otpError ? <Text style={styles.errorText}>{otpError}</Text> : null}
+
+              <CosmicButton
+                label={verifying ? 'Verifying…' : 'Verify & Continue'}
+                variant="nebula"
+                onPress={handleVerifyOtp}
+                disabled={verifying}
+                loading={verifying}
+                style={styles.signupBtn}
+              />
+            </View>
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Didn't get a code?</Text>
+              <TouchableOpacity onPress={handleResendOtp} disabled={resending || verifying}>
+                <Text style={styles.signinLink}>{resending ? 'Resending…' : 'Resend code'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setStep('form')}
+              disabled={verifying}
+              style={styles.backButton}
+            >
+              <Text style={styles.backButtonText}>← Wrong email? Go back</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+
+        <LoadingOverlay visible={verifying} message="Verifying your email..." />
+      </CosmicBackground>
+    );
+  }
 
   return (
     <CosmicBackground style={styles.background}>
@@ -289,6 +420,15 @@ function createThemedStyles(theme) {
       textAlign: 'center',
       fontWeight: '800',
       marginBottom: T.spacing.sm,
+    },
+    subtitle: {
+      ...T.typography.bodySm,
+      color: C.text.secondary,
+      textAlign: 'center',
+    },
+    subtitleEmail: {
+      color: C.text.primary,
+      fontWeight: '600',
     },
     formContainer: {
       marginBottom: T.spacing.xxxl,

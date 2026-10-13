@@ -163,14 +163,14 @@ serve(async (req: Request) => {
       .select('unlock_price')
       .eq('id', mentorId)
       .single();
-    if (mpErr || !mp?.unlock_price) throw new Error('Mentor profile / unlock_price not found');
+    if (mpErr || !mp?.unlock_price) throw new Error('Creator profile / unlock_price not found');
 
     // Reject if the purchased product doesn't match the mentor's *current*
     // price tier — prevents a learner buying a cheaper tier's product while
     // the mentor's configured price is actually higher.
     const expectedProductId = PRODUCT_ID_BY_PRICE[mp.unlock_price];
     if (!expectedProductId || expectedProductId !== productId) {
-      throw new Error('Purchased product does not match this mentor\'s current unlock price');
+      throw new Error('Purchased product does not match this creator\'s current unlock price');
     }
 
     // ── 5. Fetch fee rules server-side ─────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { bookingApi } from './bookingApi';
+import { supabase } from '../lib/supabase';
 
 const STATUS_MESSAGES = {
   learner: {
@@ -87,7 +88,7 @@ function bookingToNotification(booking, role) {
 
   const profile = otherProfile(booking, role);
   const name =
-    profile?.name || (role === 'learner' ? 'Your mentor' : 'A learner');
+    profile?.name || (role === 'learner' ? 'Your creator' : 'A creator');
   const dateStr = formatSlotDate(booking.availability_slots);
   const timestamp = booking.updated_at || booking.created_at;
 
@@ -107,16 +108,50 @@ function bookingToNotification(booking, role) {
   };
 }
 
+/**
+ * Latest message received in each chat, as notification rows. RLS already
+ * limits `messages` to the user's own conversations; we only drop their own sends.
+ */
+async function getIncomingMessages(userId) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('id, conversation_id, body, created_at, sender:sender_id ( name, avatar_url )')
+    .neq('sender_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(60);
+  if (error) throw error;
+
+  const seen = new Set();
+  return (data || [])
+    .filter((m) => !seen.has(m.conversation_id) && seen.add(m.conversation_id))
+    .map((m) => {
+      const sender = Array.isArray(m.sender) ? m.sender[0] : m.sender;
+      return {
+        id: `message-${m.id}`,
+        type: 'new_message',
+        category: 'messages',
+        title: sender?.name || 'New message',
+        body: m.body,
+        timestamp: m.created_at,
+        icon: 'chat',
+        accent: 'purple',
+        avatarUrl: sender?.avatar_url ?? null,
+        conversationId: m.conversation_id,
+      };
+    });
+}
+
 export const notificationApi = {
   getNotifications: async (userId) => {
     if (!userId) return [];
 
-    const [learnerBookings, mentorBookings] = await Promise.all([
+    const [learnerBookings, mentorBookings, incomingMessages] = await Promise.all([
       bookingApi.getBookingsByLearner(userId).catch(() => []),
       bookingApi.getBookingsByMentor(userId).catch(() => []),
+      getIncomingMessages(userId).catch(() => []),
     ]);
 
-    const notifications = [];
+    const notifications = [...incomingMessages];
     (learnerBookings || []).forEach((b) => {
       const n = bookingToNotification(b, 'learner');
       if (n) notifications.push(n);

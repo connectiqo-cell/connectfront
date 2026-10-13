@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Video from 'react-native-video';
+import Video, { ViewType } from 'react-native-video';
 import { SafeScreen } from '../../components/SafeScreen';
 import StackScreenHeader from '../../components/StackScreenHeader';
 import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
@@ -36,7 +36,14 @@ import { UNIFIED_THEME } from '../../unifiedTheme';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { videoApi } from '../../api/videoApi';
-import { VIDEO_UNLOCK_PRICE_TIERS } from '../../utils/playBilling';
+import { clearBackoff, enqueue, listPending, processQueue, retryNow, subscribe } from '../../lib/uploadQueue';
+import {
+  showUploadProgress,
+  showUploadDone,
+  clearUploadNotification,
+  stopUploadService,
+} from '../../utils/uploadNotification';
+import { VIDEO_UNLOCK_PRICE_TIERS } from '../../utils/videoUnlockTiers';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 
 const T = UNIFIED_THEME;
@@ -354,8 +361,8 @@ function UnlockPriceCard({
             </LinearGradient>
           </View>
           <View style={styles.unlockMeta}>
-            <Text style={styles.unlockTitle}>Library unlock price</Text>
-            <Text style={styles.unlockSubtitle}>One-time access to all locked videos</Text>
+            <Text style={styles.unlockTitle}>Website library price</Text>
+            <Text style={styles.unlockSubtitle}>Shown on the website catalog only — not sold in the app</Text>
           </View>
           {!editing ? (
             <AnimatedPressable onPress={onEdit} style={styles.unlockEditBtn} hoverScale={1.06} pressScale={0.94}>
@@ -367,7 +374,7 @@ function UnlockPriceCard({
 
         {editing ? (
           <View style={styles.unlockEditBlock}>
-            <Text style={styles.unlockFieldLabel}>Price per library unlock</Text>
+            <Text style={styles.unlockFieldLabel}>Website catalog price</Text>
             <View style={styles.unlockTierRow}>
               {VIDEO_UNLOCK_PRICE_TIERS.map(tier => {
                 const isSelected = tier === selectedTier;
@@ -429,7 +436,7 @@ function UnlockPriceCard({
               style={styles.unlockAmount}
               replayToken={replayToken}
             />
-            <Text style={styles.unlockPerLabel}>per learner · full library access</Text>
+            <Text style={styles.unlockPerLabel}>per creator · full library access</Text>
             <View style={styles.unlockInfoRow}>
               <View style={styles.unlockInfoChip}>
                 <MaterialIcons name="lock" size={13} color={GOLD} />
@@ -481,7 +488,7 @@ function VideoPlayerModal({ video, onClose }) {
         {video && (
           <Video
             ref={videoRef}
-            source={{ uri: video.video_url }}
+            source={{ uri: video.hls_url || video.video_url }}
             style={playerStyles.video}
             resizeMode="contain"
             paused={paused}
@@ -564,7 +571,17 @@ const playerStyles = StyleSheet.create({
 });
 
 // ─── Video Card ───────────────────────────────────────────────────────────────
-function VideoCard({ video, index = 0, replayToken = 0, onToggleFree, onDelete, onPlay, onEdit }) {
+function VideoCard({
+  video,
+  index = 0,
+  replayToken = 0,
+  likeCount = 0,
+  dislikeCount = 0,
+  onToggleFree,
+  onDelete,
+  onPlay,
+  onEdit,
+}) {
   const styles = useThemedStyles(createMentorVideosStyles);
   const { theme } = useTheme();
   const C = theme.colors;
@@ -638,6 +655,16 @@ function VideoCard({ video, index = 0, replayToken = 0, onToggleFree, onDelete, 
           ) : (
             <Text style={styles.cardDescMuted}>No description</Text>
           )}
+          <View style={styles.reactionRow}>
+            <View style={styles.reactionChip}>
+              <MaterialIcons name="thumb-up" size={13} color={C.text.muted} />
+              <Text style={styles.reactionCount}>{likeCount}</Text>
+            </View>
+            <View style={styles.reactionChip}>
+              <MaterialIcons name="thumb-down" size={13} color={C.text.muted} />
+              <Text style={styles.reactionCount}>{dislikeCount}</Text>
+            </View>
+          </View>
           <View style={styles.cardFooter}>
             <View style={styles.freeRow}>
               <Text style={styles.freeLabel}>Public access</Text>
@@ -760,7 +787,10 @@ function EditModal({ video, onClose, onSaved }) {
 
   return (
     <Modal visible={!!video} animationType="slide" transparent onRequestClose={() => !saving && onClose()}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.modalOverlay}
+      >
         <TouchableOpacity
           style={styles.editModalBackdrop}
           activeOpacity={1}
@@ -776,6 +806,7 @@ function EditModal({ video, onClose, onSaved }) {
           </View>
 
           <ScrollView
+            style={styles.modalScroll}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             bounces={false}
@@ -861,7 +892,7 @@ function EditModal({ video, onClose, onSaved }) {
             <Animated.View style={{ transform: [{ scale: scaleAnim }], marginBottom: 8 }}>
               <TouchableOpacity
                 style={[
-                  styles.uploadBtn,
+                  styles.editSaveBtn,
                   saved && styles.savedBtn,
                   (saving || saved) && { opacity: 0.9 },
                 ]}
@@ -888,8 +919,60 @@ function EditModal({ video, onClose, onSaved }) {
   );
 }
 
+// ─── Pending upload card ──────────────────────────────────────────────────────
+// Shown in place of the real video while the queue works through it. The mentor sees
+// the post immediately instead of waiting on a modal.
+function PendingUploadCard({ record, progress, onRetry }) {
+  const styles = useThemedStyles(createMentorVideosStyles);
+  const { theme } = useTheme();
+  const C = theme.colors;
+  const TEAL = C.accent.secondary;
+
+  // No live event yet (just reopened) — fall back to the last persisted value.
+  const live = !!progress;
+  const pct = progress?.pct ?? record.progress ?? 0;
+  const phase = progress?.phase ?? record.phase;
+  const failed = !!record.error && !live;
+
+  let label;
+  if (failed) label = record.error;
+  else if (!live) label = pct > 0 ? `Resuming… ${pct}%` : 'Waiting to start…';
+  else if (phase === 'compressing') label = `Preparing… ${pct}%`;
+  else label = `Uploading… ${pct}%`;
+
+  return (
+    <View style={styles.pendingCard}>
+      <View style={styles.pendingRow}>
+        <MaterialIcons
+          name={failed ? 'error-outline' : 'cloud-upload'}
+          size={20}
+          color={failed ? C.accent.error : TEAL}
+        />
+        <View style={styles.pendingMeta}>
+          <Text style={styles.pendingTitle} numberOfLines={1}>{record.title}</Text>
+          <Text style={[styles.pendingHint, failed && { color: C.accent.error }]} numberOfLines={2}>
+            {label}
+          </Text>
+        </View>
+        {failed ? (
+          <TouchableOpacity onPress={onRetry} style={styles.pendingRetry} activeOpacity={0.85}>
+            <Text style={styles.pendingRetryText}>Retry</Text>
+          </TouchableOpacity>
+        ) : (
+          <ActivityIndicator size="small" color={TEAL} />
+        )}
+      </View>
+      {!failed && (
+        <View style={styles.pendingTrack}>
+          <View style={[styles.pendingFill, { width: `${pct}%` }]} />
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Upload Modal ─────────────────────────────────────────────────────────────
-function UploadModal({ visible, onClose, onUploaded }) {
+function UploadModal({ visible, onClose, onQueued }) {
   const styles = useThemedStyles(createMentorVideosStyles);
   const { theme } = useTheme();
   const C = theme.colors;
@@ -910,20 +993,9 @@ function UploadModal({ visible, onClose, onUploaded }) {
   const [pickedFile, setPickedFile] = useState(null);
   const [pickedThumbnail, setPickedThumbnail] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [formError, setFormError] = useState('');
   const [previewPaused, setPreviewPaused] = useState(true);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const progressAnim = React.useRef(new Animated.Value(0)).current;
-
-  const animateProgress = (toValue) => {
-    Animated.timing(progressAnim, {
-      toValue,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  };
-
   const reset = () => {
     setTitle('');
     setDescription('');
@@ -931,11 +1003,9 @@ function UploadModal({ visible, onClose, onUploaded }) {
     setPickedFile(null);
     setPickedThumbnail(null);
     setUploading(false);
-    setProgress(0);
     setFormError('');
     setPreviewPaused(true);
     setPreviewLoading(false);
-    progressAnim.setValue(0);
   };
 
   const handleClose = () => {
@@ -955,7 +1025,10 @@ function UploadModal({ visible, onClose, onUploaded }) {
 
         const sizeMB = (asset.fileSize || 0) / (1024 * 1024);
         if (sizeMB > MAX_VIDEO_MB) {
-          Toast.show(`Video must be under ${MAX_VIDEO_MB} MB`, Toast.LONG);
+          setFormError(
+            `That video is ${sizeMB.toFixed(0)} MB — the limit is ${MAX_VIDEO_MB} MB. ` +
+            'Please choose a shorter clip.',
+          );
           return;
         }
         setPickedFile(asset);
@@ -991,44 +1064,49 @@ function UploadModal({ visible, onClose, onUploaded }) {
 
     setFormError('');
     setUploading(true);
-    setProgress(0);
-    progressAnim.setValue(0);
     try {
-      const uploaded = await videoApi.uploadVideo({
+      // Hand off to the persisted queue and close. The upload outlives this modal,
+      // this screen and the app process — the mentor is not held at a progress bar.
+      const record = {
+        id: `up_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         mentorId: user.id,
         title: title.trim(),
         description: description.trim(),
-        fileUri: pickedFile.uri,
-        fileName: pickedFile.fileName || `video_${Date.now()}.mp4`,
         isFree,
-        onProgress: (pct) => {
-          setProgress(pct);
-          animateProgress(pct);
-        },
-        thumbnailUri: pickedThumbnail?.uri,
-        thumbnailFileName: pickedThumbnail?.fileName || (pickedThumbnail ? `thumb_${Date.now()}.jpg` : undefined),
-      });
-      Toast.show('Video uploaded successfully', Toast.SHORT);
-      onUploaded(uploaded);
+        sourceUri: pickedFile.uri,
+        // Fixed now, never regenerated: this is the resumable upload's resume key.
+        storagePath: `${user.id}/${Date.now()}.mp4`,
+        thumbnailUri: pickedThumbnail?.uri || null,
+        thumbnailFileName:
+          pickedThumbnail?.fileName || (pickedThumbnail ? `thumb_${Date.now()}.jpg` : null),
+        createdAt: Date.now(),
+      };
+      await enqueue(record);
+      onQueued(record);
       reset();
       onClose();
     } catch (e) {
-      setFormError(e.message || 'Upload failed. Please try again.');
+      setFormError(e.message || 'Could not start upload. Please try again.');
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={handleClose}
+      statusBarTranslucent
+    >
+      {/* Opaque wrapper painting edge to edge, including behind the status bar.
+          Without it the translucent bar shows the feed video playing underneath. */}
+      <View style={styles.uploadScreen}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={[styles.uploadFlex, { paddingTop: insets.top }]}
       >
-        <Pressable style={styles.modalBackdrop} onPress={handleClose} />
-        <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) + 20 }]}>
-          <View style={styles.modalHandle} />
-
+        <View style={[styles.uploadBody, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderIcon}>
               <LinearGradient colors={B.nebulaGradient} style={styles.modalHeaderIconGrad}>
@@ -1037,14 +1115,38 @@ function UploadModal({ visible, onClose, onUploaded }) {
             </View>
             <View style={styles.modalHeaderText}>
               <Text style={styles.modalTitle}>Upload video</Text>
-              <Text style={styles.modalSubtitle}>Share knowledge with your learners</Text>
+              <Text style={styles.modalSubtitle}>Share knowledge with other creators</Text>
             </View>
             <TouchableOpacity onPress={handleClose} style={styles.modalCloseBtn} disabled={uploading}>
               <MaterialIcons name="close" size={20} color={C.text.muted} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            style={styles.uploadScroll}
+            contentContainerStyle={styles.uploadScrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+            overScrollMode="never"
+          >
+            <View style={styles.tipsCard}>
+              <View style={styles.tipsHead}>
+                <MaterialIcons name="lightbulb-outline" size={16} color={GOLD} />
+                <Text style={styles.tipsTitle}>Before you upload</Text>
+              </View>
+              {[
+                'Record vertical (9:16) — it fills the feed. Landscape gets black bars.',
+                'MP4 or MOV, under 80 MB. Large videos are compressed automatically.',
+                'Add a thumbnail — it is the first thing creators see.',
+              ].map(tip => (
+                <View key={tip} style={styles.tipRow}>
+                  <Text style={styles.tipDot}>•</Text>
+                  <Text style={styles.tipText}>{tip}</Text>
+                </View>
+              ))}
+            </View>
+
             <SectionLabel>Media</SectionLabel>
 
             {pickedFile ? (
@@ -1054,6 +1156,7 @@ function UploadModal({ visible, onClose, onUploaded }) {
                     source={{ uri: pickedFile.uri }}
                     style={styles.videoPreviewPlayer}
                     resizeMode="cover"
+                    viewType={ViewType.TEXTURE}
                     paused={previewPaused || uploading}
                     onLoadStart={() => setPreviewLoading(true)}
                     onLoad={() => setPreviewLoading(false)}
@@ -1159,7 +1262,7 @@ function UploadModal({ visible, onClose, onUploaded }) {
             <Text style={styles.fieldLabel}>Description</Text>
             <TextInput
               style={[styles.input, styles.inputMulti]}
-              placeholder="What will learners gain from this video?"
+              placeholder="What will creators gain from this video?"
               placeholderTextColor={C.text.muted}
               value={description}
               onChangeText={setDescription}
@@ -1201,39 +1304,8 @@ function UploadModal({ visible, onClose, onUploaded }) {
               </View>
             ) : null}
 
-            {uploading && (
-              <View style={styles.progressContainer}>
-                <View style={styles.progressHeader}>
-                  <Text style={styles.progressLabel}>
-                    {progress < 100 ? 'Uploading video…' : 'Saving to library…'}
-                  </Text>
-                  <Text style={styles.progressText}>{progress}%</Text>
-                </View>
-                <View style={styles.progressTrack}>
-                  <Animated.View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: progressAnim.interpolate({
-                          inputRange: [0, 100],
-                          outputRange: ['0%', '100%'],
-                          extrapolate: 'clamp',
-                        }),
-                      },
-                    ]}
-                  />
-                </View>
-              </View>
-            )}
-
             <CosmicButton
-              label={
-                uploading
-                  ? progress < 100
-                    ? 'Uploading…'
-                    : 'Saving…'
-                  : 'Publish video'
-              }
+              label={uploading ? 'Starting…' : 'Publish video'}
               variant="nebula"
               icon="cloud-upload"
               onPress={handleUpload}
@@ -1244,6 +1316,7 @@ function UploadModal({ visible, onClose, onUploaded }) {
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -1266,6 +1339,7 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
   const bottomListPad = (TB.floating?.contentReserve ?? 115) + T.spacing.lg;
   const { user } = useAuth();
   const [videos, setVideos] = useState([]);
+  const [reactionCounts, setReactionCounts] = useState(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
@@ -1277,6 +1351,8 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
   const [savingPrice, setSavingPrice] = useState(false);
   const [priceError, setPriceError] = useState('');
   const [replayToken, setReplayToken] = useState(0);
+  const [pending, setPending] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({});
 
   const loadVideos = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -1288,6 +1364,10 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
       setVideos(vids);
       setUnlockPrice(price);
       setSelectedTier(price);
+      const counts = await videoApi
+        .getVideoReactionCounts((vids || []).map(v => v.id))
+        .catch(() => new Map());
+      setReactionCounts(counts);
     } catch (e) {
       Toast.show(e.message, Toast.LONG);
     } finally {
@@ -1297,6 +1377,62 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
   }, [user.id]);
 
   useEffect(() => { loadVideos(); }, [loadVideos]);
+
+  const notifiedAtRef = useRef({});
+
+  const runQueue = useCallback(() => {
+    void processQueue(
+      (record, patch) =>
+        videoApi.uploadQueuedVideo(record, {
+          patch,
+          onProgress: (pct, phase) => {
+            setUploadProgress(prev => ({ ...prev, [record.id]: { pct, phase } }));
+            // Throttle: a native notification call per percent is pure overhead.
+            const last = notifiedAtRef.current[record.id];
+            if (!last || last.phase !== phase || Math.abs(pct - last.pct) >= 5 || pct === 100) {
+              notifiedAtRef.current[record.id] = { pct, phase };
+              showUploadProgress(record.id, record.title, pct, phase);
+              // Survives an app kill: without it the card restarts at 0% on reopen
+              // and a resumed upload looks stuck.
+              void patch({ progress: pct, phase });
+            }
+          },
+        }),
+      {
+        onDone: (record, row) => {
+          setVideos(prev => [row, ...prev]);
+          setUploadProgress(prev => {
+            const next = { ...prev };
+            delete next[record.id];
+            return next;
+          });
+          delete notifiedAtRef.current[record.id];
+          showUploadDone(record.id, record.title);
+          Toast.show('Video uploaded', Toast.SHORT);
+        },
+        onError: (record, e) => {
+          delete notifiedAtRef.current[record.id];
+          showUploadDone(record.id, record.title, { failed: true });
+          Toast.show(e?.message || 'Upload failed', Toast.LONG);
+        },
+      },
+    ).finally(() => {
+      // Queue drained (or everything left is backing off) — release the service.
+      void stopUploadService();
+    });
+  }, []);
+
+  // Resume anything left behind by a previous session before doing anything else.
+  useEffect(() => {
+    const unsubscribe = subscribe(setPending);
+    clearBackoff()
+      .then(listPending)
+      .then(records => {
+        setPending(records);
+        if (records.length) runQueue();
+      });
+    return unsubscribe;
+  }, [runQueue]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1326,7 +1462,11 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           try {
-            await videoApi.deleteVideo({ id: video.id, storagePath: video.storage_path });
+            await videoApi.deleteVideo({
+              id: video.id,
+              storagePath: video.storage_path,
+              thumbnailUrl: video.thumbnail_url,
+            });
             setVideos(prev => prev.filter(v => v.id !== video.id));
             Toast.show('Video deleted', Toast.SHORT);
           } catch (e) {
@@ -1470,8 +1610,8 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
       ) : (
         <FlatList
           style={styles.listFlex}
-          data={videos}
-          keyExtractor={v => v.id}
+          data={[...pending.map(p => ({ ...p, __pending: true })), ...videos]}
+          keyExtractor={v => String(v.id)}
           ListHeaderComponent={listHeader}
           ListEmptyComponent={
             <FadeSlideIn delay={200} replayToken={replayToken}>
@@ -1482,7 +1622,7 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
                 </View>
                 <Text style={styles.emptyText}>No videos yet</Text>
                 <Text style={styles.emptyHint}>
-                  Upload your first lesson to help learners discover your expertise
+                  Upload your first lesson to help creators discover your expertise
                 </Text>
                 <CosmicButton
                   label="Upload your first video"
@@ -1494,11 +1634,24 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
               </HoverHighlight>
             </FadeSlideIn>
           }
-          renderItem={({ item, index }) => (
+          renderItem={({ item, index }) =>
+            item.__pending ? (
+              <PendingUploadCard
+                record={item}
+                progress={uploadProgress[item.id]}
+                onRetry={async () => {
+                  clearUploadNotification(item.id);
+                  await retryNow(item.id);
+                  runQueue();
+                }}
+              />
+            ) : (
             <VideoCard
               video={item}
               index={index}
               replayToken={replayToken}
+              likeCount={reactionCounts.get(String(item.id))?.likeCount ?? 0}
+              dislikeCount={reactionCounts.get(String(item.id))?.dislikeCount ?? 0}
               onToggleFree={handleToggleFree}
               onDelete={handleDelete}
               onPlay={setPlayingVideo}
@@ -1518,7 +1671,7 @@ export default function MentorVideosScreen({ embeddedInTab = false }) {
       <UploadModal
         visible={showUpload}
         onClose={() => setShowUpload(false)}
-        onUploaded={(v) => setVideos(prev => [v, ...prev])}
+        onQueued={runQueue}
       />
 
       <VideoPlayerModal
@@ -1917,6 +2070,22 @@ function createMentorVideosStyles(theme) {
   cardTitle: { color: C.text.primary, fontSize: 14, fontWeight: '700' },
   cardDesc: { color: C.text.muted, fontSize: 12, marginBottom: 8, lineHeight: 17 },
   cardDescMuted: { color: C.text.muted, fontSize: 12, fontStyle: 'italic', marginBottom: 8 },
+  reactionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  reactionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  reactionCount: {
+    color: C.text.muted,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   freeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   freeLabel: { color: C.text.secondary, fontSize: 11, fontWeight: '600' },
@@ -1956,6 +2125,7 @@ function createMentorVideosStyles(theme) {
     backgroundColor: PANEL_BG,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    overflow: 'hidden',
     paddingHorizontal: 20,
     paddingTop: 12,
     maxHeight: '92%',
@@ -2238,7 +2408,7 @@ function createMentorVideosStyles(theme) {
     fontWeight: '600',
     flex: 1,
   },
-  editModalBackdrop: { flex: 1, backgroundColor: 'rgba(3,3,8,0.75)' },
+  editModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(3,3,8,0.75)' },
   savedBtn: { backgroundColor: C.accent.success },
   savedRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   fieldLabel: {
@@ -2250,7 +2420,73 @@ function createMentorVideosStyles(theme) {
     marginBottom: 6,
     marginTop: 10,
   },
+  pendingCard: {
+    backgroundColor: PANEL_BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    padding: 12,
+    marginBottom: 12,
+  },
+  pendingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pendingMeta: { flex: 1, minWidth: 0 },
+  pendingTitle: { color: C.text.primary, fontSize: 14, fontWeight: '700' },
+  pendingHint: { color: C.text.muted, fontSize: 12, marginTop: 2 },
+  pendingRetry: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: C.surface.chipStrong,
+  },
+  pendingRetryText: { color: TEAL, fontSize: 12, fontWeight: '700' },
+  pendingTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: C.surface.chipStrong,
+    overflow: 'hidden',
+    marginTop: 10,
+  },
+  pendingFill: { height: '100%', backgroundColor: TEAL, borderRadius: 2 },
+  uploadScreen: {
+    flex: 1,
+    backgroundColor: PANEL_BG,
+  },
+  uploadFlex: { flex: 1 },
+  uploadBody: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  // Full screen: the scroll area fills the space left by the header.
+  tipsCard: {
+    backgroundColor: C.surface.chip,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    padding: 12,
+    marginBottom: 16,
+  },
+  tipsHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  tipsTitle: {
+    color: C.text.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  tipRow: { flexDirection: 'row', gap: 6, marginBottom: 4 },
+  tipDot: { color: C.text.muted, fontSize: 12, lineHeight: 17 },
+  tipText: { color: C.text.muted, fontSize: 12, lineHeight: 17, flex: 1 },
+  uploadScroll: { flex: 1 },
+  uploadScrollContent: { paddingBottom: 24 },
+  modalScroll: { flexGrow: 0, flexShrink: 1 },
   uploadBtn: { marginTop: 16, marginBottom: 8 },
+  editSaveBtn: {
+    marginTop: 16,
+    backgroundColor: GOLD,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   uploadBtnText: {
     color: '#000',
     fontSize: 14,

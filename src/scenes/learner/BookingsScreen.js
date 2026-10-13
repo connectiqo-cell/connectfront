@@ -28,7 +28,8 @@ import { normalizeRecordingUrl } from '../../api/api';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { saveRecordingToGallery } from '../../utils/recordingActions';
 import { isBookingSessionPast, isExpiredBooking } from '../../utils/bookingSession';
-import { rescheduleApi } from '../../api/rescheduleApi';
+import { rescheduleApi, RESCHEDULE_ACTIVE_STATUSES, MAX_RESCHEDULE_ATTEMPTS, rescheduleReasonLabel } from '../../api/rescheduleApi';
+import ReportUserSheet from '../../components/ReportUserSheet';
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonBone({ style }) {
@@ -282,6 +283,7 @@ export default function LearnerBookingsScreen({ navigation }) {
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [pendingProposals, setPendingProposals] = useState([]);
   const [activeTab, setActiveTab] = useState('upcoming');
+  const [reportTarget, setReportTarget] = useState(null);
   const hasLoadedRef = useRef(false);
 
   const loadReviewedIds = useCallback(async bookings => {
@@ -331,8 +333,11 @@ export default function LearnerBookingsScreen({ navigation }) {
       const allUpcoming = (upcomingData || []).map(normalizeBooking);
       const historyNorm = (historyData || []).map(normalizeBooking);
 
-      const upcomingNorm = allUpcoming.filter(b => !isSessionPast(b));
-      const expiredNorm = allUpcoming.filter(b => isSessionPast(b));
+      // Keep active reschedule rows in Upcoming (like web) even though the
+      // original slot is past — otherwise Propose/Review banners disappear.
+      const isRescheduleActive = b => RESCHEDULE_ACTIVE_STATUSES.includes(b.status);
+      const upcomingNorm = allUpcoming.filter(b => isRescheduleActive(b) || !isSessionPast(b));
+      const expiredNorm = allUpcoming.filter(b => !isRescheduleActive(b) && isSessionPast(b));
 
       const merged = [...expiredNorm, ...historyNorm].sort((a, b) => {
         const da = `${a.availability_slots?.date ?? ''} ${a.availability_slots?.start_time ?? ''}`;
@@ -367,8 +372,9 @@ export default function LearnerBookingsScreen({ navigation }) {
         recordingUrl: normalizeRecordingUrl(playbackUrlFromBooking(b)) || null,
       });
       const all = (data || []).map(normalizeBooking);
-      const stillUpcoming = all.filter(b => !isBookingSessionPast(b));
-      const nowExpired = all.filter(b => isBookingSessionPast(b));
+      const isRescheduleActive = b => RESCHEDULE_ACTIVE_STATUSES.includes(b.status);
+      const stillUpcoming = all.filter(b => isRescheduleActive(b) || !isBookingSessionPast(b));
+      const nowExpired = all.filter(b => !isRescheduleActive(b) && isBookingSessionPast(b));
       setUpcomingAll(stillUpcoming);
       if (nowExpired.length > 0) {
         setHistory(prev => {
@@ -490,8 +496,18 @@ export default function LearnerBookingsScreen({ navigation }) {
             ? () => navigation.navigate(SCREEN_NAMES.Review, {
                 bookingId: item.id,
                 mentorId: item.mentor_id,
-                mentorName: item.profiles?.name || 'Mentor',
+                mentorName: item.profiles?.name || 'Creator',
               })
+            : null
+        }
+        onPressReport={
+          item.mentor_id
+            ? () =>
+                setReportTarget({
+                  userId: item.mentor_id,
+                  name: item.profiles?.name || 'Creator',
+                  bookingId: item.id,
+                })
             : null
         }
         statusLabel={statusLabel}
@@ -501,8 +517,8 @@ export default function LearnerBookingsScreen({ navigation }) {
     );
   };
 
-  const reschedulePendingBookings = upcomingAll.filter(b => b.status === 'reschedule_pending');
-  const regularUpcoming = upcomingAll.filter(b => b.status !== 'reschedule_pending');
+  const reschedulePendingBookings = upcomingAll.filter(b => RESCHEDULE_ACTIVE_STATUSES.includes(b.status));
+  const regularUpcoming = upcomingAll.filter(b => !RESCHEDULE_ACTIVE_STATUSES.includes(b.status));
   // Map proposal by booking_id for O(1) lookup
   const proposalByBookingId = {};
   pendingProposals.forEach(p => { proposalByBookingId[p.booking_id] = p; });
@@ -576,8 +592,10 @@ export default function LearnerBookingsScreen({ navigation }) {
       }
     }
     } else {
-    const visibleHistory = history.slice(0, historyShown);
-    const hasMoreHistoryToShow = historyShown < history.length || hasMoreHistory;
+    const unresolvedHistory = history.filter(b => b.status === 'reschedule_unresolved');
+    const otherHistory = history.filter(b => b.status !== 'reschedule_unresolved');
+    const visibleHistory = otherHistory.slice(0, historyShown);
+    const hasMoreHistoryToShow = historyShown < otherHistory.length || hasMoreHistory;
 
     listData.push({
       type: 'section_header',
@@ -587,7 +605,17 @@ export default function LearnerBookingsScreen({ navigation }) {
       isFirst: true,
       delay: nextDelay(),
     });
-    if (visibleHistory.length === 0 && !loadingMore) {
+    if (unresolvedHistory.length > 0) {
+      unresolvedHistory.forEach(b => {
+        listData.push({
+          type: 'reschedule_unresolved',
+          key: `unresolved_${b.id}`,
+          booking: b,
+          delay: nextDelay(),
+        });
+      });
+    }
+    if (visibleHistory.length === 0 && unresolvedHistory.length === 0 && !loadingMore) {
       listData.push({
         type: 'empty_section',
         key: 'history_empty',
@@ -666,8 +694,13 @@ export default function LearnerBookingsScreen({ navigation }) {
 
       case 'reschedule_banner': {
         const { booking: rb, proposal, delay } = item;
-        const mentorName = rb.profiles?.name || 'Your mentor';
-        const hasProposal = !!proposal?.proposed_date;
+        const mentorName = rb.profiles?.name || 'Your creator';
+        const isProposed = rb.status === 'reschedule_proposed';
+        const hasProposal = isProposed && !!proposal?.proposed_date;
+        const title = hasProposal ? 'New time proposed' : 'Reschedule needed';
+        const sub = hasProposal
+          ? `${mentorName} suggested a new time. Tap to review.`
+          : `${mentorName} is choosing a new time for your session.`;
         return (
           <FadeSlideIn delay={delay} style={styles.sectionItem}>
             <View style={[styles.rescheduleBanner, hasProposal && styles.rescheduleBannerActive]}>
@@ -679,18 +712,14 @@ export default function LearnerBookingsScreen({ navigation }) {
                 />
               </View>
               <View style={styles.rescheduleBannerBody}>
-                <Text style={styles.rescheduleBannerTitle}>
-                  {hasProposal ? 'New time proposed' : 'Awaiting proposal'}
-                </Text>
-                <Text style={styles.rescheduleBannerSub}>
-                  {hasProposal
-                    ? `${mentorName} suggested a new time. Tap to review.`
-                    : `${mentorName} is choosing a new time for your session.`}
-                </Text>
+                <Text style={styles.rescheduleBannerTitle}>{title}</Text>
+                <Text style={styles.rescheduleBannerSub}>{sub}</Text>
               </View>
               <PressScale
                 onPress={() =>
-                  navigation.navigate(SCREEN_NAMES.RescheduleResponse, { proposal: proposal || { booking_id: rb.id, bookings: rb } })
+                  navigation.navigate(SCREEN_NAMES.RescheduleResponse, {
+                    proposal: proposal || { booking_id: rb.id, bookings: rb },
+                  })
                 }
                 disabled={!hasProposal}
                 style={[styles.rescheduleBannerCta, !hasProposal && styles.rescheduleBannerCtaDisabled]}
@@ -699,6 +728,25 @@ export default function LearnerBookingsScreen({ navigation }) {
                   {hasProposal ? 'Review' : 'Waiting'}
                 </Text>
               </PressScale>
+            </View>
+          </FadeSlideIn>
+        );
+      }
+
+      case 'reschedule_unresolved': {
+        const { booking: rb, delay } = item;
+        return (
+          <FadeSlideIn delay={delay} style={styles.sectionItem}>
+            <View style={[styles.rescheduleBanner, styles.rescheduleBannerMuted]}>
+              <View style={styles.rescheduleBannerLeft}>
+                <MaterialIcons name="event-busy" size={22} color={C.text.muted} />
+              </View>
+              <View style={styles.rescheduleBannerBody}>
+                <Text style={styles.rescheduleBannerTitle}>Reschedule unresolved</Text>
+                <Text style={styles.rescheduleBannerSub}>
+                  {rescheduleReasonLabel(rb.reschedule_reason, 'learner')} · Unable to agree on a new time after {MAX_RESCHEDULE_ATTEMPTS} attempts.
+                </Text>
+              </View>
             </View>
           </FadeSlideIn>
         );
@@ -739,7 +787,7 @@ export default function LearnerBookingsScreen({ navigation }) {
               </View>
               <Text style={styles.emptyTitle}>No bookings yet</Text>
               <Text style={styles.emptySubtitle}>
-                Browse mentors from Discover and book your first session.
+                Browse creators from Discover and book your first session.
               </Text>
             </View>
           </FadeSlideIn>
@@ -773,6 +821,14 @@ export default function LearnerBookingsScreen({ navigation }) {
           }
         />
       )}
+      <ReportUserSheet
+        visible={!!reportTarget}
+        reportedUserId={reportTarget?.userId}
+        reportedUserName={reportTarget?.name || 'this user'}
+        contextType="booking"
+        contextId={reportTarget?.bookingId || null}
+        onClose={() => setReportTarget(null)}
+      />
     </SafeScreen>
   );
 }
@@ -943,6 +999,10 @@ function createBookingsStyles(theme) {
   rescheduleBannerActive: {
     backgroundColor: S.accentTeal,
     borderColor: C.border.default,
+  },
+  rescheduleBannerMuted: {
+    opacity: 0.9,
+    borderColor: GLASS_BORDER,
   },
   rescheduleBannerLeft: {
     width: 36,

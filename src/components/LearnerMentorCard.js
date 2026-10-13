@@ -137,7 +137,7 @@ export function LearnerMentorCard({
         onPress={() => onPress(mentor)}
         activeOpacity={0.88}
         accessibilityRole="button"
-        accessibilityLabel={`${name}, ${mentor.specialization || 'mentor'}`}
+        accessibilityLabel={`${name}, ${mentor.specialization || 'creator'}`}
       >
         {body}
       </TouchableOpacity>

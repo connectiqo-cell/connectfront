@@ -27,7 +27,8 @@ import { scheduleSessionReminder, requestNotificationPermission } from '../../ut
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { saveRecordingToGallery } from '../../utils/recordingActions';
 import { isBookingSessionPast, isExpiredBooking } from '../../utils/bookingSession';
-import { rescheduleApi } from '../../api/rescheduleApi';
+import { rescheduleApi, RESCHEDULE_ACTIVE_STATUSES, MAX_RESCHEDULE_ATTEMPTS, rescheduleReasonLabel } from '../../api/rescheduleApi';
+import ReportUserSheet from '../../components/ReportUserSheet';
 
 const T = UNIFIED_THEME;
 const C = T.colors;
@@ -409,6 +410,7 @@ export default function MentorCallsScreen({ navigation }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [activeTab, setActiveTab] = useState('upcoming');
+  const [reportTarget, setReportTarget] = useState(null);
   const sessionsLoaderShownRef = useRef(false);
   const lastProfileIdRef = useRef(profile?.id);
 
@@ -422,7 +424,7 @@ export default function MentorCallsScreen({ navigation }) {
               bookingId: b.id,
               sessionDate: b.availability_slots?.date,
               sessionTime: b.availability_slots?.start_time,
-              mentorName: b.profiles?.name || 'Learner',
+              mentorName: b.profiles?.name || 'Creator',
               isMentor: true,
             }).catch(() => {}),
           ),
@@ -453,8 +455,11 @@ export default function MentorCallsScreen({ navigation }) {
 
       const allUpcoming = (upcomingData || []).map(normalize);
       const historyNorm = (historyData || []).map(normalize);
-      const upcomingNorm = allUpcoming.filter(b => !isSessionPast(b));
-      const expiredNorm = allUpcoming.filter(b => isSessionPast(b));
+      // Keep active reschedule rows in Upcoming (like web) even though the
+      // original slot is past — otherwise Propose banners disappear.
+      const isRescheduleActive = b => RESCHEDULE_ACTIVE_STATUSES.includes(b.status);
+      const upcomingNorm = allUpcoming.filter(b => isRescheduleActive(b) || !isSessionPast(b));
+      const expiredNorm = allUpcoming.filter(b => !isRescheduleActive(b) && isSessionPast(b));
 
       const merged = [...expiredNorm, ...historyNorm].sort((a, b) => {
         const da = `${a.availability_slots?.date ?? ''} ${a.availability_slots?.start_time ?? ''}`;
@@ -465,7 +470,7 @@ export default function MentorCallsScreen({ navigation }) {
       setHistory(merged);
       setHistoryPage(1);
       setHasMoreHistory(historyNorm.length === PAGE_SIZE);
-      upcomingForReminders = upcomingNorm;
+      upcomingForReminders = upcomingNorm.filter(b => !isRescheduleActive(b));
     } catch {
       if (!opts.quietErrors && isActive()) Toast.show('Could not load sessions');
     } finally {
@@ -479,9 +484,9 @@ export default function MentorCallsScreen({ navigation }) {
     try {
       const data = await bookingApi.getUpcomingBookingsByMentor(profile.id);
       const all = (data || []).map(normalize);
-      const stillUpcoming = all.filter(b => !isSessionPast(b));
-      const nowExpired = all
-        .filter(b => isSessionPast(b));
+      const isRescheduleActive = b => RESCHEDULE_ACTIVE_STATUSES.includes(b.status);
+      const stillUpcoming = all.filter(b => isRescheduleActive(b) || !isSessionPast(b));
+      const nowExpired = all.filter(b => !isRescheduleActive(b) && isSessionPast(b));
       setUpcomingAll(stillUpcoming);
       if (nowExpired.length > 0) {
         setHistory(prev => {
@@ -595,13 +600,23 @@ export default function MentorCallsScreen({ navigation }) {
       onPressDownload={
         item.recordingUrl ? () => handleDownloadRecording(item.recordingUrl) : null
       }
+      onPressReport={
+        item.learner_id
+          ? () =>
+              setReportTarget({
+                userId: item.learner_id,
+                name: item.profiles?.name || item.learner_profile?.name || 'Creator',
+                bookingId: item.id,
+              })
+          : null
+      }
       statusLabel={STATUS_LABEL[statusKey(item)] || STATUS_LABEL.booked}
       pressScale
     />
   );
 
-  const reschedulePendingBookings = upcomingAll.filter(b => b.status === 'reschedule_pending');
-  const regularUpcoming = upcomingAll.filter(b => b.status !== 'reschedule_pending');
+  const reschedulePendingBookings = upcomingAll.filter(b => RESCHEDULE_ACTIVE_STATUSES.includes(b.status));
+  const regularUpcoming = upcomingAll.filter(b => !RESCHEDULE_ACTIVE_STATUSES.includes(b.status));
 
   const visibleUpcoming = regularUpcoming.slice(0, upcomingShown);
   const hasMoreUpcoming = regularUpcoming.length > upcomingShown;
@@ -675,8 +690,10 @@ export default function MentorCallsScreen({ navigation }) {
       }
     }
   } else {
-    const visibleHistory = history.slice(0, historyShown);
-    const hasMoreHistoryToShow = historyShown < history.length || hasMoreHistory;
+    const unresolvedHistory = history.filter(b => b.status === 'reschedule_unresolved');
+    const otherHistory = history.filter(b => b.status !== 'reschedule_unresolved');
+    const visibleHistory = otherHistory.slice(0, historyShown);
+    const hasMoreHistoryToShow = historyShown < otherHistory.length || hasMoreHistory;
 
     listData.push({
       type: 'section_header',
@@ -686,7 +703,17 @@ export default function MentorCallsScreen({ navigation }) {
       isFirst: true,
       delay: nextDelay(),
     });
-    if (!visibleHistory.length && !loadingMore) {
+    if (unresolvedHistory.length > 0) {
+      unresolvedHistory.forEach(b =>
+        listData.push({
+          type: 'reschedule_unresolved',
+          key: `unresolved_${b.id}`,
+          booking: b,
+          delay: nextDelay(),
+        }),
+      );
+    }
+    if (!visibleHistory.length && !unresolvedHistory.length && !loadingMore) {
       listData.push({
         type: 'empty_section',
         key: 'history_empty',
@@ -799,27 +826,59 @@ export default function MentorCallsScreen({ navigation }) {
 
       case 'reschedule_banner': {
         const { booking: rb, delay } = item;
-        const learnerName = rb.profiles?.name || 'Learner';
-        const reason = rb.reschedule_reason;
-        const reasonLabel =
-          reason === 'mentor_noshow' ? 'You did not join the session' :
-          reason === 'technical' ? 'Session ended too early' : 'Session not completed';
+        const learnerName = rb.profiles?.name || 'Creator';
+        const isProposed = rb.status === 'reschedule_proposed';
+        const reasonLabel = rescheduleReasonLabel(rb.reschedule_reason, 'mentor');
         return (
           <FadeSlideIn delay={delay} style={styles.sectionItem}>
             <View style={styles.rescheduleBanner}>
               <View style={styles.rescheduleBannerLeft}>
-                <MaterialIcons name="event-repeat" size={22} color={GOLD} />
+                <MaterialIcons
+                  name={isProposed ? 'hourglass-empty' : 'event-repeat'}
+                  size={22}
+                  color={GOLD}
+                />
               </View>
               <View style={styles.rescheduleBannerBody}>
-                <Text style={styles.rescheduleBannerTitle}>{learnerName} — Reschedule</Text>
+                <Text style={styles.rescheduleBannerTitle}>
+                  {learnerName} — {isProposed ? 'Waiting for response' : 'Reschedule needed'}
+                </Text>
                 <Text style={styles.rescheduleBannerSub}>{reasonLabel}</Text>
               </View>
-              <PressScale
-                onPress={() => navigation.navigate(SCREEN_NAMES.RescheduleRequest, { booking: rb })}
-                style={styles.rescheduleBannerCta}
-              >
-                <Text style={styles.rescheduleBannerCtaText}>Propose Time</Text>
-              </PressScale>
+              {isProposed ? (
+                <View style={[styles.rescheduleBannerCta, styles.rescheduleBannerCtaDisabled]}>
+                  <Text style={[styles.rescheduleBannerCtaText, styles.rescheduleBannerCtaTextMuted]}>
+                    Waiting
+                  </Text>
+                </View>
+              ) : (
+                <PressScale
+                  onPress={() => navigation.navigate(SCREEN_NAMES.RescheduleRequest, { booking: rb })}
+                  style={styles.rescheduleBannerCta}
+                >
+                  <Text style={styles.rescheduleBannerCtaText}>Propose Time</Text>
+                </PressScale>
+              )}
+            </View>
+          </FadeSlideIn>
+        );
+      }
+
+      case 'reschedule_unresolved': {
+        const { booking: rb, delay } = item;
+        const learnerName = rb.profiles?.name || 'Creator';
+        return (
+          <FadeSlideIn delay={delay} style={styles.sectionItem}>
+            <View style={[styles.rescheduleBanner, styles.rescheduleBannerMuted]}>
+              <View style={styles.rescheduleBannerLeft}>
+                <MaterialIcons name="event-busy" size={22} color={C.text.muted} />
+              </View>
+              <View style={styles.rescheduleBannerBody}>
+                <Text style={styles.rescheduleBannerTitle}>{learnerName} — Unresolved</Text>
+                <Text style={styles.rescheduleBannerSub}>
+                  Could not agree on a new time after {MAX_RESCHEDULE_ATTEMPTS} proposals. Booking closed.
+                </Text>
+              </View>
             </View>
           </FadeSlideIn>
         );
@@ -862,7 +921,7 @@ export default function MentorCallsScreen({ navigation }) {
               </PulseIconRing>
               <Text style={styles.emptyTitle}>No sessions yet</Text>
               <Text style={styles.emptySubtitle}>
-                When learners book with you, sessions will appear here.
+                When creators book with you, sessions will appear here.
               </Text>
             </View>
           </FadeSlideIn>
@@ -895,6 +954,14 @@ export default function MentorCallsScreen({ navigation }) {
           }
         />
       )}
+      <ReportUserSheet
+        visible={!!reportTarget}
+        reportedUserId={reportTarget?.userId}
+        reportedUserName={reportTarget?.name || 'this user'}
+        contextType="booking"
+        contextId={reportTarget?.bookingId || null}
+        onClose={() => setReportTarget(null)}
+      />
     </SafeScreen>
   );
 }
@@ -1180,10 +1247,20 @@ function createMentorCallsStyles(theme) {
     borderRadius: 8,
     backgroundColor: GOLD,
   },
+  rescheduleBannerCtaDisabled: {
+    backgroundColor: S.chipStrong,
+  },
   rescheduleBannerCtaText: {
     fontSize: 12,
     fontWeight: '800',
     color: '#000',
+  },
+  rescheduleBannerCtaTextMuted: {
+    color: C.text.muted,
+  },
+  rescheduleBannerMuted: {
+    opacity: 0.9,
+    backgroundColor: S.chipStrong,
   },
 });
 }

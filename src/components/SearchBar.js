@@ -13,7 +13,7 @@ import { scaleUi } from '../utils/iosUiScale';
 export const SearchBar = ({
   value,
   onChangeText,
-  placeholder = 'Search mentors...',
+  placeholder = 'Search creators...',
   containerStyle,
   onSubmitEditing,
   autoFocus,

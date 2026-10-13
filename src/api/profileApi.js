@@ -1,4 +1,4 @@
-﻿import { decode } from 'base64-arraybuffer';
+import { decode } from 'base64-arraybuffer';
 import { supabase } from '../lib/supabase';
 import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
 
@@ -42,7 +42,7 @@ export const profileApi = {
     try {
       const { data, error } = await supabase
         .from('mentor_profiles')
-        .select('id, specialization, bio, experience_years, price_per_hour, rating, total_sessions, unlock_price, category, cover_image_url, location, website, linkedin_url, x_url, instagram_url, youtube_url, skills')
+        .select('id, specialization, bio, experience_years, price_per_hour, rating, total_sessions, unlock_price, category, cover_image_url, location, website, linkedin_url, x_url, instagram_url, youtube_url, skills, mentor_frozen, mentor_frozen_until, mentor_freeze_reason')
         .eq('id', mentorId)
         .single();
 

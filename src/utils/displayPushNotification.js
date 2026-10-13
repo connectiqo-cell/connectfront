@@ -158,6 +158,7 @@ export async function displayFromRemoteMessage(remoteMessage) {
     title,
     body,
     data,
-    id: data.bookingId || data.type || undefined,
+    // conversationId: one tray entry per chat instead of all chats sharing 'new_message'.
+    id: data.bookingId || data.conversationId || data.type || undefined,
   });
 }

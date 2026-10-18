@@ -7,7 +7,7 @@ import { SCREEN_NAMES } from './screenNames';
 import HomeScreen from '../scenes/home/HomeScreen';
 import { MentorSectionNavigator } from './MentorSectionNavigator';
 import { LearnerSectionNavigator } from './LearnerSectionNavigator';
-import UnifiedSettingsScreen from '../scenes/settings/UnifiedSettingsScreen';
+import CollabHubScreen from '../scenes/collabhub/CollabHubScreen';
 import UploadTabScreen from '../scenes/shared/UploadTabScreen';
 
 const BottomTab = createBottomTabNavigator();
@@ -78,13 +78,16 @@ export const UnifiedTabNavigator = () => {
           ),
         }}
       />
+      {/* Settings moved to the Home app bar — this slot earns more as the
+          campaign feed, which is the only part of CollabHub a creator opens
+          repeatedly. */}
       <BottomTab.Screen
-        name={SCREEN_NAMES.UnifiedSettings}
-        component={UnifiedSettingsScreen}
+        name={SCREEN_NAMES.CollabHubTab}
+        component={CollabHubScreen}
         options={{
-          tabBarLabel: 'Settings',
+          tabBarLabel: 'Collab',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="settings" size={size} color={color} />
+            <MaterialIcons name="auto-awesome" size={size} color={color} />
           ),
         }}
       />

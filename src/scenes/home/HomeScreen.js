@@ -1044,6 +1044,10 @@ export default function HomeScreen() {
     navigation.navigate(SCREEN_NAMES.Notifications);
   }, [navigation]);
 
+  const openSettings = useCallback(() => {
+    navigation.navigate(SCREEN_NAMES.UnifiedSettings);
+  }, [navigation]);
+
   const handleThunderDismiss = useCallback(() => {
     setThunderVisible(false);
     thunderBusy.current = false;
@@ -1113,6 +1117,15 @@ export default function HomeScreen() {
               ) : null}
             </RotatingBorderIconButton>
           </View>
+          <Pressable
+            onPress={openSettings}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            hitSlop={6}
+            style={({ pressed }) => [styles.appBarPlainBtn, pressed && styles.appBarPlainBtnPressed]}
+          >
+            <MaterialIcons name="settings" size={22} color={C.text.secondary} />
+          </Pressable>
         </Animated.View>
 
         {!dataLoaded ? <HomeSkeleton screenWidth={width} /> : (
@@ -1322,6 +1335,18 @@ function createThemedStyles(theme) {
     alignItems: 'center',
     backgroundColor: T.mode === 'light' ? '#ffffff' : 'rgba(12,12,40,0.92)',
     position: 'relative',
+  },
+  // Settings: no gradient ring, no plate — the spinning border is reserved for
+  // notifications, which is the only thing in the bar that needs attention.
+  appBarPlainBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  appBarPlainBtnPressed: {
+    opacity: 0.6,
   },
   appBarBtnIconPulse: {
     alignItems: 'center',

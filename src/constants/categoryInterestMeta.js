@@ -86,7 +86,7 @@ export const CATEGORY_INTEREST_META = {
     description: 'Closing, pipeline & outreach',
   },
   other: {
-    icon: 'auto-awesome',
+    icon: 'widgets',
     description: 'Something else entirely',
   },
 };

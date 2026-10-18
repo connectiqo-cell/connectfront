@@ -61,8 +61,8 @@ const CATEGORY_ICONS_FALLBACK = {
   cloud:        'cloud',
   security:     'security',
   sales:        'point-of-sale',
-  others:       'auto-awesome',
-  other:        'auto-awesome',
+  others:       'widgets',
+  other:        'widgets',
 };
 
 function getCategoryIcon(category = '', dbIconMap = {}) {

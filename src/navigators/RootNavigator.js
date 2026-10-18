@@ -15,6 +15,7 @@ import VideoCallScreen from '../scenes/shared/VideoCallScreen';
 import RecordingPlayerScreen from '../scenes/shared/RecordingPlayerScreen';
 import MentorAvailabilityScreen from '../scenes/mentor/AvailabilityScreen';
 import EditProfileScreen from '../scenes/settings/EditProfileScreen';
+import UnifiedSettingsScreen from '../scenes/settings/UnifiedSettingsScreen';
 import RecordedLecturesScreen from '../scenes/settings/RecordedLecturesScreen';
 import TransactionHistoryScreen from '../scenes/settings/TransactionHistoryScreen';
 import WalletScreen from '../scenes/settings/WalletScreen';
@@ -29,6 +30,9 @@ import { MessagesScreen, MessageThreadScreen } from '../scenes/shared/MessagesSc
 import RescheduleRequestScreen from '../scenes/shared/RescheduleRequestScreen';
 import RescheduleResponseScreen from '../scenes/shared/RescheduleResponseScreen';
 import InterestsOnboardingScreen from '../scenes/auth/InterestsOnboardingScreen';
+import CollabHubScreen from '../scenes/collabhub/CollabHubScreen';
+import CampaignDetailScreen from '../scenes/collabhub/CampaignDetailScreen';
+import MyCampaignApplicationsScreen from '../scenes/collabhub/MyCampaignApplicationsScreen';
 import { profileApi } from '../api/profileApi';
 import { needsCategoryInterestOnboarding } from '../utils/mentorCategories';
 
@@ -170,6 +174,10 @@ export const RootNavigator = () => {
               screenListeners={androidOverlayBackListeners}
             >
               <RootStack.Screen
+                name={SCREEN_NAMES.UnifiedSettings}
+                component={UnifiedSettingsScreen}
+              />
+              <RootStack.Screen
                 name={SCREEN_NAMES.EditProfile}
                 component={EditProfileScreen}
               />
@@ -184,6 +192,18 @@ export const RootNavigator = () => {
               <RootStack.Screen
                 name={SCREEN_NAMES.Wallet}
                 component={WalletScreen}
+              />
+              <RootStack.Screen
+                name={SCREEN_NAMES.CollabHub}
+                component={CollabHubScreen}
+              />
+              <RootStack.Screen
+                name={SCREEN_NAMES.CampaignDetail}
+                component={CampaignDetailScreen}
+              />
+              <RootStack.Screen
+                name={SCREEN_NAMES.MyCampaignApplications}
+                component={MyCampaignApplicationsScreen}
               />
               <RootStack.Screen
                 name={SCREEN_NAMES.MentorProfile}

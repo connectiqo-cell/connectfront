@@ -26,7 +26,6 @@ import { pickProfileAvatar } from '../../utils/pickProfileAvatar';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import Button from '../../components/Button';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
-import { getFloatingTabBarContentInset } from '../../components/CosmicBottomTabBar';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
 import { profileApi } from '../../api/profileApi';
@@ -590,7 +589,8 @@ export default function UnifiedSettingsScreen({ navigation }) {
   const styles = useThemedStyles(createSettingsStyles);
   const { T, B, C, S, GOLD, TEAL, PURPLE_LINK, PANEL_BG } = useSettingsPalette();
   const insets = useSafeAreaInsets();
-  const tabBarInset = getFloatingTabBarContentInset(insets);
+  // Pushed from the Home app bar now, so there is no floating tab bar to clear
+  // — just the home indicator.
   const { showAvatarPreview } = useAvatarPreview();
   const { profile, signOut, refreshProfile } = useAuth();
   const { unreadCount } = useNotification();
@@ -811,15 +811,13 @@ export default function UnifiedSettingsScreen({ navigation }) {
   const subsCountLabel = subsLoading ? '…' : String(subscriptions.length);
 
   return (
-    // Match Home: do not pad SafeScreen for the absolute tab bar — that leaves a
-    // blank non-scrolling dead zone on iOS. Clear the bar via ScrollView content inset.
     <SafeScreen scrollable={false} padding={T.spacing.lg} hasBottomTabs={false}>
       <ScrollView
         style={styles.scrollFlex}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: T.spacing.xxxl + tabBarInset },
+          { paddingBottom: T.spacing.xxxl + insets.bottom },
         ]}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
@@ -829,7 +827,15 @@ export default function UnifiedSettingsScreen({ navigation }) {
       >
         <FadeSlideIn replayToken={replayToken} delay={0}>
           <View style={styles.header}>
-            <View>
+            <AnimatedPressable
+              onPress={() => navigation.goBack()}
+              style={styles.settingsBackBtn}
+              hoverScale={1.08}
+              pressScale={0.92}
+            >
+              <MaterialIcons name="arrow-back" size={22} color={C.accent.primary} />
+            </AnimatedPressable>
+            <View style={styles.headerTitles}>
               <Text style={styles.screenTitle}>Settings</Text>
               <Text style={styles.screenSubtitle}>Manage your account and preferences</Text>
             </View>
@@ -1038,8 +1044,17 @@ export default function UnifiedSettingsScreen({ navigation }) {
               label="My Videos"
               subtitle="Manage your creator video library"
               onPress={() => navigation.navigate(SCREEN_NAMES.MentorVideos)}
-              noBorder
               index={1}
+              replayToken={replayToken}
+            />
+            <MenuRow
+              icon="auto-awesome"
+              accent="purple"
+              label="Collab Hub"
+              subtitle="Paid brand campaigns you can apply to"
+              onPress={() => navigation.navigate(SCREEN_NAMES.CollabHub)}
+              noBorder
+              index={2}
               replayToken={replayToken}
             />
           </View>
@@ -1190,6 +1205,15 @@ function createSettingsStyles(theme) {
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: T.spacing.lg,
+  },
+  // Settings is pushed from the Home app bar now, not a bottom tab.
+  settingsBackBtn: {
+    marginRight: T.spacing.sm,
+    marginTop: 2,
+    padding: 4,
+  },
+  headerTitles: {
+    flex: 1,
   },
   screenTitle: {
     fontSize: 26,

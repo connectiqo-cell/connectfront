@@ -58,9 +58,9 @@ export const APP_TOUR_STEPS = [
   },
   {
     tab: 4,
-    icon: 'settings',
-    title: 'Settings',
-    body: 'Your profile, wallet, messages, notifications, recorded sessions and payment history.',
+    icon: 'auto-awesome',
+    title: 'Collab',
+    body: 'Paid campaigns from brands. Apply with a pitch, upload your video when you are picked, and track it here. Settings moved to the gear on the Home screen.',
   },
   {
     icon: 'rocket-launch',

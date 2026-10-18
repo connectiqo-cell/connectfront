@@ -60,11 +60,12 @@ export const linking = {
             },
           },
 
-          [SCREEN_NAMES.UnifiedSettings]: 'settings',
+          [SCREEN_NAMES.CollabHubTab]: 'collabhub',
         },
       },
 
       // ── Modal overlays (root stack) ──
+      [SCREEN_NAMES.UnifiedSettings]:    'settings',
       [SCREEN_NAMES.MentorProfile]:      'mentor/:mentorId',
       [SCREEN_NAMES.ScanMentorQr]:       'scan',
       [SCREEN_NAMES.Booking]:            'booking/:mentorId',

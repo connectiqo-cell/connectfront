@@ -12,8 +12,8 @@ import FirebaseMessaging
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
-  var window: UIWindow?
-
+  // The window lives on SceneDelegate — the iOS 27 SDK refuses to launch an app
+  // that creates its own window here. See SceneDelegate.swift.
   var reactNativeDelegate: ReactNativeDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
 
@@ -44,14 +44,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     reactNativeDelegate = delegate
     reactNativeFactory = factory
 
-    window = UIWindow(frame: UIScreen.main.bounds)
-
-    factory.startReactNative(
-      withModuleName: "MyApp",
-      in: window,
-      launchOptions: launchOptions
-    )
-
+    // SceneDelegate starts React Native once the scene hands over its window.
     return true
   }
 

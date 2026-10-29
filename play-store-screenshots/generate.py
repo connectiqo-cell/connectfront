@@ -23,21 +23,30 @@ SUB = (196, 181, 253)
 # (file, status_bar_px_to_crop, [(x0,y0,x1,y1) regions to paint over], headline lines, subtitle)
 # Headline lines are lists of (text, colour) segments.
 SCREENS = [
-    ("01_home.jpg", 48, [],
+    ("01_home.jpg", 75, [],
      [[("Connect", WHITE), (" with", WHITE)], [("creators", YELLOW), (" you love", WHITE)]],
      "Discover, book & join live sessions"),
-    ("02_discover.jpg", 48, [],
+    ("02_discover.jpg", 75, [],
      [[("Find ", WHITE), ("experts", YELLOW)], [("in every category", WHITE)]],
      "Coaching, fitness, wellness & more"),
     ("03_video_call.jpg", 0, [],
      [[("Face-to-face", YELLOW)], [("1:1 video sessions", WHITE)]],
      "HD calls with built-in chat"),
-    ("04_sessions.jpg", 48, [],
+    ("04_sessions.jpg", 75, [],
      [[("Track every", WHITE)], [("session", YELLOW), (" in one place", WHITE)]],
      "Upcoming, completed & full history"),
-    ("05_settings.jpg", 48, [(200, 16, 266, 82)],
+    ("05_settings.jpg", 75, [],
      [[("Earn", YELLOW), (" from your", WHITE)], [("time & content", WHITE)]],
      "Wallet, subscriptions & payouts"),
+    ("06_collab_hub.png", 110, [],
+     [[("Turn content", WHITE)], [("into ", WHITE), ("paid collabs", YELLOW)]],
+     "Browse brand briefs. Apply in one tap."),
+    ("07_campaign_brief.png", 110, [],
+     [[("Know the ", WHITE), ("brief", YELLOW)], [("before you shoot", WHITE)]],
+     "Payout, winners & video length upfront"),
+    ("08_upload_library.png", 110, [],
+     [[("Build your", WHITE)], [("video ", YELLOW), ("library", WHITE)]],
+     "Publish once, earn from every view"),
 ]
 
 TARGETS = {
@@ -46,7 +55,6 @@ TARGETS = {
     "ios_iphone_6.5in_1242x2688": (1242, 2688),
     "ios_iphone_6.3in_1206x2622": (1206, 2622),
     "ios_iphone_6.1in_1179x2556": (1179, 2556),
-    "ios_ipad_13in_2064x2752": (2064, 2752),
 }
 
 
@@ -55,19 +63,17 @@ def font(path, size):
 
 
 def gradient_bg(w, h):
-    top, bottom = (10, 7, 30), (36, 14, 84)
-    bg = Image.new("RGB", (w, h))
-    px = ImageDraw.Draw(bg)
-    for y in range(h):
-        t = y / (h - 1)
-        px.line([(0, y), (w, y)], fill=tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3)))
-    glow = Image.new("RGB", (w, h), (0, 0, 0))
-    g = ImageDraw.Draw(glow)
-    r = int(w * 0.55)
-    g.ellipse([-r // 2, int(h * 0.30) - r // 2, r // 2 + r // 2, int(h * 0.30) + r], fill=(90, 40, 200))
-    g.ellipse([w - r, int(h * 0.62), w + r // 2, int(h * 0.62) + int(r * 1.3)], fill=(20, 110, 130))
-    glow = glow.filter(ImageFilter.GaussianBlur(w // 5))
-    return ImageChops.add(bg, glow.point(lambda v: int(v * 0.55)))
+    """Diagonal violet wash: deep indigo top-left to bright violet bottom-right."""
+    dark, bright = (26, 11, 78), (124, 77, 255)
+    n = 96  # computed small, then upscaled - a smooth ramp needs no per-pixel work at full size
+    small = Image.new("RGB", (n, n))
+    px = small.load()
+    for y in range(n):
+        fy = 0.4 * y / (n - 1)
+        for x in range(n):
+            t = (0.6 * x / (n - 1) + fy) ** 0.8
+            px[x, y] = tuple(int(dark[i] + (bright[i] - dark[i]) * t) for i in range(3))
+    return small.resize((w, h), Image.BICUBIC)
 
 
 def prepare_screen(fname, crop_top, patches):
@@ -101,9 +107,9 @@ def draw_status_bar(screen_w, bar_h, colour):
 
 
 def phone_mockup(screen, phone_w):
-    bezel = int(phone_w * 0.035)
+    bezel = int(phone_w * 0.028)
     screen_w = phone_w - 2 * bezel
-    bar_h = int(screen_w * 0.085)
+    bar_h = 0
     scale = screen_w / screen.width
     content = screen.resize((screen_w, int(screen.height * scale)), Image.LANCZOS)
     content = content.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=2))
@@ -111,17 +117,12 @@ def phone_mockup(screen, phone_w):
     phone_h = screen_h + 2 * bezel
 
     inner = Image.new("RGB", (screen_w, screen_h))
-    inner.paste(draw_status_bar(screen_w, bar_h, screen.getpixel((screen.width // 2, 2))), (0, 0))
-    inner.paste(content, (0, bar_h))
-    # punch-hole camera
-    di = ImageDraw.Draw(inner)
-    cr = int(bar_h * 0.20)
-    di.ellipse([screen_w // 2 - cr, bar_h // 2 - cr, screen_w // 2 + cr, bar_h // 2 + cr], fill=(5, 5, 8))
+    inner.paste(content, (0, 0))
 
     phone = Image.new("RGBA", (phone_w, phone_h), (0, 0, 0, 0))
     outer_r = int(phone_w * 0.12)
     pd = ImageDraw.Draw(phone)
-    pd.rounded_rectangle([0, 0, phone_w - 1, phone_h - 1], radius=outer_r, fill=(18, 16, 28, 255), outline=(90, 80, 130, 255), width=max(2, phone_w // 220))
+    pd.rounded_rectangle([0, 0, phone_w - 1, phone_h - 1], radius=outer_r, fill=(13, 10, 28, 255), outline=(190, 170, 240, 255), width=max(2, phone_w // 220))
     mask = Image.new("L", (screen_w, screen_h), 0)
     ImageDraw.Draw(mask).rounded_rectangle([0, 0, screen_w - 1, screen_h - 1], radius=outer_r - bezel, fill=255)
     phone.paste(inner, (bezel, bezel), mask)
@@ -131,8 +132,8 @@ def phone_mockup(screen, phone_w):
 def draw_rich_line(d, segments, f, cx, y):
     widths = [d.textlength(t, font=f) for t, _ in segments]
     x = cx - sum(widths) / 2
-    for (t, c), w in zip(segments, widths):
-        d.text((x, y), t, font=f, fill=c, anchor="ls")
+    for (t, _c), w in zip(segments, widths):
+        d.text((x, y), t, font=f, fill=WHITE, anchor="ls")
         x += w
 
 
@@ -141,24 +142,21 @@ def render(screen, lines, subtitle, w, h):
     d = ImageDraw.Draw(canvas)
     unit = min(w, h * 0.5625)
 
-    brand_f = font(FONT_BOLD, int(unit * 0.034))
-    head_f = font(FONT_BLACK, int(unit * 0.088))
+    head_f = font(FONT_BLACK, int(unit * 0.090))
     sub_f = font(FONT_SEMI, int(unit * 0.040))
 
-    y = int(h * 0.055)
-    d.text((w / 2, y), "CONNECTIQO", font=brand_f, fill=VIOLET, anchor="mt")
-    y += int(unit * 0.12)
+    y = int(h * 0.085)
     line_gap = int(unit * 0.105)
     for segs in lines:
         draw_rich_line(d, segs, head_f, w / 2, y)
         y += line_gap
     y += int(unit * 0.005)
-    d.text((w / 2, y - int(unit * 0.03)), subtitle, font=sub_f, fill=SUB, anchor="mt")
+    d.text((w / 2, y - int(unit * 0.03)), subtitle, font=sub_f, fill=(222, 216, 250), anchor="mt")
     text_bottom = y + int(unit * 0.06)
 
     avail_h = h - text_bottom - int(h * 0.035)
-    aspect = (screen.width + 0) / (screen.height + screen.width * 0.085)
-    phone_w = int(min(w * 0.80, avail_h * aspect * 0.98))
+    aspect = screen.width / screen.height
+    phone_w = int(min(w * 0.68, avail_h * aspect * 0.98))
     phone = phone_mockup(screen, phone_w)
     if phone.height > avail_h:
         phone = phone.resize((int(phone.width * avail_h / phone.height), avail_h), Image.LANCZOS)

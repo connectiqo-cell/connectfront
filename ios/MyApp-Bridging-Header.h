@@ -3,3 +3,5 @@
 //
 
 #import "React/RCTEventEmitter.h"
+// SceneDelegate forwards warm deep links to RN's linking module.
+#import "React/RCTLinkingManager.h"

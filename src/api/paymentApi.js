@@ -34,6 +34,8 @@ function notifyMentorNewBooking(bookingId) {
     .catch((err) => console.warn('📣 notify-new-booking error:', err));
 }
 
+export const DEFAULT_MIN_WITHDRAWAL = 5000;
+
 export const paymentApi = {
   /**
    * Step 1: Create a Razorpay order via Supabase Edge Function.
@@ -208,6 +210,25 @@ export const paymentApi = {
     } catch (error) {
       console.warn('⚠️ Fee rule lookup failed, using defaults:', error?.message);
       return null;
+    }
+  },
+
+  /**
+   * Admin-configured minimum withdrawal amount (read-only on mobile).
+   */
+  getMinWithdrawal: async () => {
+    try {
+      const { data, error } = await supabase
+        .from('payout_settings')
+        .select('min_withdrawal_amount')
+        .eq('id', true)
+        .maybeSingle();
+
+      if (error) throw error;
+      return Number(data?.min_withdrawal_amount) || DEFAULT_MIN_WITHDRAWAL;
+    } catch (error) {
+      console.warn('⚠️ Min withdrawal lookup failed, using default:', error?.message);
+      return DEFAULT_MIN_WITHDRAWAL;
     }
   },
 };

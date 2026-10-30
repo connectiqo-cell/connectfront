@@ -43,7 +43,7 @@ const durationLabel = seconds => (seconds ? `1 video · ${seconds}s` : '1 video'
 /** Where you stand on a campaign you already applied to. */
 const APPLIED_CHIP = {
   pending: { label: 'Applied', tone: 'info' },
-  shortlisted: { label: 'Shortlisted', tone: 'info' },
+  shortlisted: { label: 'Shortlisted', tone: 'success' },
   accepted: { label: 'Accepted', tone: 'success' },
   rejected: { label: 'Not selected', tone: 'muted' },
 };
@@ -250,7 +250,11 @@ export default function CollabHubScreen({ navigation, route }) {
             const chip = applied ? APPLIED_CHIP[applied] : null;
             // A button only where there is something to do: apply, or deliver
             // the video you were accepted for. "Applied" is a state, not an act.
-            const cta = !applied ? 'Apply now' : applied === 'accepted' ? 'Submit your video' : null;
+            const cta = !applied
+              ? 'Apply now'
+              : ['shortlisted', 'accepted'].includes(applied)
+                ? 'Submit your video'
+                : null;
             const isNew = !applied && moment().diff(moment(c.created_at), 'days') <= NEW_WITHIN_DAYS;
             return (
               <Pressable
@@ -258,74 +262,72 @@ export default function CollabHubScreen({ navigation, route }) {
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
                 onPress={() => openCampaign(c.id)}
               >
-                <View style={styles.rowTopArea}>
-                  {c.cover_image_url ? (
-                    <Image source={{ uri: c.cover_image_url }} style={styles.thumb} resizeMode="cover" />
-                  ) : (
-                    <LinearGradient
-                      colors={C.buttons.premiumGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={[styles.thumb, styles.thumbFallback]}
-                    >
-                      <MaterialIcons name="auto-awesome" size={24} color="rgba(255,255,255,0.5)" />
-                    </LinearGradient>
-                  )}
+                {c.cover_image_url ? (
+                  <Image source={{ uri: c.cover_image_url }} style={styles.cover} resizeMode="cover" />
+                ) : (
+                  <LinearGradient
+                    colors={C.buttons.premiumGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.cover, styles.coverFallback]}
+                  >
+                    <MaterialIcons name="auto-awesome" size={28} color="rgba(255,255,255,0.5)" />
+                  </LinearGradient>
+                )}
 
-                  <View style={styles.rowBody}>
-                    <View style={styles.rowTop}>
-                      {c.brand?.avatar_url ? (
-                        <Image source={{ uri: c.brand.avatar_url }} style={styles.brandAvatar} />
-                      ) : (
-                        <View style={[styles.brandAvatar, styles.brandAvatarFallback]}>
-                          <MaterialIcons name="business" size={11} color={C.text.muted} />
-                        </View>
-                      )}
-                      <Text style={styles.brand} numberOfLines={1}>
-                        {c.brand?.name || 'Brand'}
-                      </Text>
-                      {chip ? (
-                        <View style={[styles.statusChip, { borderColor: chipColor(chip.tone) }]}>
-                          <Text style={[styles.statusChipText, { color: chipColor(chip.tone) }]}>
-                            {chip.label}
-                          </Text>
-                        </View>
-                      ) : isNew ? (
-                        <View style={styles.newBadge}>
-                          <Text style={styles.newBadgeText}>New</Text>
-                        </View>
-                      ) : null}
-                    </View>
-
-                    <Text style={styles.title} numberOfLines={2}>{c.title}</Text>
-
-                    <Text style={styles.metaLine} numberOfLines={1}>
-                      <Text style={styles.price}>{money(c.budget_per_winner)}</Text>
-                      <Text style={styles.meta}>
-                        {'  \u00b7  '}{durationLabel(c.video_duration_seconds)}{'  \u00b7  '}
-                        {c.winner_count || 1} {c.winner_count === 1 ? 'winner' : 'winners'}
-                      </Text>
+                <View style={styles.rowBody}>
+                  <View style={styles.rowTop}>
+                    {c.brand?.avatar_url ? (
+                      <Image source={{ uri: c.brand.avatar_url }} style={styles.brandAvatar} />
+                    ) : (
+                      <View style={[styles.brandAvatar, styles.brandAvatarFallback]}>
+                        <MaterialIcons name="business" size={11} color={C.text.muted} />
+                      </View>
+                    )}
+                    <Text style={styles.brand} numberOfLines={1}>
+                      {c.brand?.name || 'Brand'}
                     </Text>
+                    {chip ? (
+                      <View style={[styles.statusChip, { borderColor: chipColor(chip.tone) }]}>
+                        <Text style={[styles.statusChipText, { color: chipColor(chip.tone) }]}>
+                          {chip.label}
+                        </Text>
+                      </View>
+                    ) : isNew ? (
+                      <View style={styles.newBadge}>
+                        <Text style={styles.newBadgeText}>New</Text>
+                      </View>
+                    ) : null}
+                  </View>
 
-                    <View style={styles.tagRow}>
-                      {c.category ? (
-                        <View style={styles.tag}>
-                          <Text style={styles.tagText} numberOfLines={1}>{c.category}</Text>
-                        </View>
-                      ) : null}
-                      {deadline ? (
-                        <View style={styles.deadlineRow}>
-                          <MaterialIcons
-                            name="schedule"
-                            size={12}
-                            color={deadline.urgent ? C.accent.warning : C.text.muted}
-                          />
-                          <Text style={[styles.deadline, deadline.urgent && styles.deadlineUrgent]}>
-                            {deadline.text}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
+                  <Text style={styles.title} numberOfLines={2}>{c.title}</Text>
+
+                  <Text style={styles.metaLine} numberOfLines={1}>
+                    <Text style={styles.price}>{money(c.budget_per_winner)}</Text>
+                    <Text style={styles.meta}>
+                      {'  \u00b7  '}{durationLabel(c.video_duration_seconds)}{'  \u00b7  '}
+                      {c.winner_count || 1} {c.winner_count === 1 ? 'winner' : 'winners'}
+                    </Text>
+                  </Text>
+
+                  <View style={styles.tagRow}>
+                    {c.category ? (
+                      <View style={styles.tag}>
+                        <Text style={styles.tagText} numberOfLines={1}>{c.category}</Text>
+                      </View>
+                    ) : null}
+                    {deadline ? (
+                      <View style={styles.deadlineRow}>
+                        <MaterialIcons
+                          name="schedule"
+                          size={12}
+                          color={deadline.urgent ? C.accent.warning : C.text.muted}
+                        />
+                        <Text style={[styles.deadline, deadline.urgent && styles.deadlineUrgent]}>
+                          {deadline.text}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
 
@@ -346,7 +348,7 @@ export default function CollabHubScreen({ navigation, route }) {
 function RowSkeleton({ styles }) {
   return (
     <View style={styles.row}>
-      <View style={[styles.thumb, styles.skel]} />
+      <View style={[styles.cover, styles.skel]} />
       <View style={styles.rowBody}>
         <View style={[styles.skelLine, styles.skel, { width: '40%' }]} />
         <View style={[styles.skelLine, styles.skel, { width: '85%', height: 13 }]} />
@@ -412,14 +414,14 @@ const makeStyles = (theme) => {
     },
     rowPressed: { opacity: 0.85 },
 
-    rowTopArea: { flexDirection: 'row', gap: theme.spacing.md },
-    thumb: {
-      width: 92,
-      height: 92,
+    // Covers are wide brand banners; a square crop ate them. Full-width 16:9.
+    cover: {
+      width: '100%',
+      aspectRatio: 16 / 9,
       borderRadius: 14,
       backgroundColor: softFillStrong(theme),
     },
-    thumbFallback: { alignItems: 'center', justifyContent: 'center' },
+    coverFallback: { alignItems: 'center', justifyContent: 'center' },
 
     rowBody: { flex: 1, gap: 5 },
     rowTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },

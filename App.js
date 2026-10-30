@@ -12,6 +12,7 @@ import InAppPushBanner from "./src/components/InAppPushBanner";
 import { LogBox, View, StyleSheet, StatusBar } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
+import ForceUpdateGate from "./src/components/ForceUpdateGate";
 import { AuthProvider } from "./src/contexts/AuthContext";
 import { AvatarPreviewProvider } from "./src/contexts/AvatarPreviewContext";
 import { NotificationProvider } from "./src/contexts/NotificationContext";
@@ -193,7 +194,9 @@ export default function App() {
             <AvatarPreviewProvider>
               <NotificationProvider>
                 <PushBannerProvider>
-                  <AppNavigation navigationRef={navigationRef} />
+                  <ForceUpdateGate>
+                    <AppNavigation navigationRef={navigationRef} />
+                  </ForceUpdateGate>
                 </PushBannerProvider>
               </NotificationProvider>
             </AvatarPreviewProvider>

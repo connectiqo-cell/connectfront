@@ -32,10 +32,9 @@ const PITCH_MAX = 500;
 
 const APPLICATION_STATUS = {
   pending: { label: 'Application sent', body: 'The brand is reviewing applications.', icon: 'schedule', tone: 'info' },
-  // Shortlisted is not yet a green light: the insert policy on
-  // campaign_submissions requires status = 'accepted', so promising an upload
-  // here would just produce an RLS error.
-  shortlisted: { label: 'Shortlisted', body: 'Waiting on the brand to confirm you.', icon: 'star', tone: 'info' },
+  // Shortlisting is the brand's invitation to submit — the insert policy on
+  // campaign_submissions accepts 'shortlisted' as well as 'accepted'.
+  shortlisted: { label: "You're shortlisted", body: 'Shoot the brief and upload your video.', icon: 'star', tone: 'success' },
   accepted: { label: "You're in", body: 'Shoot the brief and upload your video.', icon: 'check-circle', tone: 'success' },
   rejected: { label: 'Not selected', body: 'This one went to someone else.', icon: 'cancel', tone: 'error' },
 };
@@ -185,10 +184,10 @@ export default function CampaignDetailScreen({ navigation, route }) {
     info: C.accent.info,
   }[key] || C.text.muted);
 
-  // Only 'accepted' can submit — campaign_submissions' insert policy requires
-  // it, so offering an upload to a shortlisted creator just errors.
+  // Shortlisted or accepted — both are a green light to upload (see the
+  // insert policy on campaign_submissions).
   const canSubmit = application
-    && application.status === 'accepted'
+    && ['shortlisted', 'accepted'].includes(application.status)
     && (!submission || submission.status === 'revision_requested');
 
   // One banner, not three: the submission supersedes the application once it

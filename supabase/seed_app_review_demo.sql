@@ -21,8 +21,8 @@ BEGIN;
 DO $$
 DECLARE
   -- ── EDIT THESE TWO ────────────────────────────────────────────────────────
-  v_reviewer_email text := 'appreview@connectiqo.com';
-  v_mentor_email   text := 'demomentor@connectiqo.com';
+  v_reviewer_email text := 'ramvish9923@gmail.com';
+  v_mentor_email   text := '';
   -- ──────────────────────────────────────────────────────────────────────────
 
   v_reviewer uuid;
@@ -43,8 +43,11 @@ BEGIN
   END IF;
 
   -- ── Profiles ──────────────────────────────────────────────────────────────
-  UPDATE profiles SET name = 'App Review' WHERE id = v_reviewer;
-  UPDATE profiles SET name = 'Demo Mentor', role = 'mentor' WHERE id = v_mentor;
+  -- 'both' is what signup actually assigns (203 of 205 live profiles) — the app
+  -- has no separate learner/mentor mode, so a demo account needs it to reach the
+  -- creator screens the screenshots advertise.
+  UPDATE profiles SET name = 'App Review',  role = 'both' WHERE id = v_reviewer;
+  UPDATE profiles SET name = 'Demo Mentor', role = 'both' WHERE id = v_mentor;
 
   -- ── Mentor profile: bookable, with a priced video library ─────────────────
   INSERT INTO mentor_profiles (id, specialization, bio, experience_years,
@@ -63,8 +66,24 @@ BEGIN
   -- ── Fresh availability: 30 days out, so the seed does not go stale mid-review
   -- Only unbooked demo slots are cleared, so the seeded booking below survives
   -- a re-run.
-  DELETE FROM availability_slots
-   WHERE mentor_id = v_mentor AND is_booked = false;
+  --
+  -- is_booked = false is NOT enough on its own: slots drift out of sync with
+  -- bookings (a cancelled or rescheduled session leaves the flag cleared while
+  -- the booking row still points at the slot), and bookings.slot_id /
+  -- transactions.slot_id are real foreign keys. The slot_ids arrays carry no FK
+  -- at all, so deleting a slot referenced only there would quietly break a
+  -- multi-slot booking. Skip anything still referenced from either table.
+  DELETE FROM availability_slots s
+   WHERE s.mentor_id = v_mentor
+     AND s.is_booked = false
+     AND NOT EXISTS (
+       SELECT 1 FROM bookings b
+        WHERE b.slot_id = s.id OR s.id = ANY(COALESCE(b.slot_ids, '{}'))
+     )
+     AND NOT EXISTS (
+       SELECT 1 FROM transactions t
+        WHERE t.slot_id = s.id OR s.id = ANY(COALESCE(t.slot_ids, '{}'))
+     );
 
   FOR d IN SELECT generate_series(CURRENT_DATE + 1, CURRENT_DATE + 30, '1 day')::date LOOP
     INSERT INTO availability_slots (mentor_id, date, start_time, end_time, is_booked)

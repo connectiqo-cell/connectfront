@@ -23,13 +23,11 @@ import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useThemedStyles, useTheme } from '../../hooks/useTheme';
 import { softFill } from '../../theme/surfaceStyles';
-import { paymentApi } from '../../api/paymentApi';
+import { paymentApi, DEFAULT_MIN_WITHDRAWAL } from '../../api/paymentApi';
 import { payoutApi } from '../../api/payoutApi';
 import { useAuth } from '../../hooks/useAuth';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { useWithdrawalRequestsRealtime } from '../../hooks/useWithdrawalRequestsRealtime';
-
-const MIN_WITHDRAWAL = 5000;
 
 const fmt = n =>
   `₹${parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -879,6 +877,7 @@ export default function WalletScreen({ navigation }) {
   const [submitting, setSubmitting] = useState(false);
   const loadedRef = useRef(false);
   const [replayToken, setReplayToken] = useState(0);
+  const [minWithdrawal, setMinWithdrawal] = useState(DEFAULT_MIN_WITHDRAWAL);
   const bannerShimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -911,6 +910,7 @@ export default function WalletScreen({ navigation }) {
           paymentApi.getTransactions(profile.id).catch(() => []),
           paymentApi.getWithdrawalRequests(profile.id).catch(() => []),
         ]);
+        paymentApi.getMinWithdrawal().then(setMinWithdrawal);
         setWallet(w);
         setPendingAmount(pending);
         setStoredUpi(payoutStatus?.upiId || '');
@@ -955,8 +955,8 @@ export default function WalletScreen({ navigation }) {
       Toast.show('Amount exceeds available balance');
       return;
     }
-    if (amount < MIN_WITHDRAWAL) {
-      Toast.show(`Minimum withdrawal is ₹${MIN_WITHDRAWAL.toLocaleString('en-IN')}`);
+    if (amount < minWithdrawal) {
+      Toast.show(`Minimum withdrawal is ₹${minWithdrawal.toLocaleString('en-IN')}`);
       return;
     }
 
@@ -992,16 +992,16 @@ export default function WalletScreen({ navigation }) {
   };
 
   const hasPayoutMethod = !!storedUpi || !!(storedBankAccount && storedIfsc);
-  const canWithdraw = wallet.balance >= MIN_WITHDRAWAL && hasPayoutMethod;
-  const progressPct = Math.min((wallet.balance / MIN_WITHDRAWAL) * 100, 100);
-  const amountNeeded = Math.max(MIN_WITHDRAWAL - wallet.balance, 0);
+  const canWithdraw = wallet.balance >= minWithdrawal && hasPayoutMethod;
+  const progressPct = Math.min((wallet.balance / minWithdrawal) * 100, 100);
+  const amountNeeded = Math.max(minWithdrawal - wallet.balance, 0);
   const mentorTx = transactions.filter(t => t.mentor_id === profile?.id);
   const selectedChip =
-    withdrawAmount === String(MIN_WITHDRAWAL)
+    withdrawAmount === String(minWithdrawal)
       ? 'Min'
       : withdrawAmount === String(Math.floor(wallet.balance))
         ? 'Max'
-        : withdrawAmount === String(Math.floor(Math.max(MIN_WITHDRAWAL, wallet.balance * 0.5)))
+        : withdrawAmount === String(Math.floor(Math.max(minWithdrawal, wallet.balance * 0.5)))
           ? '50%'
           : null;
 
@@ -1165,7 +1165,7 @@ export default function WalletScreen({ navigation }) {
         <SectionBlock
           icon="payments"
           title="Withdraw earnings"
-          subtitle={canWithdraw ? 'You can request a payout now' : `Minimum withdrawal · ${fmtCompact(MIN_WITHDRAWAL)}`}
+          subtitle={canWithdraw ? 'You can request a payout now' : `Minimum withdrawal · ${fmtCompact(minWithdrawal)}`}
           accent={GOLD}
           accentBg={S.accentGold}
           delay={300}
@@ -1190,7 +1190,7 @@ export default function WalletScreen({ navigation }) {
             <>
               <AnimatedProgressBar percent={progressPct} />
               <Text style={styles.progressCaption}>
-                {fmtCompact(wallet.balance)} of {fmtCompact(MIN_WITHDRAWAL)} minimum
+                {fmtCompact(wallet.balance)} of {fmtCompact(minWithdrawal)} minimum
               </Text>
             </>
           ) : null}
@@ -1240,7 +1240,7 @@ export default function WalletScreen({ navigation }) {
                   style={styles.fieldInput}
                   value={withdrawAmount}
                   onChangeText={setWithdrawAmount}
-                  placeholder={`Min ${fmtCompact(MIN_WITHDRAWAL)}`}
+                  placeholder={`Min ${fmtCompact(minWithdrawal)}`}
                   placeholderTextColor={C.text.muted}
                   keyboardType="numeric"
                 />
@@ -1248,8 +1248,8 @@ export default function WalletScreen({ navigation }) {
 
               <View style={styles.quickAmountRow}>
                 {[
-                  { label: 'Min', value: MIN_WITHDRAWAL },
-                  { label: '50%', value: Math.max(MIN_WITHDRAWAL, wallet.balance * 0.5) },
+                  { label: 'Min', value: minWithdrawal },
+                  { label: '50%', value: Math.max(minWithdrawal, wallet.balance * 0.5) },
                   { label: 'Max', value: wallet.balance },
                 ].map(chip => (
                   <QuickAmountChip
@@ -1361,7 +1361,7 @@ export default function WalletScreen({ navigation }) {
               { icon: 'event-available', text: 'Creators pay when they book your session.' },
               { icon: 'hourglass-empty', text: 'Earnings stay pending until the session is completed.' },
               { icon: 'account-balance-wallet', text: 'Available balance can be withdrawn to your UPI.' },
-              { icon: 'info-outline', text: `Minimum withdrawal amount is ${fmtCompact(MIN_WITHDRAWAL)}.` },
+              { icon: 'info-outline', text: `Minimum withdrawal amount is ${fmtCompact(minWithdrawal)}.` },
             ].map((row, index) => (
               <GuideRow key={row.icon} icon={row.icon} text={row.text} index={index} />
             ))}

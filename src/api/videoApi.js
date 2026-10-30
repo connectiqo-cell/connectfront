@@ -246,7 +246,7 @@ export const videoApi = {
           is_free: record.isFree,
           thumbnail_url: thumbnailUrl,
         })
-        .select()
+        .select('id, mentor_id, title, description, storage_path, thumbnail_url, is_free, position, is_promoted, promoted_at, created_at')
         .single();
 
       if (error) throw error;
@@ -256,67 +256,39 @@ export const videoApi = {
     }
   },
 
-  // ─── Get free + promoted videos (for HomeScreen session tiles) ─────────────
-  getFreeVideos: async ({ page = 0, pageSize = 10 } = {}) => {
-    try {
-      const from = page * pageSize;
-      const to   = from + pageSize - 1;
-
-      const { data: videos, error } = await supabase
-        .from('mentor_videos')
-        .select(`
-          id, mentor_id, title, description, video_url, hls_url, thumbnail_url, is_free, position, is_promoted, promoted_at, created_at,
-          profiles:mentor_id ( id, name, avatar_url )
-        `)
-        .or('is_free.eq.true,is_promoted.eq.true')
-        .order('is_promoted', { ascending: false })
-        .order('promoted_at', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      if (error) throw error;
-      if (!videos?.length) return [];
-
-      const activeMentorIds = await fetchActiveMentorIds(videos.map((v) => v.mentor_id));
-      return videos.filter((v) => activeMentorIds.has(v.mentor_id));
-    } catch (error) {
-      throw new Error(getSupabaseErrorMessage(error));
-    }
-  },
-
   // ─── Get all public videos across all mentors (for learner feed) ────────────
   getAllPublicVideos: async ({ page = 0, pageSize = 20, excludeMentorId = null } = {}) => {
     try {
       const from = page * pageSize;
-      const to = from + pageSize - 1;
 
-      // Step 1: fetch videos + profile (direct FK exists: mentor_videos.mentor_id → profiles.id)
-      let query = supabase
-        .from('mentor_videos')
-        .select(`
-          id, mentor_id, title, description, video_url, hls_url, thumbnail_url, is_free, position, is_promoted, promoted_at, created_at,
-          profiles:mentor_id ( id, name, avatar_url )
-        `)
-        .order('is_promoted', { ascending: false })
-        .order('promoted_at', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false });
-
-      // filter before paginating
-      if (excludeMentorId) query = query.neq('mentor_id', excludeMentorId);
-
-      query = query.range(from, to);
-
-      const { data: videos, error } = await query;
+      // Step 1: videos via RPC — video_url/hls_url are no longer SELECT-able on the
+      // table; the function nulls them server-side for paid videos the viewer hasn't
+      // unlocked. Ordering and paging live inside the function.
+      const { data: rpcVideos, error } = await supabase.rpc('get_public_videos_for_viewer', {
+        p_limit: pageSize,
+        p_offset: from,
+      });
 
       if (error) throw error;
-      if (!videos?.length) return [];
+      // excludeMentorId now filters after paging (the RPC pages internally), so a page
+      // may come back short rather than topped up.
+      const videos = excludeMentorId
+        ? (rpcVideos || []).filter((v) => String(v.mentor_id) !== String(excludeMentorId))
+        : (rpcVideos || []);
+      if (!videos.length) return [];
 
-      // Step 2: fetch mentor_profiles for all unique mentor IDs in the result
+      // Step 2: profiles + mentor_profiles for the unique mentor IDs (the RPC returns
+      // video columns only, so the joined profile has to come separately)
       const mentorIds = [...new Set(videos.map(v => v.mentor_id))];
-      const { data: mentorProfiles } = await supabase
-        .from('mentor_profiles')
-        .select('id, specialization, unlock_price, category, mentor_frozen, mentor_frozen_until')
-        .in('id', mentorIds);
+      const [{ data: profiles }, { data: mentorProfiles }] = await Promise.all([
+        supabase.from('profiles').select('id, name, avatar_url').in('id', mentorIds),
+        supabase
+          .from('mentor_profiles')
+          .select('id, specialization, unlock_price, category, mentor_frozen, mentor_frozen_until')
+          .in('id', mentorIds),
+      ]);
+      const nameMap = {};
+      (profiles || []).forEach(pr => { nameMap[pr.id] = pr; });
 
       // Step 3: merge — drop videos whose mentor is currently frozen
       const profileMap = {};
@@ -328,6 +300,7 @@ export const videoApi = {
         .filter((v) => profileMap[v.mentor_id])
         .map(v => ({
           ...v,
+          profiles: nameMap[v.mentor_id] || { id: v.mentor_id, name: null, avatar_url: null },
           mentor_profiles: profileMap[v.mentor_id] || { specialization: '', unlock_price: 299, category: null },
         }));
     } catch (error) {
@@ -338,23 +311,22 @@ export const videoApi = {
   /** One video by id (same shape as getAllPublicVideos) — for deep links / startVideoId. */
   getPublicVideoById: async (videoId) => {
     try {
-      const { data: video, error } = await supabase
-        .from('mentor_videos')
-        .select(`
-          id, mentor_id, title, description, video_url, hls_url, thumbnail_url, is_free, position, is_promoted, promoted_at, created_at,
-          profiles:mentor_id ( id, name, avatar_url )
-        `)
-        .eq('id', videoId)
-        .maybeSingle();
+      const { data: rows, error } = await supabase.rpc('get_public_video_by_id', {
+        p_video_id: videoId,
+      });
 
       if (error) throw error;
+      const video = rows?.[0];
       if (!video) return null;
 
-      const { data: mentorProfile } = await supabase
-        .from('mentor_profiles')
-        .select('id, specialization, unlock_price, category, mentor_frozen, mentor_frozen_until')
-        .eq('id', video.mentor_id)
-        .maybeSingle();
+      const [{ data: profile }, { data: mentorProfile }] = await Promise.all([
+        supabase.from('profiles').select('id, name, avatar_url').eq('id', video.mentor_id).maybeSingle(),
+        supabase
+          .from('mentor_profiles')
+          .select('id, specialization, unlock_price, category, mentor_frozen, mentor_frozen_until')
+          .eq('id', video.mentor_id)
+          .maybeSingle(),
+      ]);
 
       if (!mentorProfile || isMentorFreezeActive(mentorProfile)) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -365,6 +337,7 @@ export const videoApi = {
 
       return {
         ...video,
+        profiles: profile || { id: video.mentor_id, name: null, avatar_url: null },
         mentor_profiles: mentorProfile || { specialization: '', unlock_price: 299, category: null },
       };
     } catch (error) {
@@ -632,14 +605,9 @@ export const videoApi = {
         return [];
       }
 
-      const { data, error } = await supabase
-        .from('mentor_videos')
-        .select('id, mentor_id, title, description, video_url, hls_url, thumbnail_url, is_free, position, is_promoted, promoted_at, created_at')
-        .eq('mentor_id', mentorId)
-        .order('is_promoted', { ascending: false })
-        .order('promoted_at', { ascending: false, nullsFirst: false })
-        .order('position', { ascending: true })
-        .order('created_at', { ascending: true });
+      const { data, error } = await supabase.rpc('get_mentor_videos_for_viewer', {
+        p_mentor_id: mentorId,
+      });
 
       if (error) throw error;
       return data || [];
@@ -709,7 +677,7 @@ export const videoApi = {
         .from('mentor_videos')
         .update(updates)
         .eq('id', id)
-        .select()
+        .select('id, mentor_id, title, description, storage_path, thumbnail_url, is_free, position, is_promoted, promoted_at, created_at')
         .single();
 
       if (error) throw error;

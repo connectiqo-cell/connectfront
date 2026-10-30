@@ -2,6 +2,7 @@ import { createContext, useState, useEffect, useMemo, useCallback } from 'react'
 import { Alert } from 'react-native';
 import { supabase, readStoredSession } from '../lib/supabase';
 import { registerFcmToken } from '../utils/fcmToken';
+import { recordAppBuild } from '../utils/forceUpdate';
 import { isMentorFreezeActive } from '../utils/mentorFreeze';
 
 export const AuthContext = createContext();
@@ -116,6 +117,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const fetchProfile = async (userId) => {
+    recordAppBuild(userId);
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 

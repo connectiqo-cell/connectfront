@@ -12,8 +12,12 @@ import FirebaseMessaging
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
-  // The window lives on SceneDelegate — the iOS 27 SDK refuses to launch an app
-  // that creates its own window here. See SceneDelegate.swift.
+  // SceneDelegate creates the window and assigns it here — the iOS 27 SDK refuses
+  // to launch an app that creates its own window in the app delegate, but
+  // RNFBMessaging still reads `delegate.window` on didFinishLaunching and throws
+  // an unrecognized-selector exception if the property is missing.
+  @objc var window: UIWindow?
+
   var reactNativeDelegate: ReactNativeDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
 

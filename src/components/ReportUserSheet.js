@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -17,6 +18,7 @@ import CosmicButton from "./CosmicButton";
 import { useTheme, useThemedStyles } from "../hooks/useTheme";
 import { softBorder, softFill, softFillStrong } from "../theme/surfaceStyles";
 import { reportApi, USER_REPORT_REASONS } from "../api/reportApi";
+import { blockApi } from "../api/blockApi";
 
 const MAX_DETAILS_LENGTH = 1000;
 
@@ -27,6 +29,7 @@ export default function ReportUserSheet({
   contextType = "profile",
   contextId = null,
   onClose,
+  onBlocked,
 }) {
   const styles = useThemedStyles(createThemedStyles);
   const { theme } = useTheme();
@@ -34,17 +37,56 @@ export default function ReportUserSheet({
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [blocking, setBlocking] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setReason("");
       setDetails("");
       setSubmitting(false);
+      setBlocking(false);
     }
   }, [visible, reportedUserId]);
 
   const close = () => {
-    if (!submitting) onClose?.();
+    if (!submitting && !blocking) onClose?.();
+  };
+
+  const runBlock = async () => {
+    setBlocking(true);
+    try {
+      await blockApi.blockUser({
+        blockedUserId: reportedUserId,
+        reason: reason || "other",
+        details,
+      });
+      onClose?.();
+      onBlocked?.(reportedUserId);
+      Toast.show(
+        `${reportedUserName} is blocked. Their content is removed from your feed and our moderators have been notified.`,
+        Toast.LONG
+      );
+    } catch (error) {
+      Toast.show(error?.message || "Could not block this user", Toast.LONG);
+    } finally {
+      setBlocking(false);
+    }
+  };
+
+  const confirmBlock = () => {
+    if (submitting || blocking) return;
+    if (!reportedUserId) {
+      Toast.show("Could not identify who to block. Please try again.", Toast.LONG);
+      return;
+    }
+    Alert.alert(
+      `Block ${reportedUserName}?`,
+      "They will be removed from your feed immediately and will not be able to reach you. Our moderation team is notified so the content can be reviewed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Block", style: "destructive", onPress: runBlock },
+      ]
+    );
   };
 
   const submit = async () => {
@@ -125,7 +167,7 @@ export default function ReportUserSheet({
             </View>
             <Pressable
               onPress={close}
-              disabled={submitting}
+              disabled={submitting || blocking}
               hitSlop={10}
               accessibilityRole="button"
               accessibilityLabel="Close"
@@ -162,7 +204,7 @@ export default function ReportUserSheet({
                       selected && styles.reasonRowSelected,
                     ]}
                     onPress={() => setReason(item.value)}
-                    disabled={submitting}
+                    disabled={submitting || blocking}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: selected }}
                   >
@@ -209,7 +251,7 @@ export default function ReportUserSheet({
               selectionColor={theme.colors.buttons.nebulaGradient[0]}
               multiline
               maxLength={MAX_DETAILS_LENGTH}
-              editable={!submitting}
+              editable={!submitting && !blocking}
               textAlignVertical="top"
             />
 
@@ -220,8 +262,9 @@ export default function ReportUserSheet({
                 color={theme.colors.accent.secondary}
               />
               <Text style={styles.noticeText}>
-                Reporting does not block this user. If you are in immediate
-                danger, contact local emergency services.
+                Reporting keeps this account visible to you. To stop seeing them
+                entirely, block them below. If you are in immediate danger,
+                contact local emergency services.
               </Text>
             </View>
           </ScrollView>
@@ -231,10 +274,26 @@ export default function ReportUserSheet({
               label={submitting ? "Submitting…" : "Submit report"}
               variant="danger"
               onPress={submit}
-              disabled={!reason || submitting}
+              disabled={!reason || submitting || blocking}
               loading={submitting}
               icon="flag"
             />
+            <Pressable
+              style={styles.blockButton}
+              onPress={confirmBlock}
+              disabled={submitting || blocking}
+              accessibilityRole="button"
+              accessibilityLabel={`Block ${reportedUserName}`}
+            >
+              <MaterialIcons
+                name="block"
+                size={18}
+                color={theme.colors.accent.error}
+              />
+              <Text style={styles.blockButtonText}>
+                {blocking ? "Blocking…" : `Block ${reportedUserName}`}
+              </Text>
+            </Pressable>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -384,6 +443,23 @@ function createThemedStyles(theme) {
     },
     actions: {
       paddingTop: T.spacing.sm,
+      gap: T.spacing.sm,
+    },
+    blockButton: {
+      minHeight: 46,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: T.spacing.sm,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.accent.error,
+      backgroundColor: softFill(theme),
+    },
+    blockButtonText: {
+      ...T.typography.labelMd,
+      color: C.accent.error,
+      fontWeight: "700",
     },
   });
 }

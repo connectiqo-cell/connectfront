@@ -37,11 +37,12 @@ import { formatDate } from '../../utils/dateHelpers';
 import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 import AppearanceMenuRow from '../../components/AppearanceMenuRow';
+import { PRIVACY_URL, TERMS_URL } from '../../constants/legal';
+import BlockedAccountsSheet from '../../components/BlockedAccountsSheet';
 
 const APP_VERSION = '0.0.1';
 const SUPPORT_EMAIL = 'contact@connectiqo.com';
-const PRIVACY_URL = 'https://connectiqo.com/privacy';
-const TERMS_URL = 'https://connectiqo.com/terms';
+
 
 function useSettingsPalette() {
   const { theme } = useTheme();
@@ -602,6 +603,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
   const [subscriptions, setSubscriptions] = useState([]);
   const [walletBalance, setWalletBalance] = useState(null);
   const [replayToken, setReplayToken] = useState(0);
+  const [showBlockedSheet, setShowBlockedSheet] = useState(false);
   const subsLoadedRef = useRef(false);
   const walletLoadedRef = useRef(false);
 
@@ -1137,6 +1139,15 @@ export default function UnifiedSettingsScreen({ navigation }) {
               replayToken={replayToken}
             />
             <MenuRow
+              icon="block"
+              accent="purple"
+              label="Blocked accounts"
+              subtitle="Review or undo the people you blocked"
+              onPress={() => setShowBlockedSheet(true)}
+              index={2}
+              replayToken={replayToken}
+            />
+            <MenuRow
               icon="qr-code-2"
               accent="purple"
               label="My QR code"
@@ -1179,6 +1190,10 @@ export default function UnifiedSettingsScreen({ navigation }) {
       </ScrollView>
 
       <LoadingOverlay visible={loading} message="Uploading photo…" />
+      <BlockedAccountsSheet
+        visible={showBlockedSheet}
+        onClose={() => setShowBlockedSheet(false)}
+      />
     </SafeScreen>
   );
 }

@@ -1198,6 +1198,12 @@ export default function VideosScreen({ navigation, route }) {
         contextType="video"
         contextId={reportTarget?.videoId || null}
         onClose={() => setReportTarget(null)}
+        onBlocked={blockedUserId => {
+          // Drop the blocked creator from the feed right away; the server
+          // filters them out of every later load.
+          setVideos(prev => prev.filter(v => !isSameUserId(v.mentor_id, blockedUserId)));
+          setActiveIndex(0);
+        }}
       />
     </View>
   );

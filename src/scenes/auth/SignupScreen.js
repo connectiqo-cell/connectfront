@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -19,6 +20,7 @@ import { createAuthFormStyles } from '../../utils/authFormStyles';
 import { authApi } from '../../api/authApi';
 import { profileApi } from '../../api/profileApi';
 import { getBrandLogo } from '../../utils/brandLogo';
+import { PRIVACY_URL, TERMS_URL } from '../../constants/legal';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -61,6 +63,7 @@ export default function SignupScreen({ navigation }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Set once signUp() comes back with no session — i.e. email confirmation is
   // required (same flow as the web portal). If confirmation is disabled,
@@ -93,6 +96,10 @@ export default function SignupScreen({ navigation }) {
     const e = validateFields({ name, email, password, confirmPassword });
     if (Object.keys(e).length > 0) {
       setErrors(e);
+      return;
+    }
+    if (!acceptedTerms) {
+      Toast.show('Please accept the Terms of Use and Privacy Policy to continue.');
       return;
     }
     setErrors({});
@@ -355,11 +362,44 @@ export default function SignupScreen({ navigation }) {
             </View>
             {errors.confirmPassword ? <Text style={styles.errorText}>{errors.confirmPassword}</Text> : null}
 
+            <TouchableOpacity
+              style={styles.termsRow}
+              onPress={() => setAcceptedTerms(v => !v)}
+              disabled={loading}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: acceptedTerms }}
+              accessibilityLabel="Accept the Terms of Use and Privacy Policy"
+            >
+              <MaterialIcons
+                name={acceptedTerms ? 'check-box' : 'check-box-outline-blank'}
+                size={22}
+                color={acceptedTerms ? PURPLE_LINK : C.text.secondary}
+              />
+              <Text style={styles.termsText}>
+                I agree to the{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => Linking.openURL(TERMS_URL)}
+                >
+                  Terms of Use (EULA)
+                </Text>{' '}
+                and{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => Linking.openURL(PRIVACY_URL)}
+                >
+                  Privacy Policy
+                </Text>
+                . Objectionable content and abusive behaviour are not tolerated
+                and lead to removal.
+              </Text>
+            </TouchableOpacity>
+
             <CosmicButton
               label="Create Account"
               variant="nebula"
               onPress={handleSignup}
-              disabled={loading}
+              disabled={loading || !acceptedTerms}
               loading={loading}
               style={styles.signupBtn}
             />
@@ -397,6 +437,23 @@ function createThemedStyles(theme) {
   const form = createAuthFormStyles(theme);
 
   return StyleSheet.create({
+    termsRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      marginTop: 14,
+      marginBottom: 4,
+    },
+    termsText: {
+      flex: 1,
+      ...T.typography.bodySm,
+      color: C.text.secondary,
+      lineHeight: 18,
+    },
+    termsLink: {
+      color: PURPLE_LINK,
+      fontWeight: '700',
+    },
     background: { flex: 1 },
     overlay: { flex: 1 },
     scrollContent: {

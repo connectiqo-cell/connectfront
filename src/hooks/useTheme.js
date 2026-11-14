@@ -9,7 +9,7 @@ function getCachedStyles(factory, theme, mode) {
   if (typeof factory !== 'function') {
     return {};
   }
-  const cacheKey = mode || theme?.mode || THEME_MODES.DARK;
+  const cacheKey = mode || theme?.mode || THEME_MODES.LIGHT;
   let byMode = themedStyleCache.get(factory);
   if (!byMode) {
     byMode = new Map();

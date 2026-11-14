@@ -152,10 +152,17 @@ export default function FirstTimeGuide({ storageKey = APP_TOUR_KEY, steps = APP_
     </View>
   ) : null;
 
-  const gradientButton = (label, style) => (
+  const gradientButton = (label, style, fillStyle) => (
     <Pressable onPress={next} style={style}>
-      <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.btnFill}>
-        <Text style={styles.btnText}>{label}</Text>
+      <LinearGradient
+        colors={gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={[styles.btnFill, fillStyle]}
+      >
+        <Text style={styles.btnText} maxFontSizeMultiplier={1.2} numberOfLines={1}>
+          {label}
+        </Text>
         {isLast ? null : <MaterialIcons name="arrow-forward" size={16} color="#fff" />}
       </LinearGradient>
     </Pressable>
@@ -242,7 +249,7 @@ export default function FirstTimeGuide({ storageKey = APP_TOUR_KEY, steps = APP_
             ))}
           </View>
 
-          {gradientButton(current.cta || (isLast ? 'Got it' : 'Next'), styles.btnWide)}
+          {gradientButton(current.cta || (isLast ? 'Got it' : 'Next'), styles.btnWide, styles.btnFillWide)}
           {isLast ? null : (
             <Pressable onPress={finish} hitSlop={10} style={styles.skipWide}>
               <Text style={[styles.skip, { color: C.text.muted }]}>Skip for now</Text>
@@ -320,5 +327,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 11,
   },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  // The wide CTA sits inside a rounded Pressable with overflow:'hidden', so the
+  // gradient must fill it outright — anything smaller slices the label in half.
+  btnFillWide: { width: '100%', minHeight: 50 },
+  btnText: { color: '#fff', fontSize: 15, fontWeight: '800', textAlign: 'center' },
 });

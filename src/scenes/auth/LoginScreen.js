@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -18,6 +19,7 @@ import { createAuthFormStyles } from '../../utils/authFormStyles';
 import { authApi } from '../../api/authApi';
 import { SCREEN_NAMES } from '../../navigators/screenNames';
 import { getBrandLogo } from '../../utils/brandLogo';
+import { PRIVACY_URL, TERMS_URL } from '../../constants/legal';
 
 export default function LoginScreen({ navigation }) {
   const styles = useThemedStyles(createThemedStyles);
@@ -162,6 +164,24 @@ export default function LoginScreen({ navigation }) {
               loading={loading}
               style={styles.loginBtn}
             />
+
+            <Text style={styles.termsText}>
+              By signing in you agree to our{' '}
+              <Text
+                style={styles.termsLink}
+                onPress={() => Linking.openURL(TERMS_URL)}
+              >
+                Terms of Use (EULA)
+              </Text>{' '}
+              and{' '}
+              <Text
+                style={styles.termsLink}
+                onPress={() => Linking.openURL(PRIVACY_URL)}
+              >
+                Privacy Policy
+              </Text>
+              .
+            </Text>
           </View>
 
           <View style={styles.footer}>
@@ -195,6 +215,17 @@ function createThemedStyles(theme) {
   const form = createAuthFormStyles(theme);
 
   return StyleSheet.create({
+    termsText: {
+      marginTop: 14,
+      textAlign: 'center',
+      ...T.typography.bodySm,
+      color: C.text.secondary,
+      lineHeight: 18,
+    },
+    termsLink: {
+      color: PURPLE_LINK,
+      fontWeight: '700',
+    },
     background: { flex: 1 },
     overlay: { flex: 1 },
     scrollContent: {

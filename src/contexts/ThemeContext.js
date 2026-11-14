@@ -19,7 +19,7 @@ function resolveMode(preference, systemScheme) {
 
 export function ThemeProvider({ children }) {
   const systemScheme = useColorScheme();
-  const [preference, setPreference] = useState(THEME_MODES.SYSTEM);
+  const [preference, setPreference] = useState(THEME_MODES.LIGHT);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {

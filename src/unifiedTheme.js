@@ -120,7 +120,7 @@ function resolveShadows(mode) {
 }
 
 /** Build a full theme object for dark or light mode. */
-export function buildTheme(mode = THEME_MODES.DARK) {
+export function buildTheme(mode = THEME_MODES.LIGHT) {
   const scheme = resolveColorScheme(mode);
   const { tabBarBase, ...colors } = scheme;
 

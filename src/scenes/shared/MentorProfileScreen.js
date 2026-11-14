@@ -2077,6 +2077,7 @@ export default function MentorProfileScreen({ navigation, route }) {
         contextType="profile"
         contextId={mentorId}
         onClose={() => setShowReportSheet(false)}
+        onBlocked={() => navigation.goBack()}
       />
 
       {!isOwnProfile ? (

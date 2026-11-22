@@ -14,6 +14,28 @@ import { uploadFileXHR } from './videoApi';
 const SUBMISSIONS_BUCKET = 'campaign-submissions';
 const CAMPAIGN_SELECT = '*, brand:brand_id ( name, avatar_url )';
 
+/** Row in legal_agreements shared with the web app — the wording lives there, never here. */
+export const VIDEO_USAGE_AGREEMENT_ID = 'creator_video_usage';
+const BRAND_PLACEHOLDER = '{{brand}}';
+
+/**
+ * Swap every {{brand}} for the campaign's brand name. split/join rather than
+ * String.replace, which only replaces the first match — clause 1 has two.
+ */
+export const fillAgreementClauses = (clauses, brandName) => {
+  const name = (brandName || '').trim() || 'the brand';
+  return (Array.isArray(clauses) ? clauses : [])
+    .filter(c => typeof c === 'string' && c.trim())
+    .map(c => c.split(BRAND_PLACEHOLDER).join(name));
+};
+
+/**
+ * Consent is asked once per application. A submission row that already
+ * carries agreement_accepted_at keeps it; only a first upload — or a row from
+ * before the agreement existed — needs the creator to accept.
+ */
+export const needsAgreement = submission => !submission?.agreement_accepted_at;
+
 /** Server-side watermarking re-encodes anyway, so we upload the original. */
 export const MAX_SUBMISSION_MB = 200;
 
@@ -89,6 +111,21 @@ export const collabHubApi = {
         .maybeSingle(),
     ),
 
+  /** The shared creator video-usage agreement (public read, admin-only write). */
+  getVideoUsageAgreement: async () => {
+    const row = unwrap(
+      await supabase
+        .from('legal_agreements')
+        .select('id, version, clauses, updated_at')
+        .eq('id', VIDEO_USAGE_AGREEMENT_ID)
+        .maybeSingle(),
+    );
+    if (!row || !Array.isArray(row.clauses) || !row.clauses.length) {
+      throw new Error('Could not load the agreement. Please try again.');
+    }
+    return row;
+  },
+
   /**
    * Upload the clean original, then mark the submission 'processing'.
    *
@@ -96,8 +133,15 @@ export const collabHubApi = {
    * watermark worker needs the object to already be there. Nothing else is
    * called — the worker does the watermarking and flips the row to
    * 'submitted', so a dropped app or a dead screen cannot lose the job.
+   *
+   * First upload → INSERT with agreement_accepted_at (RLS rejects it without).
+   * Resubmission → plain UPDATE that leaves agreement_accepted_at out, so the
+   * original acceptance carries forward. Not an upsert: Postgres checks the
+   * INSERT policy on every upsert, which would reject the omitted field.
+   * Pre-agreement rows (no timestamp) get one stamped, since the update policy
+   * needs it — the caller must have shown the agreement for those.
    */
-  submitVideo: async ({ applicationId, creatorId, fileUri, fileName, onProgress }) => {
+  submitVideo: async ({ applicationId, creatorId, fileUri, fileName, onProgress, existingSubmission }) => {
     const ext = (fileName?.split('.').pop() || 'mp4').toLowerCase();
     const storagePath = `${creatorId}/${Date.now()}.${ext}`;
 
@@ -114,23 +158,36 @@ export const collabHubApi = {
       SUBMISSIONS_BUCKET,
     );
 
+    const fields = {
+      original_storage_path: storagePath,
+      status: 'processing',
+      // Clears a previous failure so the worker picks this up.
+      watermark_error: null,
+    };
+
+    if (!existingSubmission?.id) {
+      return unwrap(
+        await supabase
+          .from('campaign_submissions')
+          .insert({
+            ...fields,
+            application_id: applicationId,
+            creator_id: creatorId,
+            agreement_accepted_at: new Date().toISOString(),
+          })
+          .select()
+          .single(),
+      );
+    }
+
+    if (needsAgreement(existingSubmission)) {
+      fields.agreement_accepted_at = new Date().toISOString();
+    }
     return unwrap(
       await supabase
         .from('campaign_submissions')
-        .upsert(
-          {
-            application_id: applicationId,
-            creator_id: creatorId,
-            original_storage_path: storagePath,
-            status: 'processing',
-            // Clears a previous failure so the worker picks this up.
-            watermark_error: null,
-            // RLS rejects a submission without this (insert and update both),
-            // so the caller must have shown the usage-rights terms first.
-            agreement_accepted_at: new Date().toISOString(),
-          },
-          { onConflict: 'application_id' },
-        )
+        .update(fields)
+        .eq('id', existingSubmission.id)
         .select()
         .single(),
     );
@@ -138,22 +195,18 @@ export const collabHubApi = {
 
   /**
    * Retry a watermark pass that failed, without re-uploading the video.
-   *
-   * Takes the row, not just its id: the update policy demands a non-null
-   * agreement_accepted_at, and rows written before that column existed have
-   * none — so we carry the original acceptance forward, or record the one the
-   * caller just collected.
+   * Leaves agreement_accepted_at alone unless the row predates the agreement,
+   * in which case the caller has just collected consent.
    */
   retryWatermark: async (submission) => {
+    const fields = { status: 'processing', watermark_error: null };
+    if (needsAgreement(submission)) {
+      fields.agreement_accepted_at = new Date().toISOString();
+    }
     unwrap(
       await supabase
         .from('campaign_submissions')
-        .update({
-          status: 'processing',
-          watermark_error: null,
-          agreement_accepted_at:
-            submission.agreement_accepted_at || new Date().toISOString(),
-        })
+        .update(fields)
         .eq('id', submission.id),
     );
   },

@@ -9,7 +9,6 @@ import {
   RefreshControl,
   Image,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
@@ -24,7 +23,13 @@ import { STACK_OVERLAY_LAYOUT } from '../../utils/platformLayout';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import { softBorder, softFill, softFillStrong, cardFill } from '../../theme/surfaceStyles';
 import { useAuth } from '../../hooks/useAuth';
-import { collabHubApi, MAX_SUBMISSION_MB } from '../../api/collabHubApi';
+import {
+  collabHubApi,
+  MAX_SUBMISSION_MB,
+  fillAgreementClauses,
+  needsAgreement,
+} from '../../api/collabHubApi';
+import VideoAgreementModal from './VideoAgreementModal';
 import { useCampaignSubmissionRealtime } from '../../hooks/useCampaignSubmissionRealtime';
 import { shareCampaign } from '../../utils/shareProfile';
 
@@ -70,6 +75,8 @@ export default function CampaignDetailScreen({ navigation, route }) {
   const [error, setError] = useState('');
   const uploading = useRef(false);
   const sheet = useRef(null);
+  // { clauses, resolve } while the agreement is on screen, otherwise null.
+  const [agreementPrompt, setAgreementPrompt] = useState(null);
 
   const load = useCallback(async () => {
     if (!campaignId || !user?.id) return;
@@ -145,25 +152,36 @@ export default function CampaignDetailScreen({ navigation, route }) {
     }
   };
 
-  // RLS stores an acceptance timestamp on every submission, so the creator has
-  // to see the brand's usage-rights terms before we write the row. Same terms
-  // already shown in the "Usage rights" section below.
-  const confirmUsageRights = () =>
-    new Promise(resolve => {
-      Alert.alert(
-        'Usage rights',
-        `${campaign?.content_usage_rights
-          || 'The brand receives usage rights to the video you submit for this campaign.'}\n\nUploading means you accept these terms.`,
-        [
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Accept & upload', onPress: () => resolve(true) },
-        ],
-        { cancelable: true, onDismiss: () => resolve(false) },
-      );
-    });
+  // The shared legal_agreements row, brand-filled, shown once per application
+  // (see needsAgreement). Resolves true only when the creator ticks the box
+  // and agrees. No hardcoded fallback: if the wording cannot be loaded, the
+  // upload does not happen.
+  const confirmAgreement = async () => {
+    let clauses;
+    setBusy(true);
+    try {
+      const row = await collabHubApi.getVideoUsageAgreement();
+      clauses = fillAgreementClauses(row.clauses, campaign?.brand?.name);
+    } catch (e) {
+      Toast.show(e?.message || 'Could not load the agreement', Toast.LONG);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+    return new Promise(resolve => setAgreementPrompt({ clauses, resolve }));
+  };
 
-  const pickAndSubmit = () => {
+  const closeAgreement = accepted => {
+    agreementPrompt?.resolve(accepted);
+    setAgreementPrompt(null);
+  };
+
+  const pickAndSubmit = async () => {
     if (uploading.current) return;
+    // Agreement before the gallery: presenting a modal while the picker is
+    // still dismissing is unreliable on iOS. Nothing is written until upload,
+    // so backing out of the picker records no consent.
+    if (needsAgreement(submission) && !(await confirmAgreement())) return;
     // No app-side compression: the watermark pass re-encodes server-side, so
     // compressing here would only cost battery and quality the brand pays for.
     launchImageLibrary({ mediaType: 'video' }, async (response) => {
@@ -180,8 +198,6 @@ export default function CampaignDetailScreen({ navigation, route }) {
         return;
       }
 
-      if (!(await confirmUsageRights())) return;
-
       uploading.current = true;
       setBusy(true);
       setProgress(0);
@@ -192,6 +208,7 @@ export default function CampaignDetailScreen({ navigation, route }) {
           fileUri: asset.uri,
           fileName: asset.fileName || 'submission.mp4',
           onProgress: pct => setProgress(typeof pct === 'number' ? pct : 0),
+          existingSubmission: submission,
         });
         setData(d => ({ ...d, submission: row }));
         Toast.show('Uploaded — watermarking now', Toast.SHORT);
@@ -207,7 +224,7 @@ export default function CampaignDetailScreen({ navigation, route }) {
 
   const retry = async () => {
     // Pre-agreement rows carry no acceptance, and the update policy needs one.
-    if (!submission.agreement_accepted_at && !(await confirmUsageRights())) return;
+    if (needsAgreement(submission) && !(await confirmAgreement())) return;
     setBusy(true);
     try {
       await collabHubApi.retryWatermark(submission);
@@ -537,6 +554,14 @@ export default function CampaignDetailScreen({ navigation, route }) {
           </View>
         </View>
       </BottomSheet>
+
+      <VideoAgreementModal
+        visible={!!agreementPrompt}
+        brandName={campaign?.brand?.name}
+        clauses={agreementPrompt?.clauses}
+        onAccept={() => closeAgreement(true)}
+        onCancel={() => closeAgreement(false)}
+      />
     </SafeScreen>
   );
 }

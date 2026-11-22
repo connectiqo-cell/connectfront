@@ -18,6 +18,7 @@ import EditProfileScreen from '../scenes/settings/EditProfileScreen';
 import UnifiedSettingsScreen from '../scenes/settings/UnifiedSettingsScreen';
 import RecordedLecturesScreen from '../scenes/settings/RecordedLecturesScreen';
 import TransactionHistoryScreen from '../scenes/settings/TransactionHistoryScreen';
+import ReceiptPreviewScreen from '../scenes/settings/ReceiptPreviewScreen';
 import WalletScreen from '../scenes/settings/WalletScreen';
 import ReviewScreen from '../scenes/shared/ReviewScreen';
 import MentorReviewsScreen from '../scenes/shared/MentorReviewsScreen';
@@ -25,6 +26,7 @@ import CategoryMentorsScreen from '../scenes/learner/CategoryMentorsScreen';
 import MentorVideosScreen from '../scenes/mentor/MentorVideosScreen';
 import PayoutSetupScreen from '../scenes/settings/PayoutSetupScreen';
 import ConnectivityScreen from '../scenes/settings/ConnectivityScreen';
+import BlockedAccountsScreen from '../scenes/settings/BlockedAccountsScreen';
 import NotificationsScreen from '../scenes/settings/NotificationsScreen';
 import { MessagesScreen, MessageThreadScreen } from '../scenes/shared/MessagesScreen';
 import RescheduleRequestScreen from '../scenes/shared/RescheduleRequestScreen';
@@ -190,6 +192,10 @@ export const RootNavigator = () => {
                 component={TransactionHistoryScreen}
               />
               <RootStack.Screen
+                name={SCREEN_NAMES.ReceiptPreview}
+                component={ReceiptPreviewScreen}
+              />
+              <RootStack.Screen
                 name={SCREEN_NAMES.Wallet}
                 component={WalletScreen}
               />
@@ -232,6 +238,10 @@ export const RootNavigator = () => {
               <RootStack.Screen
                 name={SCREEN_NAMES.Connectivity}
                 component={ConnectivityScreen}
+              />
+              <RootStack.Screen
+                name={SCREEN_NAMES.BlockedAccounts}
+                component={BlockedAccountsScreen}
               />
               <RootStack.Screen
                 name={SCREEN_NAMES.Notifications}

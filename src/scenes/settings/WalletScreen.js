@@ -35,6 +35,11 @@ const fmt = n =>
 const fmtCompact = n =>
   `₹${parseFloat(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
+/** How many rows to show on the wallet before "See all" / "Show more". */
+const WALLET_LIST_PREVIEW = 5;
+/** Hard cap so a huge history does not freeze the wallet scroll. */
+const WALLET_LIST_FETCH_CAP = 100;
+
 function getWithdrawalStatusConfig(theme) {
   const C = theme.colors;
   const S = C.surface;
@@ -321,7 +326,7 @@ function AnimatedPressable({
   );
 }
 
-function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay = 0 }) {
+function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay = 0, headerRight = null }) {
   const styles = useThemedStyles(createWalletStyles);
   const { theme } = useTheme();
   const S = theme.colors.surface;
@@ -343,9 +348,22 @@ function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay
           <Text style={styles.sectionTitle}>{title}</Text>
           {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
         </View>
+        {headerRight}
       </View>
       <View style={styles.sectionCard}>{children}</View>
     </Animated.View>
+  );
+}
+
+function SeeAllLink({ label, onPress }) {
+  const styles = useThemedStyles(createWalletStyles);
+  const { theme } = useTheme();
+  const TEAL = theme.colors.accent.secondary;
+  return (
+    <Pressable onPress={onPress} hitSlop={8} style={styles.seeAllBtn}>
+      <Text style={[styles.seeAllText, { color: TEAL }]}>{label}</Text>
+      <MaterialIcons name="chevron-right" size={18} color={TEAL} />
+    </Pressable>
   );
 }
 
@@ -677,13 +695,20 @@ function InfoRow({ icon, label, value, valueColor }) {
   );
 }
 
+function transactionAmountRupees(item, isMentor) {
+  if (isMentor) {
+    return Number(item.mentor_earning_paise || 0) / 100;
+  }
+  return Number(item.amount_total_paise || 0) / 100;
+}
+
 function TransactionRow({ item, isMentor, index = 0, replayToken = 0 }) {
   const styles = useThemedStyles(createWalletStyles);
   const { theme } = useTheme();
   const C = theme.colors;
   const S = C.surface;
   const TEAL = C.accent.secondary;
-  const net = parseFloat(item.amount || 0) - parseFloat(item.platform_fee || 0);
+  const amount = transactionAmountRupees(item, isMentor);
   const dateLabel = moment(item.created_at).format('DD MMM · hh:mm A');
   const isRecent = moment(item.created_at).isAfter(moment().subtract(7, 'days'));
   const opacity = useRef(new Animated.Value(0)).current;
@@ -736,7 +761,7 @@ function TransactionRow({ item, isMentor, index = 0, replayToken = 0 }) {
         </View>
         <View style={styles.txRight}>
           <Text style={[styles.txAmount, isMentor && { color: C.accent.success }]}>
-            {isMentor ? '+' : '-'}{fmtCompact(Math.abs(net))}
+            {fmtCompact(Math.abs(amount))}
           </Text>
           {isRecent ? (
             <PulseBadge style={styles.txRecentDot}>
@@ -778,40 +803,6 @@ function WithdrawalRow({ item, index = 0 }) {
         </View>
       </View>
     </View>
-  );
-}
-
-function GuideRow({ icon, text, index = 0 }) {
-  const styles = useThemedStyles(createWalletStyles);
-  const { theme } = useTheme();
-  const TEAL = theme.colors.accent.secondary;
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateX = useRef(new Animated.Value(-8)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 280,
-        delay: 80 + index * 60,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateX, {
-        toValue: 0,
-        duration: 280,
-        delay: 80 + index * 60,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [index, opacity, translateX]);
-
-  return (
-    <Animated.View style={[styles.guideRow, { opacity, transform: [{ translateX }] }]}>
-      <MaterialIcons name={icon} size={16} color={TEAL} />
-      <Text style={styles.guideText}>{text}</Text>
-    </Animated.View>
   );
 }
 
@@ -878,6 +869,8 @@ export default function WalletScreen({ navigation }) {
   const loadedRef = useRef(false);
   const [replayToken, setReplayToken] = useState(0);
   const [minWithdrawal, setMinWithdrawal] = useState(DEFAULT_MIN_WITHDRAWAL);
+  const [showAllWithdrawals, setShowAllWithdrawals] = useState(false);
+  const [showAllActivity, setShowAllActivity] = useState(false);
   const bannerShimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -917,8 +910,15 @@ export default function WalletScreen({ navigation }) {
         setStoredBankAccount(payoutStatus?.bankAccount || '');
         setStoredIfsc(payoutStatus?.ifsc || '');
         setPayoutReady(payoutStatus?.status === 'active');
-        setTransactions((txs || []).slice(0, 8));
-        setWithdrawalHistory(withdrawals || []);
+        // Mentor earnings only; cap so the wallet list stays responsive.
+        setTransactions(
+          (txs || [])
+            .filter(t => t.mentor_id === profile.id)
+            .slice(0, WALLET_LIST_FETCH_CAP),
+        );
+        setWithdrawalHistory((withdrawals || []).slice(0, WALLET_LIST_FETCH_CAP));
+        setShowAllWithdrawals(false);
+        setShowAllActivity(false);
         loadedRef.current = true;
       } catch {
         Toast.show('Failed to load wallet');
@@ -963,7 +963,7 @@ export default function WalletScreen({ navigation }) {
     const destination = storedUpi || (storedBankAccount ? `${storedBankAccount} (${storedIfsc})` : 'your saved payout details');
     Alert.alert(
       'Confirm withdrawal',
-      `Send ${fmt(amount)} to\n${destination}\n\nProcessed within 1–2 business days.`,
+      `Send ${fmt(amount)} to\n${destination}\n\nPayouts are done in 1–2 days.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -972,7 +972,7 @@ export default function WalletScreen({ navigation }) {
             try {
               setSubmitting(true);
               await paymentApi.requestWithdrawal({ mentorId: profile.id, amount });
-              Toast.show("Withdrawal requested · We'll send it within 1–2 days", Toast.LONG);
+              Toast.show('Withdrawal requested · Payouts are done in 1–2 days', Toast.LONG);
               setShowWithdraw(false);
               setWithdrawAmount('');
               await loadData(true);
@@ -995,7 +995,15 @@ export default function WalletScreen({ navigation }) {
   const canWithdraw = wallet.balance >= minWithdrawal && hasPayoutMethod;
   const progressPct = Math.min((wallet.balance / minWithdrawal) * 100, 100);
   const amountNeeded = Math.max(minWithdrawal - wallet.balance, 0);
-  const mentorTx = transactions.filter(t => t.mentor_id === profile?.id);
+  const mentorTx = transactions;
+  const visibleWithdrawals = showAllWithdrawals
+    ? withdrawalHistory
+    : withdrawalHistory.slice(0, WALLET_LIST_PREVIEW);
+  const visibleActivity = showAllActivity
+    ? mentorTx
+    : mentorTx.slice(0, WALLET_LIST_PREVIEW);
+  const hasMoreWithdrawals = withdrawalHistory.length > WALLET_LIST_PREVIEW;
+  const hasMoreActivity = mentorTx.length > WALLET_LIST_PREVIEW;
   const selectedChip =
     withdrawAmount === String(minWithdrawal)
       ? 'Min'
@@ -1261,7 +1269,7 @@ export default function WalletScreen({ navigation }) {
                 ))}
               </View>
 
-              <InfoRow icon="schedule" label="Processing time" value="1–2 business days" />
+              <InfoRow icon="schedule" label="Processing time" value="Payouts are done in 1–2 days" />
               <InfoRow
                 icon="account-balance-wallet"
                 label="Max withdrawable"
@@ -1299,10 +1307,22 @@ export default function WalletScreen({ navigation }) {
         <SectionBlock
           icon="account-balance"
           title="Withdrawal history"
-          subtitle={withdrawalHistory.length ? 'Your requests and their status' : 'Requests appear here once submitted'}
+          subtitle={
+            withdrawalHistory.length
+              ? `${withdrawalHistory.length} request${withdrawalHistory.length === 1 ? '' : 's'}`
+              : 'Requests appear here once submitted'
+          }
           accent={TEAL}
           accentBg={S.accentTeal}
           delay={340}
+          headerRight={
+            hasMoreWithdrawals ? (
+              <SeeAllLink
+                label={showAllWithdrawals ? 'Show less' : `See all (${withdrawalHistory.length})`}
+                onPress={() => setShowAllWithdrawals(v => !v)}
+              />
+            ) : null
+          }
         >
           {withdrawalHistory.length === 0 ? (
             <View style={styles.emptyState}>
@@ -1313,19 +1333,39 @@ export default function WalletScreen({ navigation }) {
               </Text>
             </View>
           ) : (
-            withdrawalHistory.map((item, index) => (
-              <WithdrawalRow key={item.id} item={item} index={index} />
-            ))
+            <>
+              {visibleWithdrawals.map((item, index) => (
+                <WithdrawalRow key={item.id} item={item} index={index} />
+              ))}
+              {hasMoreWithdrawals && !showAllWithdrawals ? (
+                <SeeAllLink
+                  label={`Show ${withdrawalHistory.length - WALLET_LIST_PREVIEW} more`}
+                  onPress={() => setShowAllWithdrawals(true)}
+                />
+              ) : null}
+            </>
           )}
         </SectionBlock>
 
         <SectionBlock
           icon="receipt-long"
           title="Recent activity"
-          subtitle={mentorTx.length ? 'Latest session payments' : 'Payments appear after completed bookings'}
+          subtitle={
+            mentorTx.length
+              ? `${mentorTx.length} earning${mentorTx.length === 1 ? '' : 's'}`
+              : 'Payments appear after completed bookings'
+          }
           accent={TEAL}
           accentBg={S.accentTeal}
           delay={380}
+          headerRight={
+            mentorTx.length > 0 ? (
+              <SeeAllLink
+                label="Full history"
+                onPress={() => navigation.navigate(SCREEN_NAMES.TransactionHistory)}
+              />
+            ) : null
+          }
         >
           {mentorTx.length === 0 ? (
             <View style={styles.emptyState}>
@@ -1336,37 +1376,32 @@ export default function WalletScreen({ navigation }) {
               </Text>
             </View>
           ) : (
-            mentorTx.map((item, index) => (
-              <TransactionRow
-                key={item.id}
-                item={item}
-                isMentor
-                index={index}
-                replayToken={replayToken}
-              />
-            ))
+            <>
+              {visibleActivity.map((item, index) => (
+                <TransactionRow
+                  key={item.id}
+                  item={item}
+                  isMentor
+                  index={index}
+                  replayToken={replayToken}
+                />
+              ))}
+              {hasMoreActivity && !showAllActivity ? (
+                <SeeAllLink
+                  label={`Show ${mentorTx.length - WALLET_LIST_PREVIEW} more`}
+                  onPress={() => setShowAllActivity(true)}
+                />
+              ) : null}
+              {showAllActivity && hasMoreActivity ? (
+                <SeeAllLink
+                  label="Show less"
+                  onPress={() => setShowAllActivity(false)}
+                />
+              ) : null}
+            </>
           )}
         </SectionBlock>
 
-        <SectionBlock
-          icon="help-outline"
-          title="How earnings work"
-          subtitle="Quick guide for creators"
-          accent={PURPLE_LINK}
-          accentBg={S.accentViolet}
-          delay={440}
-        >
-          <View style={styles.guideList}>
-            {[
-              { icon: 'event-available', text: 'Creators pay when they book your session.' },
-              { icon: 'hourglass-empty', text: 'Earnings stay pending until the session is completed.' },
-              { icon: 'account-balance-wallet', text: 'Available balance can be withdrawn to your UPI.' },
-              { icon: 'info-outline', text: `Minimum withdrawal amount is ${fmtCompact(minWithdrawal)}.` },
-            ].map((row, index) => (
-              <GuideRow key={row.icon} icon={row.icon} text={row.text} index={index} />
-            ))}
-          </View>
-        </SectionBlock>
       </ScrollView>
 
       <LoadingOverlay visible={loading && !loadedRef.current} message="Loading wallet…" />
@@ -1692,7 +1727,18 @@ function createWalletStyles(theme) {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sectionHeaderText: { flex: 1 },
+  sectionHeaderText: { flex: 1, minWidth: 0 },
+  seeAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  seeAllText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   sectionTitle: {
     fontSize: 15,
     fontWeight: '800',

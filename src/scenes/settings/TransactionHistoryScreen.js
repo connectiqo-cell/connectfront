@@ -10,7 +10,6 @@ import {
   RefreshControl,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import LinearGradient from 'react-native-linear-gradient';
 import Toast from 'react-native-simple-toast';
 import moment from 'moment';
 import { useFocusEffect } from '@react-navigation/native';
@@ -23,6 +22,8 @@ import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useAuth } from '../../hooks/useAuth';
 import { bookingApi } from '../../api/bookingApi';
 import { videoApi } from '../../api/videoApi';
+import { paymentApi } from '../../api/paymentApi';
+import { SCREEN_NAMES } from '../../navigators/screenNames';
 
 function getStatusConfigMap(theme) {
   const C = theme.colors;
@@ -49,8 +50,48 @@ const TX_TYPE = {
   SUBSCRIPTION: 'subscription',
 };
 
+const TYPE_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: TX_TYPE.SESSION_EARNED, label: 'Earnings' },
+  { key: TX_TYPE.SESSION_PAID, label: 'Payments' },
+  { key: TX_TYPE.SUBSCRIPTION, label: 'Subscriptions' },
+];
+
+const STATUS_FILTERS = [
+  { key: 'all', label: 'Any status' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'confirmed', label: 'Confirmed' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'cancelled', label: 'Cancelled' },
+  { key: 'active', label: 'Active' },
+  { key: 'expired', label: 'Expired' },
+];
+
 const fmt = n =>
   `₹${parseFloat(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+function FilterChip({ label, active, onPress, styles, activeColor, activeTextColor }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.filterChip,
+        active && styles.filterChipActive,
+        active && activeColor ? { backgroundColor: activeColor, borderColor: activeColor } : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.filterChipText,
+          active && styles.filterChipTextActive,
+          active && activeTextColor ? { color: activeTextColor } : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
 function runEntrance(opacity, translateY, delay = 0) {
   opacity.setValue(0);
@@ -139,36 +180,6 @@ function PulseGlow({ color, size = 68 }) {
         },
       ]}
     />
-  );
-}
-
-function AnimatedBalanceText({ value, style, replayToken = 0 }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    scale.setValue(0.92);
-    opacity.setValue(0);
-    Animated.parallel([
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 6,
-        tension: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 420,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [value, replayToken, scale, opacity]);
-
-  return (
-    <Animated.Text style={[style, { opacity, transform: [{ scale }] }]}>
-      {value}
-    </Animated.Text>
   );
 }
 
@@ -356,150 +367,11 @@ function RotatingRefreshIcon({ spinning }) {
   );
 }
 
-function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay = 0, replayToken = 0 }) {
-  const styles = useThemedStyles(createTransactionStyles);
-  const { theme } = useTheme();
-  const C = theme.colors;
-  const B = C.buttons;
-  const S = C.surface;
-  const PURPLE_LINK = B.nebulaGradient[0];
-  const GOLD = C.accent.primary;
-  const TEAL = C.accent.secondary;
-  const PANEL_BG = C.surface.panel;
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(14)).current;
-  const iconBob = useRef(new Animated.Value(0)).current;
-  const hasEntered = useRef(false);
-
-  useEffect(() => {
-    if (!hasEntered.current) {
-      hasEntered.current = true;
-      runEntrance(opacity, translateY, delay);
-      return;
-    }
-    if (replayToken > 0) runEntrance(opacity, translateY, delay);
-  }, [replayToken, delay, opacity, translateY]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(iconBob, {
-          toValue: 1,
-          duration: 1600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(iconBob, {
-          toValue: 0,
-          duration: 1600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [iconBob]);
-
-  const iconTranslateY = iconBob.interpolate({ inputRange: [0, 1], outputRange: [0, -2] });
-
-  return (
-    <Animated.View style={[styles.sectionBlock, { opacity, transform: [{ translateY }] }]}>
-      <View style={styles.sectionHeader}>
-        <Animated.View
-          style={[
-            styles.sectionIcon,
-            { backgroundColor: accentBg || S.accentViolet, transform: [{ translateY: iconTranslateY }] },
-          ]}
-        >
-          <MaterialIcons name={icon} size={16} color={accent || PURPLE_LINK} />
-        </Animated.View>
-        <View style={styles.sectionHeaderText}>
-          <Text style={styles.sectionTitle}>{title}</Text>
-          {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
-        </View>
-      </View>
-      <View style={styles.sectionCard}>{children}</View>
-    </Animated.View>
-  );
-}
-
-function StatTile({ icon, label, value, color, accentBg, delay = 0, replayToken = 0 }) {
-  const styles = useThemedStyles(createTransactionStyles);
-  const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.92)).current;
-  const iconScale = useRef(new Animated.Value(1)).current;
-  const hasEntered = useRef(false);
-
-  const play = useCallback(() => {
-    opacity.setValue(0);
-    scale.setValue(0.92);
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 320,
-        delay,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 7,
-        tension: 180,
-        delay,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [delay, opacity, scale]);
-
-  useEffect(() => {
-    if (!hasEntered.current) {
-      hasEntered.current = true;
-      play();
-      return;
-    }
-    if (replayToken > 0) play();
-  }, [replayToken, play]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(iconScale, {
-          toValue: 1.12,
-          duration: 1200,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(iconScale, {
-          toValue: 1,
-          duration: 1200,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [iconScale]);
-
-  return (
-    <HoverHighlight style={styles.statTileWrap} hoverScale={1.04} pressScale={0.97} highlightRadius={14}>
-      <Animated.View style={[styles.statTile, { opacity, transform: [{ scale }] }]}>
-        <Animated.View style={[styles.statIconWrap, { backgroundColor: accentBg, transform: [{ scale: iconScale }] }]}>
-          <MaterialIcons name={icon} size={18} color={color} />
-        </Animated.View>
-        <Text style={[styles.statValue, { color }]} numberOfLines={1}>{value}</Text>
-        <Text style={styles.statLabel}>{label}</Text>
-      </Animated.View>
-    </HoverHighlight>
-  );
-}
-
 function getSessionDate(booking) {
   return booking?.availability_slots?.date || booking?.created_at;
 }
 
-function normalizeTransactions(mentorTx, learnerTx, videoSubs) {
+function normalizeTransactions(mentorTx, learnerTx, videoSubs, txByBooking) {
   const items = [];
 
   mentorTx.forEach(booking => {
@@ -514,6 +386,7 @@ function normalizeTransactions(mentorTx, learnerTx, videoSubs) {
       time: booking?.availability_slots?.start_time,
       amount: status === 'cancelled' ? 0 : price,
       status,
+      tx: txByBooking?.get(booking.id) || null,
       sortDate: new Date(dateRaw || 0),
     });
   });
@@ -530,6 +403,7 @@ function normalizeTransactions(mentorTx, learnerTx, videoSubs) {
       time: booking?.availability_slots?.start_time,
       amount: status === 'cancelled' ? 0 : price,
       status,
+      tx: txByBooking?.get(booking.id) || null,
       sortDate: new Date(dateRaw || 0),
     });
   });
@@ -562,7 +436,71 @@ function formatDateLabel(item) {
   return base.format('DD MMM YYYY');
 }
 
-function TransactionRow({ item, index = 0, replayToken = 0 }) {
+function receiptNumber(item) {
+  const raw = item.tx?.id || item.id;
+  return `CIQ-${String(raw).replace(/-/g, '').slice(0, 10).toUpperCase()}`;
+}
+
+/** Map a history row onto the receipt shape in utils/receipt. */
+function buildReceipt(item, selfName) {
+  const tx = item.tx;
+  const date = moment(tx?.created_at || item.dateRaw);
+  const reference = [];
+  if (tx?.razorpay_payment_id) reference.push({ label: 'Payment ID', value: tx.razorpay_payment_id });
+  if (tx?.razorpay_order_id) reference.push({ label: 'Order ID', value: tx.razorpay_order_id });
+
+  const base = {
+    number: receiptNumber(item),
+    date: date.isValid() ? date.format('DD MMM YYYY') : '-',
+    status: 'Paid',
+    billedTo: selfName || 'Connectiqo user',
+    reference,
+  };
+
+  if (item.type === TX_TYPE.SESSION_EARNED) {
+    const gross = tx ? tx.amount_total_paise / 100 : item.amount;
+    const fee = tx ? tx.platform_fee_paise / 100 : 0;
+    return {
+      ...base,
+      billedToLabel: 'Paid to',
+      counterpartyLabel: 'Learner',
+      counterparty: item.person?.name,
+      lines: [
+        { label: '1:1 mentoring session', amount: gross },
+        ...(fee > 0 ? [{ label: 'Platform fee (incl. taxes)', amount: fee }] : []),
+      ],
+      total: tx ? tx.mentor_earning_paise / 100 : item.amount,
+      totalLabel: 'Amount received',
+      note: 'Payment receipt. Platform fee is inclusive of applicable taxes.',
+    };
+  }
+
+  if (item.type === TX_TYPE.SUBSCRIPTION) {
+    return {
+      ...base,
+      billedToLabel: 'Paid by',
+      counterpartyLabel: 'Mentor',
+      counterparty: item.person?.name,
+      lines: [{ label: 'Video library subscription', amount: item.amount }],
+      total: item.amount,
+      totalLabel: 'Amount paid',
+      note: 'Payment receipt. Amount is inclusive of applicable taxes.',
+    };
+  }
+
+  return {
+    ...base,
+    billedToLabel: 'Paid by',
+    counterpartyLabel: 'Mentor',
+    counterparty: item.person?.name,
+    lines: [{ label: '1:1 mentoring session', amount: tx ? tx.amount_total_paise / 100 : item.amount }],
+    total: tx ? tx.amount_total_paise / 100 : item.amount,
+    totalLabel: 'Amount paid',
+    note: 'Payment receipt. Amount is inclusive of applicable taxes.',
+  };
+}
+
+function TransactionRow({ item, index = 0, replayToken = 0, selfName, navigation }) {
   const styles = useThemedStyles(createTransactionStyles);
   const { theme } = useTheme();
   const C = theme.colors;
@@ -579,6 +517,14 @@ function TransactionRow({ item, index = 0, replayToken = 0 }) {
   const translateX = useRef(new Animated.Value(-12)).current;
   const hasEntered = useRef(false);
   const isRecent = item.dateRaw && moment(item.dateRaw).isAfter(moment().subtract(7, 'days'));
+  // No money actually moved for cancelled/pending rows, so there is nothing to receipt.
+  const canReceipt = Boolean(item.tx) || (isSubscription && item.amount > 0);
+
+  const handleReceipt = useCallback(() => {
+    navigation?.navigate(SCREEN_NAMES.ReceiptPreview, {
+      receipt: buildReceipt(item, selfName),
+    });
+  }, [item, selfName, navigation]);
 
   const typeMeta = (() => {
     if (isSubscription) {
@@ -613,8 +559,6 @@ function TransactionRow({ item, index = 0, replayToken = 0 }) {
     : isCredit
       ? C.accent.success
       : GOLD;
-
-  const amountPrefix = item.status === 'cancelled' ? '' : isCredit ? '+' : '−';
 
   useEffect(() => {
     const delay = 60 + index * 50;
@@ -674,13 +618,24 @@ function TransactionRow({ item, index = 0, replayToken = 0 }) {
 
         <View style={styles.txRight}>
           <Text style={[styles.txAmount, { color: amountColor }]}>
-            {amountPrefix}{fmt(item.amount)}
+            {fmt(Math.abs(item.amount || 0))}
           </Text>
           <Text style={styles.txAmountSub}>{typeMeta.amountLabel}</Text>
           {isRecent ? (
             <PulseBadge style={styles.recentBadge}>
               <Text style={styles.recentBadgeText}>Recent</Text>
             </PulseBadge>
+          ) : null}
+          {canReceipt ? (
+            <AnimatedPressable
+              onPress={handleReceipt}
+              style={styles.receiptBtn}
+              hoverScale={1.06}
+              pressScale={0.94}
+            >
+              <MaterialIcons name="receipt-long" size={13} color={TEAL} />
+              <Text style={styles.receiptBtnText}>Receipt</Text>
+            </AnimatedPressable>
           ) : null}
         </View>
       </Animated.View>
@@ -744,53 +699,26 @@ export default function TransactionHistoryScreen({ navigation }) {
   const styles = useThemedStyles(createTransactionStyles);
   const { theme } = useTheme();
   const C = theme.colors;
-  const B = C.buttons;
-  const S = C.surface;
-  const PURPLE_LINK = B.nebulaGradient[0];
-  const GOLD = C.accent.primary;
   const TEAL = C.accent.secondary;
-  const PANEL_BG = C.surface.panel;
-  const isLight = theme.mode === 'light';
-  const heroBanner = isLight
-    ? C.surface.heroGradient
-    : ['rgba(124,58,237,0.45)', 'rgba(94,234,212,0.22)', PANEL_BG];
-  const heroFade = isLight
-    ? ['transparent', 'rgba(248,249,255,0.92)', PANEL_BG]
-    : ['transparent', 'rgba(15,14,42,0.9)', PANEL_BG];
   const { profile } = useAuth();
   const [mentorTx, setMentorTx] = useState([]);
   const [learnerTx, setLearnerTx] = useState([]);
   const [videoSubs, setVideoSubs] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [replayToken, setReplayToken] = useState(0);
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const loadedRef = useRef(false);
-  const bannerShimmer = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(bannerShimmer, {
-        toValue: 1,
-        duration: 3200,
-        easing: Easing.inOut(Easing.sin),
-        useNativeDriver: true,
-      }),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [bannerShimmer]);
-
-  const bannerShimmerX = bannerShimmer.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-180, 280],
-  });
 
   const load = useCallback(async () => {
     if (!profile?.id) return;
-    const [mentorRes, learnerRes, subsRes] = await Promise.allSettled([
+    const [mentorRes, learnerRes, subsRes, payRes] = await Promise.allSettled([
       bookingApi.getTransactionsAsMentor(profile.id),
       bookingApi.getTransactionsAsLearner(profile.id),
       videoApi.getLearnerSubscriptions(profile.id),
+      paymentApi.getTransactions(profile.id),
     ]);
 
     if (mentorRes.status === 'fulfilled') setMentorTx(mentorRes.value);
@@ -801,6 +729,9 @@ export default function TransactionHistoryScreen({ navigation }) {
 
     if (subsRes.status === 'fulfilled') setVideoSubs(subsRes.value);
     else console.error('[TransactionHistory] subs fetch failed:', subsRes.reason?.message);
+
+    if (payRes.status === 'fulfilled') setPayments(payRes.value);
+    else console.error('[TransactionHistory] payments fetch failed:', payRes.reason?.message);
 
     loadedRef.current = true;
   }, [profile?.id]);
@@ -837,29 +768,31 @@ export default function TransactionHistoryScreen({ navigation }) {
     }
   }, [load]);
 
+  const txByBooking = useMemo(() => {
+    const map = new Map();
+    payments.forEach(tx => { if (tx.booking_id) map.set(tx.booking_id, tx); });
+    return map;
+  }, [payments]);
+
   const transactions = useMemo(
-    () => normalizeTransactions(mentorTx, learnerTx, videoSubs),
-    [mentorTx, learnerTx, videoSubs],
+    () => normalizeTransactions(mentorTx, learnerTx, videoSubs, txByBooking),
+    [mentorTx, learnerTx, videoSubs, txByBooking],
   );
 
-  const { totalReceived, totalSpent } = useMemo(() => {
-    let received = 0;
-    let spent = 0;
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(item => {
+      if (typeFilter !== 'all' && item.type !== typeFilter) return false;
+      if (statusFilter !== 'all' && item.status !== statusFilter) return false;
+      return true;
+    });
+  }, [transactions, typeFilter, statusFilter]);
 
-    mentorTx
-      .filter(b => b.status === 'completed')
-      .forEach(b => { received += b?.mentor_profiles?.price_per_hour || 0; });
+  const filtersActive = typeFilter !== 'all' || statusFilter !== 'all';
 
-    learnerTx
-      .filter(b => b.status === 'completed' || b.status === 'confirmed')
-      .forEach(b => { spent += b?.mentor_profiles?.price_per_hour || 0; });
-
-    videoSubs.forEach(s => { spent += s.amount_paid || 0; });
-
-    return { totalReceived: received, totalSpent: spent };
-  }, [mentorTx, learnerTx, videoSubs]);
-
-  const netFlow = totalReceived - totalSpent;
+  const clearFilters = useCallback(() => {
+    setTypeFilter('all');
+    setStatusFilter('all');
+  }, []);
 
   return (
     <SafeScreen scrollable={false} padding={0} hasBottomTabs={false} includeTopInset={STACK_OVERLAY_LAYOUT.safeScreenIncludeTopInset}>
@@ -871,7 +804,11 @@ export default function TransactionHistoryScreen({ navigation }) {
           </AnimatedPressable>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Transaction history</Text>
-            <Text style={styles.headerSubtitle}>Sessions, earnings & video subscriptions</Text>
+            <Text style={styles.headerSubtitle}>
+              {filteredTransactions.length}
+              {filtersActive ? ` of ${transactions.length}` : ''}
+              {' '}transaction{filteredTransactions.length === 1 ? '' : 's'}
+            </Text>
           </View>
           <AnimatedPressable
             onPress={handleRefresh}
@@ -890,6 +827,49 @@ export default function TransactionHistoryScreen({ navigation }) {
       </FadeSlideIn>
       </StackScreenHeader>
 
+      <View style={styles.filtersWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {TYPE_FILTERS.map(f => (
+            <FilterChip
+              key={f.key}
+              label={f.label}
+              active={typeFilter === f.key}
+              onPress={() => setTypeFilter(f.key)}
+              styles={styles}
+              activeColor={TEAL}
+              activeTextColor={C.buttons?.primaryText || '#0B1220'}
+            />
+          ))}
+        </ScrollView>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {STATUS_FILTERS.map(f => (
+            <FilterChip
+              key={f.key}
+              label={f.label}
+              active={statusFilter === f.key}
+              onPress={() => setStatusFilter(f.key)}
+              styles={styles}
+              activeColor={C.accent.primary}
+              activeTextColor="#1A1200"
+            />
+          ))}
+          {filtersActive ? (
+            <Pressable onPress={clearFilters} style={styles.clearFiltersBtn} hitSlop={8}>
+              <MaterialIcons name="close" size={14} color={C.text.muted} />
+              <Text style={styles.clearFiltersText}>Clear</Text>
+            </Pressable>
+          ) : null}
+        </ScrollView>
+      </View>
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -898,101 +878,31 @@ export default function TransactionHistoryScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={TEAL} colors={[TEAL]} />
         }
       >
-        <FadeSlideIn delay={60} replayToken={replayToken}>
-          <HoverHighlight style={styles.heroCard} hoverScale={1.005} pressScale={0.998} highlightRadius={18}>
-            <LinearGradient
-              colors={heroBanner}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroBanner}
-            />
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.heroShimmer, { transform: [{ translateX: bannerShimmerX }] }]}
-            />
-            <LinearGradient
-              colors={heroFade}
-              style={styles.heroFade}
-            />
-
-            <View style={styles.heroTopRow}>
-              <View style={styles.heroIconWrap}>
-                <PulseGlow color={GOLD} size={72} />
-                <View style={styles.heroIconRing}>
-                  <LinearGradient colors={B.premiumGradient} style={styles.heroIconGrad}>
-                    <MaterialIcons name="receipt-long" size={24} color={GOLD} />
-                  </LinearGradient>
-                </View>
-              </View>
-              <View style={styles.heroMeta}>
-                <Text style={styles.heroLabel}>Net activity</Text>
-                <AnimatedBalanceText
-                  value={`${netFlow >= 0 ? '+' : '−'}${fmt(Math.abs(netFlow))}`}
-                  style={[styles.heroAmount, netFlow >= 0 && { color: C.accent.success }]}
-                  replayToken={replayToken}
-                />
-                <Text style={styles.heroNote}>
-                  {transactions.length} transaction{transactions.length === 1 ? '' : 's'} on record
-                </Text>
-              </View>
-            </View>
-          </HoverHighlight>
-        </FadeSlideIn>
-
-        <View style={styles.statsRow}>
-          <StatTile
-            icon="south-west"
-            label="Received"
-            value={fmt(totalReceived)}
-            color={C.accent.success}
-            accentBg={S.accentSuccess}
-            delay={120}
-            replayToken={replayToken}
-          />
-          <StatTile
-            icon="north-east"
-            label="Spent"
-            value={fmt(totalSpent)}
-            color={GOLD}
-            accentBg={S.accentGold}
-            delay={170}
-            replayToken={replayToken}
-          />
-          <StatTile
-            icon="swap-vert"
-            label="Total"
-            value={String(transactions.length)}
-            color={TEAL}
-            accentBg={S.accentTeal}
-            delay={220}
-            replayToken={replayToken}
-          />
-        </View>
-
-        <SectionBlock
-          icon="history"
-          title="All transactions"
-          subtitle={transactions.length
-            ? 'Sorted by most recent first'
-            : 'Your payment activity will appear here'}
-          accent={TEAL}
-          accentBg={S.accentTeal}
-          delay={280}
-          replayToken={replayToken}
-        >
-          {transactions.length > 0 ? (
-            transactions.map((item, index) => (
+        <View style={styles.listCard}>
+          {filteredTransactions.length > 0 ? (
+            filteredTransactions.map((item, index) => (
               <TransactionRow
                 key={item.id}
                 item={item}
                 index={index}
                 replayToken={replayToken}
+                selfName={profile?.name}
+                navigation={navigation}
               />
             ))
+          ) : transactions.length > 0 ? (
+            <View style={styles.filterEmpty}>
+              <MaterialIcons name="filter-list-off" size={28} color={C.text.muted} />
+              <Text style={styles.filterEmptyTitle}>No matches</Text>
+              <Text style={styles.filterEmptySubtitle}>Try another type or status filter.</Text>
+              <Pressable onPress={clearFilters} style={styles.clearFiltersBtnLarge}>
+                <Text style={[styles.clearFiltersText, { color: TEAL }]}>Clear filters</Text>
+              </Pressable>
+            </View>
           ) : (
             <EmptyState />
           )}
-        </SectionBlock>
+        </View>
       </ScrollView>
 
       <LoadingOverlay visible={loading && !loadedRef.current} message="Loading transactions…" />
@@ -1063,6 +973,74 @@ function createTransactionStyles(theme) {
     paddingBottom: T.spacing.xxxl,
   },
 
+  filtersWrap: {
+    paddingTop: T.spacing.sm,
+    paddingBottom: T.spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(167,139,250,0.16)',
+    gap: 8,
+  },
+  filterRow: {
+    paddingHorizontal: T.spacing.lg,
+    gap: 8,
+    alignItems: 'center',
+    paddingBottom: 4,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: softBorder(theme),
+    backgroundColor: softFill(theme),
+  },
+  filterChipActive: {
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: C.text.muted,
+  },
+  filterChipTextActive: {
+    color: C.text.primary,
+  },
+  clearFiltersBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  clearFiltersText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: C.text.muted,
+  },
+  clearFiltersBtnLarge: {
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  filterEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+    gap: 6,
+  },
+  filterEmptyTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: C.text.primary,
+    marginTop: 6,
+  },
+  filterEmptySubtitle: {
+    fontSize: 13,
+    color: C.text.muted,
+    textAlign: 'center',
+  },
+
   hoverHighlight: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(167,139,250,0.1)',
@@ -1072,128 +1050,7 @@ function createTransactionStyles(theme) {
     borderWidth: 2,
   },
 
-  heroCard: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.25)',
-    backgroundColor: PANEL_BG,
-    padding: T.spacing.lg,
-    marginBottom: T.spacing.lg,
-  },
-  heroBanner: { ...StyleSheet.absoluteFillObject },
-  heroShimmer: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 90,
-    backgroundColor: softFill(theme),
-    transform: [{ skewX: '-16deg' }],
-  },
-  heroFade: { ...StyleSheet.absoluteFillObject },
-  heroTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: T.spacing.md,
-  },
-  heroIconWrap: {
-    width: 52,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroIconRing: { borderRadius: 16, overflow: 'hidden' },
-  heroIconGrad: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroMeta: { flex: 1 },
-  heroLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: C.text.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  heroAmount: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: C.text.primary,
-    letterSpacing: -0.5,
-  },
-  heroNote: {
-    fontSize: 13,
-    color: C.text.muted,
-    marginTop: 2,
-  },
-
-  statsRow: {
-    flexDirection: 'row',
-    gap: T.spacing.sm,
-    marginBottom: T.spacing.lg,
-  },
-  statTileWrap: { flex: 1, overflow: 'hidden' },
-  statTile: {
-    backgroundColor: PANEL_BG,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.2)',
-    padding: T.spacing.md,
-    alignItems: 'center',
-    gap: 4,
-    overflow: 'hidden',
-  },
-  statIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-  },
-  statValue: {
-    fontSize: 14,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  statLabel: {
-    fontSize: 11,
-    color: C.text.muted,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-
-  sectionBlock: { marginBottom: T.spacing.lg },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: T.spacing.sm,
-    marginBottom: T.spacing.sm,
-    paddingHorizontal: 2,
-  },
-  sectionIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionHeaderText: { flex: 1 },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: C.text.primary,
-  },
-  sectionSubtitle: {
-    fontSize: 12,
-    color: C.text.muted,
-    marginTop: 1,
-  },
-  sectionCard: {
+  listCard: {
     backgroundColor: PANEL_BG,
     borderRadius: 16,
     borderWidth: 1,
@@ -1265,6 +1122,23 @@ function createTransactionStyles(theme) {
     color: C.text.muted,
     marginTop: 1,
     fontWeight: '600',
+  },
+  receiptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: T.borderRadius.sm,
+    backgroundColor: S.accentTeal,
+    borderWidth: 1,
+    borderColor: C.border.default,
+  },
+  receiptBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: TEAL,
   },
   recentBadge: {
     marginTop: 4,

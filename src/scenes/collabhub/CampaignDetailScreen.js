@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Image,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
@@ -25,6 +26,7 @@ import { softBorder, softFill, softFillStrong, cardFill } from '../../theme/surf
 import { useAuth } from '../../hooks/useAuth';
 import { collabHubApi, MAX_SUBMISSION_MB } from '../../api/collabHubApi';
 import { useCampaignSubmissionRealtime } from '../../hooks/useCampaignSubmissionRealtime';
+import { shareCampaign } from '../../utils/shareProfile';
 
 const money = n => `₹${parseFloat(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 const PITCH_MIN = 20;
@@ -97,6 +99,26 @@ export default function CampaignDetailScreen({ navigation, route }) {
   // screen follows the row instead of polling for it.
   useCampaignSubmissionRealtime(application?.id, load);
 
+  const share = useCallback(async () => {
+    try {
+      const deadline = campaign?.application_deadline
+        ? moment(campaign.application_deadline)
+        : null;
+      await shareCampaign({
+        campaignId,
+        title: campaign?.title,
+        brandName: campaign?.brand?.name,
+        budgetPerWinner: campaign?.budget_per_winner,
+        deadlineLabel: deadline?.isValid() ? deadline.format('DD MMM YYYY') : null,
+      });
+    } catch (e) {
+      // Cancelling the share sheet is not a failure worth a toast.
+      if (e?.message && e.message !== 'User did not share') {
+        Toast.show('Could not share this collab');
+      }
+    }
+  }, [campaignId, campaign]);
+
   const apply = async () => {
     const text = pitch.trim();
     if (text.length < PITCH_MIN) {
@@ -123,6 +145,23 @@ export default function CampaignDetailScreen({ navigation, route }) {
     }
   };
 
+  // RLS stores an acceptance timestamp on every submission, so the creator has
+  // to see the brand's usage-rights terms before we write the row. Same terms
+  // already shown in the "Usage rights" section below.
+  const confirmUsageRights = () =>
+    new Promise(resolve => {
+      Alert.alert(
+        'Usage rights',
+        `${campaign?.content_usage_rights
+          || 'The brand receives usage rights to the video you submit for this campaign.'}\n\nUploading means you accept these terms.`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Accept & upload', onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+
   const pickAndSubmit = () => {
     if (uploading.current) return;
     // No app-side compression: the watermark pass re-encodes server-side, so
@@ -140,6 +179,8 @@ export default function CampaignDetailScreen({ navigation, route }) {
         );
         return;
       }
+
+      if (!(await confirmUsageRights())) return;
 
       uploading.current = true;
       setBusy(true);
@@ -165,9 +206,11 @@ export default function CampaignDetailScreen({ navigation, route }) {
   };
 
   const retry = async () => {
+    // Pre-agreement rows carry no acceptance, and the update policy needs one.
+    if (!submission.agreement_accepted_at && !(await confirmUsageRights())) return;
     setBusy(true);
     try {
-      await collabHubApi.retryWatermark(submission.id);
+      await collabHubApi.retryWatermark(submission);
       Toast.show('Retrying', Toast.SHORT);
       await load();
     } catch (e) {
@@ -217,7 +260,13 @@ export default function CampaignDetailScreen({ navigation, route }) {
               {campaign?.brand?.name || 'Campaign'}
             </Text>
           </View>
-          <View style={styles.iconBtn} />
+          {campaign ? (
+            <Pressable onPress={share} style={styles.iconBtn} hitSlop={8}>
+              <MaterialIcons name="share" size={20} color={C.accent.primary} />
+            </Pressable>
+          ) : (
+            <View style={styles.iconBtn} />
+          )}
         </View>
       </StackScreenHeader>
 

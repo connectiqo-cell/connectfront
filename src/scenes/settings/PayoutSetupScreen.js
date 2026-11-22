@@ -42,7 +42,7 @@ function getStatusConfig(theme) {
         : ['rgba(52,211,153,0.35)', 'rgba(94,234,212,0.18)', PANEL_BG],
       glow: C.accent.success,
       title: 'Payouts are ready',
-      subtitle: 'Withdrawals from your wallet will be sent to this UPI ID.',
+      subtitle: 'Payouts are done in 1–2 days.',
     },
     not_started: {
       color: C.text.muted,
@@ -55,17 +55,10 @@ function getStatusConfig(theme) {
         : ['rgba(124,58,237,0.4)', 'rgba(94,234,212,0.18)', PANEL_BG],
       glow: C.accent.secondary,
       title: 'Set up payouts',
-      subtitle: 'Add your UPI ID so withdrawals have somewhere to go.',
+      subtitle: 'Payouts are done in 1–2 days after you request a withdrawal.',
     },
   };
 }
-
-const PAYOUT_STEPS = [
-  { icon: 'payments', text: 'Creator pays when they book your session.' },
-  { icon: 'call-split', text: 'Your share is credited after the session completes.' },
-  { icon: 'account-balance-wallet', text: 'Request withdrawal from My Wallet (min ₹5,000).' },
-  { icon: 'send', text: 'We settle it to your UPI within 1–2 business days.' },
-];
 
 function runEntrance(opacity, translateY, delay = 0) {
   opacity.setValue(0);
@@ -395,47 +388,6 @@ function SectionBlock({ icon, title, subtitle, accent, accentBg, children, delay
         {children}
       </HoverHighlight>
     </Animated.View>
-  );
-}
-
-function StepRow({ icon, text, index = 0, replayToken = 0 }) {
-  const styles = useThemedStyles(createPayoutStyles);
-  const { theme } = useTheme();
-  const TEAL = theme.colors.accent.secondary;
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateX = useRef(new Animated.Value(-10)).current;
-  const hasEntered = useRef(false);
-
-  const play = useCallback(() => {
-    opacity.setValue(0);
-    translateX.setValue(-10);
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 300, delay: 80 + index * 70, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(translateX, { toValue: 0, duration: 300, delay: 80 + index * 70, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }, [index, opacity, translateX]);
-
-  useEffect(() => {
-    if (!hasEntered.current) {
-      hasEntered.current = true;
-      play();
-      return;
-    }
-    if (replayToken > 0) play();
-  }, [replayToken, play]);
-
-  return (
-    <HoverHighlight style={styles.stepRowWrap} hoverScale={1.01} pressScale={0.99}>
-      <Animated.View style={[styles.stepRow, { opacity, transform: [{ translateX }] }]}>
-        <View style={styles.stepNumber}>
-          <Text style={styles.stepNumberText}>{index + 1}</Text>
-        </View>
-        <View style={styles.stepIcon}>
-          <MaterialIcons name={icon} size={17} color={TEAL} />
-        </View>
-        <Text style={styles.stepText}>{text}</Text>
-      </Animated.View>
-    </HoverHighlight>
   );
 }
 
@@ -851,20 +803,6 @@ export default function PayoutSetupScreen({ navigation }) {
           </HoverHighlight>
         </FadeSlideIn>
 
-        <SectionBlock
-          icon="route"
-          title="How payouts work"
-          subtitle="From session booking to your UPI"
-          accent={TEAL}
-          accentBg={S.accentTeal}
-          delay={140}
-          replayToken={replayToken}
-        >
-          {PAYOUT_STEPS.map((step, index) => (
-            <StepRow key={step.icon} icon={step.icon} text={step.text} index={index} replayToken={replayToken} />
-          ))}
-        </SectionBlock>
-
         {isSetUp && !editMode ? (
           <SectionBlock
             icon="account-balance"
@@ -889,7 +827,7 @@ export default function PayoutSetupScreen({ navigation }) {
             <NoticeCard variant="success">
               <MaterialIcons name="check-circle" size={18} color={C.accent.success} />
               <Text style={styles.noticeSuccessText}>
-                Withdrawals you request are settled to this payout method by our team.
+                Payouts are done in 1–2 days.
               </Text>
             </NoticeCard>
 
@@ -1047,8 +985,7 @@ export default function PayoutSetupScreen({ navigation }) {
           <View style={styles.footerNote}>
             <MaterialIcons name="info-outline" size={15} color={C.text.muted} />
             <Text style={styles.footerNoteText}>
-              Payouts are settled manually by our team via UPI/IMPS/NEFT within 1–2 business days.
-              Platform fee applies per session as shown at booking.
+              Payouts are done in 1–2 days.
             </Text>
           </View>
         </FadeSlideIn>

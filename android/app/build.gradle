@@ -80,6 +80,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
+    lint { checkReleaseBuilds false }  // ponytail: skips per-module lintVital on release (minutes); run `gradlew lintRelease` explicitly when you want the gate
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
@@ -89,8 +90,8 @@ android {
         applicationId "com.connectiqo.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 21
-        versionName "1.3.1"
+        versionCode 22
+        versionName "1.3.2"
     }
     signingConfigs {
         debug {

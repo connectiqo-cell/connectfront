@@ -38,7 +38,6 @@ import { CircularProfileImage } from '../../components/CircularGradientFrame';
 import { useAvatarPreview } from '../../contexts/AvatarPreviewContext';
 import AppearanceMenuRow from '../../components/AppearanceMenuRow';
 import { PRIVACY_URL, TERMS_URL } from '../../constants/legal';
-import BlockedAccountsSheet from '../../components/BlockedAccountsSheet';
 
 const APP_VERSION = '0.0.1';
 const SUPPORT_EMAIL = 'contact@connectiqo.com';
@@ -603,7 +602,6 @@ export default function UnifiedSettingsScreen({ navigation }) {
   const [subscriptions, setSubscriptions] = useState([]);
   const [walletBalance, setWalletBalance] = useState(null);
   const [replayToken, setReplayToken] = useState(0);
-  const [showBlockedSheet, setShowBlockedSheet] = useState(false);
   const subsLoadedRef = useRef(false);
   const walletLoadedRef = useRef(false);
 
@@ -1143,7 +1141,7 @@ export default function UnifiedSettingsScreen({ navigation }) {
               accent="purple"
               label="Blocked accounts"
               subtitle="Review or undo the people you blocked"
-              onPress={() => setShowBlockedSheet(true)}
+              onPress={() => navigation.navigate(SCREEN_NAMES.BlockedAccounts)}
               index={2}
               replayToken={replayToken}
             />
@@ -1190,10 +1188,6 @@ export default function UnifiedSettingsScreen({ navigation }) {
       </ScrollView>
 
       <LoadingOverlay visible={loading} message="Uploading photo…" />
-      <BlockedAccountsSheet
-        visible={showBlockedSheet}
-        onClose={() => setShowBlockedSheet(false)}
-      />
     </SafeScreen>
   );
 }

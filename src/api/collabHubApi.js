@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getSupabaseErrorMessage } from '../lib/supabaseErrorHandler';
 import { uploadFileXHR } from './videoApi';
 
 /**
@@ -16,8 +17,11 @@ const CAMPAIGN_SELECT = '*, brand:brand_id ( name, avatar_url )';
 /** Server-side watermarking re-encodes anyway, so we upload the original. */
 export const MAX_SUBMISSION_MB = 200;
 
+// Every other api module routes errors through this; CollabHub threw the raw
+// Postgres text, which is how a creator ended up emailing support a
+// row-level-security message.
 const unwrap = ({ data, error }) => {
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(getSupabaseErrorMessage(error));
   return data;
 };
 
@@ -121,6 +125,9 @@ export const collabHubApi = {
             status: 'processing',
             // Clears a previous failure so the worker picks this up.
             watermark_error: null,
+            // RLS rejects a submission without this (insert and update both),
+            // so the caller must have shown the usage-rights terms first.
+            agreement_accepted_at: new Date().toISOString(),
           },
           { onConflict: 'application_id' },
         )
@@ -129,13 +136,25 @@ export const collabHubApi = {
     );
   },
 
-  /** Retry a watermark pass that failed, without re-uploading the video. */
-  retryWatermark: async (submissionId) => {
+  /**
+   * Retry a watermark pass that failed, without re-uploading the video.
+   *
+   * Takes the row, not just its id: the update policy demands a non-null
+   * agreement_accepted_at, and rows written before that column existed have
+   * none — so we carry the original acceptance forward, or record the one the
+   * caller just collected.
+   */
+  retryWatermark: async (submission) => {
     unwrap(
       await supabase
         .from('campaign_submissions')
-        .update({ status: 'processing', watermark_error: null })
-        .eq('id', submissionId),
+        .update({
+          status: 'processing',
+          watermark_error: null,
+          agreement_accepted_at:
+            submission.agreement_accepted_at || new Date().toISOString(),
+        })
+        .eq('id', submission.id),
     );
   },
 

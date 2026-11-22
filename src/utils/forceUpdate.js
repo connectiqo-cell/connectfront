@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 // Bump these with android/app/build.gradle `versionCode` and iOS `CURRENT_PROJECT_VERSION`
 // on every release. The store's min_*_version row in app_config is compared against them.
-export const APP_BUILD = Platform.select({ android: 20, ios: 19, default: 0 });
+export const APP_BUILD = Platform.select({ android: 22, ios: 19, default: 0 });
 
 const STORE_URLS = {
   android: 'https://play.google.com/store/apps/details?id=com.connectiqo.app',
@@ -27,10 +27,14 @@ export async function checkForceUpdate(currentBuild = APP_BUILD) {
 
     const row = k => data.find(r => r.key === k)?.value;
 
+    const min = parseInt(row(key), 10);
+
     return {
       required: needsUpdate(currentBuild, row(key)),
       message:  row('update_message') || 'A newer version is required to continue.',
       storeUrl: STORE_URLS[Platform.OS],
+      currentBuild,
+      minBuild: Number.isFinite(min) ? min : null,
     };
   } catch {
     return { required: false };

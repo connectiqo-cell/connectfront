@@ -105,6 +105,9 @@
             <data android:scheme="https" android:host="app.connectiqo.com" android:pathPrefix="/mentor" />
             <data android:scheme="https" android:host="connectiqo.com" android:pathPrefix="/mentor" />
             <data android:scheme="https" android:host="www.connectiqo.com" android:pathPrefix="/mentor" />
+            <data android:scheme="https" android:host="app.connectiqo.com" android:pathPrefix="/campaign" />
+            <data android:scheme="https" android:host="connectiqo.com" android:pathPrefix="/campaign" />
+            <data android:scheme="https" android:host="www.connectiqo.com" android:pathPrefix="/campaign" />
         </intent-filter>
       </activity>
     <!-- Foreground Service Metadata -->

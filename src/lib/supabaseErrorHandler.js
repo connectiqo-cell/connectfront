@@ -60,6 +60,16 @@ export const getSupabaseErrorMessage = (error) => {
     return 'Database error. Please contact support.';
   }
 
+  // RLS rejection. Postgres phrases every one of these identically, so the
+  // table name in the message is the only clue about what was actually
+  // refused — without this branch the raw SQL text reaches the user.
+  if (code === '42501' || message.includes('row-level security policy')) {
+    if (message.includes('campaign_submissions')) {
+      return 'This campaign is not accepting your video right now — the deadline may have passed, or your application is no longer shortlisted. Contact support if that looks wrong.';
+    }
+    return "You do not have permission to do that.";
+  }
+
   // Network errors
   if (
     message.includes('Network request failed') ||

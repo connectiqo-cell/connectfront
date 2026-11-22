@@ -41,6 +41,7 @@ export const SCREEN_NAMES = {
   MentorAvailability: "MentorAvailability_Screen",
   RecordedLectures: "RecordedLectures_Screen",
   TransactionHistory: "TransactionHistory_Screen",
+  ReceiptPreview: "ReceiptPreview_Screen",
   Wallet: "Wallet_Screen",
   Review: "Review_Screen",
   MentorReviews: "MentorReviews_Screen",
@@ -55,6 +56,9 @@ export const SCREEN_NAMES = {
 
   /** Network / connectivity (UI shell; wire NetInfo later) */
   Connectivity: "Connectivity_Screen",
+
+  /** Peer-blocked accounts list */
+  BlockedAccounts: "BlockedAccounts_Screen",
 
   /** In-app notification center */
   Notifications: "Notifications_Screen",

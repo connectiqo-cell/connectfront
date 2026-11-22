@@ -152,7 +152,7 @@ export const paymentApi = {
     try {
       const { data, error } = await supabase
         .from('transactions')
-        .select('id, status, created_at, learner_id, mentor_id, razorpay_order_id, razorpay_payment_id, amount_total_paise, platform_fee_paise, mentor_earning_paise')
+        .select('id, booking_id, status, created_at, learner_id, mentor_id, razorpay_order_id, razorpay_payment_id, amount_total_paise, platform_fee_paise, mentor_earning_paise')
         .or(`learner_id.eq.${userId},mentor_id.eq.${userId}`)
         .eq('status', 'paid')
         .order('created_at', { ascending: false });

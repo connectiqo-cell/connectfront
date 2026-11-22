@@ -136,3 +136,51 @@ export async function shareMentorQrImage({ name, username, mentorId, imageUri })
     await shareMentorProfile({ name: displayName, username, mentorId });
   }
 }
+
+/** Campaign links reuse the mentor-share origin so one domain covers both. */
+export function getCampaignShareLink(campaignId) {
+  const id = String(campaignId || '').trim();
+  if (!id) return '';
+  return `${MENTOR_SHARE_WEB_ORIGIN}/campaign/${encodeURIComponent(id)}`;
+}
+
+/**
+ * Share a collab campaign as text + https link.
+ * `deadlineLabel` is pre-formatted by the caller — this util stays date-lib free.
+ * @returns {Promise<boolean>} false when there is no id to share
+ */
+export async function shareCampaign({
+  campaignId,
+  title,
+  brandName,
+  budgetPerWinner,
+  deadlineLabel,
+}) {
+  const url = getCampaignShareLink(campaignId);
+  if (!url) return false;
+
+  const name = (title && String(title).trim()) || 'this collab';
+  const brand = (brandName && String(brandName).trim()) || '';
+  const lines = [
+    brand
+      ? `${brand} is looking for creators — ${name}`
+      : `Collab on Connectiqo — ${name}`,
+  ];
+
+  const budget = Number(budgetPerWinner || 0);
+  if (budget > 0) {
+    lines.push(`₹${budget.toLocaleString('en-IN', { maximumFractionDigits: 0 })} per selected creator`);
+  }
+  if (deadlineLabel) lines.push(`Apply by ${deadlineLabel}`);
+  lines.push(url);
+
+  const shareTitle = brand ? `${name} · ${brand}` : name;
+  const message = lines.join('\n');
+  await Share.share(
+    Platform.select({
+      ios: { title: shareTitle, url, message },
+      default: { title: shareTitle, message },
+    }),
+  );
+  return true;
+}

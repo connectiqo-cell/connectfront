@@ -6,6 +6,7 @@
  *
  * Supported paths:
  *   /mentor/:mentorId       → Mentor profile (UUID or username)
+ *   /campaign/:campaignId   → Collab campaign detail (shared collab link)
  *   /scan                   → Profile QR share screen
  *   /booking/:mentorId      → Book a session with a mentor
  *   /call/:bookingId        → Join a live video call
@@ -74,7 +75,9 @@ export const linking = {
       [SCREEN_NAMES.MentorReviews]:        'mentor/:mentorId/reviews',
       [SCREEN_NAMES.Wallet]:             'wallet',
       [SCREEN_NAMES.TransactionHistory]: 'transactions',
+      [SCREEN_NAMES.BlockedAccounts]: 'blocked-accounts',
       [SCREEN_NAMES.CategoryMentors]:    'category/:category',
+      [SCREEN_NAMES.CampaignDetail]:     'campaign/:campaignId',
     },
   },
 };

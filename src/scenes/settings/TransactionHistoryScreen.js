@@ -57,6 +57,10 @@ const TYPE_FILTERS = [
   { key: TX_TYPE.SUBSCRIPTION, label: 'Subscriptions' },
 ];
 
+// Statuses where money actually changed hands, so a receipt is truthful.
+// 'expired' belongs here: the subscription lapsed, but it was paid for.
+const PAID_STATUSES = new Set(['completed', 'confirmed', 'active', 'expired']);
+
 const STATUS_FILTERS = [
   { key: 'all', label: 'Any status' },
   { key: 'completed', label: 'Completed' },
@@ -467,7 +471,7 @@ function buildReceipt(item, selfName) {
       counterparty: item.person?.name,
       lines: [
         { label: '1:1 mentoring session', amount: gross },
-        ...(fee > 0 ? [{ label: 'Platform fee (incl. taxes)', amount: fee }] : []),
+        ...(fee > 0 ? [{ label: 'Platform fee (incl. taxes)', amount: -fee }] : []),
       ],
       total: tx ? tx.mentor_earning_paise / 100 : item.amount,
       totalLabel: 'Amount received',
@@ -518,7 +522,7 @@ function TransactionRow({ item, index = 0, replayToken = 0, selfName, navigation
   const hasEntered = useRef(false);
   const isRecent = item.dateRaw && moment(item.dateRaw).isAfter(moment().subtract(7, 'days'));
   // No money actually moved for cancelled/pending rows, so there is nothing to receipt.
-  const canReceipt = Boolean(item.tx) || (isSubscription && item.amount > 0);
+  const canReceipt = PAID_STATUSES.has(item.status) && (Boolean(item.tx) || (isSubscription && item.amount > 0));
 
   const handleReceipt = useCallback(() => {
     navigation?.navigate(SCREEN_NAMES.ReceiptPreview, {

@@ -45,6 +45,7 @@
     "react-native-linear-gradient": "^2.8.3",
     "react-native-modal": "^14.0.0-rc.1",
     "react-native-nitro-modules": "^0.37.1",
+    "react-native-orientation-locker": "^1.7.0",
     "react-native-pager-view": "6.9.1",
     "react-native-qrcode-svg": "^6.3.22",
     "react-native-razorpay": "^2.3.1",

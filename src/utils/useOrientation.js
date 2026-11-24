@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Dimensions } from "react-native";
+import Orientation from "react-native-orientation-locker";
 
 /**
  * Returns true if the screen is in portrait mode
@@ -31,4 +32,17 @@ export function useOrientation() {
   }, []);
 
   return orientation;
+}
+
+/**
+ * Allows the device to rotate while this screen is mounted, and restores the
+ * app-wide portrait lock on unmount. Only the in-call screens have landscape
+ * layouts; every other screen is portrait-designed, so rotating them produces
+ * the stretched, crowded UI Apple rejects under Guideline 4.
+ */
+export function useAllowRotation() {
+  useEffect(() => {
+    Orientation.unlockAllOrientations();
+    return () => Orientation.lockToPortrait();
+  }, []);
 }

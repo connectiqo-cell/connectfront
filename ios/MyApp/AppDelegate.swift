@@ -52,6 +52,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     return true
   }
 
+  // UIKit asks here before every rotation. Orientation.getOrientation() returns
+  // the mask the JS side has locked to — portrait everywhere except in-call.
+  func application(
+    _ application: UIApplication,
+    supportedInterfaceOrientationsFor window: UIWindow?
+  ) -> UIInterfaceOrientationMask {
+    return Orientation.getOrientation()
+  }
+
   func application(
     _ application: UIApplication,
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data

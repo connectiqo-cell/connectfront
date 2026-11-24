@@ -1,6 +1,11 @@
 import React, { useMemo, useRef } from "react";
 
 import "react-native-gesture-handler";
+import Orientation from "react-native-orientation-locker";
+
+// Portrait everywhere by default. The in-call screens opt back into rotation
+// with useAllowRotation(); they are the only ones with landscape layouts.
+Orientation.lockToPortrait();
 
 import {
   NavigationContainer,

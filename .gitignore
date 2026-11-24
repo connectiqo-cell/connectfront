@@ -62,3 +62,11 @@ admin/
 
 # Transcoding worker — lives in its own repo (connectiqo-cell/transcoder)
 /transcoder/
+
+# JVM crash dumps and build logs (a 1.6 GB .hprof nearly got committed)
+*.hprof
+hs_err_pid*.log
+replay_pid*.log
+*.stackdump
+build_attempt_log.txt
+build_debug_log.txt

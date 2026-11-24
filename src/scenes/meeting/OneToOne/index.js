@@ -66,7 +66,7 @@ import { useBackgroundWebcamRestore } from "../../../hooks/useBackgroundWebcamRe
 import { useSystemPip, useIsInSystemPip, enterSystemPip } from "../../../hooks/useSystemPip";
 import { useInCallChatPopup } from "../../../hooks/useInCallChatPopup";
 import { useTheme, useThemedStyles } from "../../../hooks/useTheme";
-import { useOrientation } from "../../../utils/useOrientation";
+import { useOrientation, useAllowRotation } from "../../../utils/useOrientation";
 import { pressScreenShare } from "../../../utils/screenShareActions";
 import { getMeetingParticipantSnapshot } from "../../../utils/meetingParticipants";
 import { isRecordingRequestedForBooking, areBothCallParticipantsPresent } from "../../../utils/recordingConsent";
@@ -325,6 +325,7 @@ export default function OneToOneMeetingViewer({
   const [viewLayout, setViewLayout] = useState('split');
   const [primaryParticipantId, setPrimaryParticipantId] = useState(null);
   const orientation = useOrientation();
+  useAllowRotation();
   const isLandscape = orientation === 'LANDSCAPE';
   const [chatViewer, setchatViewer] = useState(false);
   const [participantListViewer, setparticipantListViewer] = useState(false);

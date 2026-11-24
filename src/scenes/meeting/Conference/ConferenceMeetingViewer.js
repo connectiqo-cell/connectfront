@@ -62,7 +62,7 @@ const MemoizedParticipant = React.memo(
     participantId === oldParticipantId
 );
 import { MemoizedParticipantGrid } from "./ConferenceParticipantGrid";
-import { useOrientation } from "../../../utils/useOrientation";
+import { useOrientation, useAllowRotation } from "../../../utils/useOrientation";
 import { useBackgroundWebcamRestore } from "../../../hooks/useBackgroundWebcamRestore";
 import { useInCallChatPopup } from "../../../hooks/useInCallChatPopup";
 import { pressScreenShare } from "../../../utils/screenShareActions";
@@ -128,6 +128,7 @@ export default function ConferenceMeetingViewer({
   const moreOptionsMenu = useRef();
   const recordingRef = useRef();
   const orientation = useOrientation();
+  useAllowRotation();
 
   useBackgroundWebcamRestore({
     localWebcamOn,
